@@ -13,7 +13,7 @@ export async function POST(request) {
     );
   }
 
-  const user = db
+  const user = await db
     .prepare('SELECT id, name, email, password, role FROM users WHERE email = ?')
     .get(email.trim().toLowerCase());
 

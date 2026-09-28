@@ -9,6 +9,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const users = db.prepare('SELECT id, name, email, role FROM users').all();
+  const users = await db.prepare('SELECT id, name, email, role FROM users').all();
   return NextResponse.json({ users });
 }

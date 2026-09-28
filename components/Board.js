@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import TicketCard from './TicketCard';
 import CreateTicketModal from './CreateTicketModal';
 import ProjectModal from './ProjectModal';
@@ -48,9 +49,15 @@ function ChevronIcon() {
   );
 }
 
-export default function Board({ initialTickets, initialProjects, currentUser, developers }) {
+export default function Board({
+  initialTickets,
+  initialProjects,
+  initialEmployees,
+  currentUser,
+}) {
   const [tickets, setTickets] = useState(initialTickets);
   const [projects, setProjects] = useState(initialProjects);
+  const [employees, setEmployees] = useState(initialEmployees);
   const [projectId, setProjectId] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -80,7 +87,11 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
 
   function matchesFilter(t) {
     if (filter === 'all') return true;
-    return t.created_by === currentUser.id || t.assigned_to === currentUser.id;
+    return (
+      t.created_by === currentUser.id ||
+      t.assigned_to === currentUser.id ||
+      (currentUser.employee_id != null && t.employee_id === currentUser.employee_id)
+    );
   }
 
   function matchesProject(t) {
@@ -95,7 +106,8 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
       String(t.id).includes(q) ||
       t.title.toLowerCase().includes(q) ||
       t.description.toLowerCase().includes(q) ||
-      (t.project_name || '').toLowerCase().includes(q)
+      (t.project_name || '').toLowerCase().includes(q) ||
+      (t.employee_name || '').toLowerCase().includes(q)
     );
   }
 
@@ -115,9 +127,13 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
   const myIssuesCount = useMemo(
     () =>
       tickets.filter(
-        (t) => t.created_by === currentUser.id || t.assigned_to === currentUser.id
+        (t) =>
+          t.created_by === currentUser.id ||
+          t.assigned_to === currentUser.id ||
+          (currentUser.employee_id != null &&
+            t.employee_id === currentUser.employee_id)
       ).length,
-    [tickets, currentUser.id]
+    [tickets, currentUser.id, currentUser.employee_id]
   );
 
   const projectCounts = useMemo(() => {
@@ -160,15 +176,52 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
     setDraggingId(null);
   }
 
+  async function handleReassign(id, employeeId) {
+    setError('');
+    const previous = tickets;
+
+    setTickets((ts) =>
+      ts.map((t) => {
+        if (t.id !== id) return t;
+        const employee = employees.find((e) => e.id === Number(employeeId));
+        return {
+          ...t,
+          employee_id: employee ? employee.id : null,
+          employee_name: employee?.name || null,
+          employee_email: employee?.email || null,
+        };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/tickets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: employeeId ? Number(employeeId) : null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reassignment failed.');
+      if (data.ticket) {
+        setTickets((ts) => ts.map((t) => (t.id === id ? data.ticket : t)));
+      }
+    } catch (e) {
+      setTickets(previous);
+      setError(e.message);
+    }
+  }
+
   async function refresh() {
-    const [ticketsRes, projectsRes] = await Promise.all([
+    const [ticketsRes, projectsRes, employeesRes] = await Promise.all([
       fetch('/api/tickets'),
       fetch('/api/projects'),
+      fetch('/api/employees'),
     ]);
     const ticketsData = await ticketsRes.json();
     const projectsData = await projectsRes.json();
+    const employeesData = await employeesRes.json();
     if (ticketsRes.ok) setTickets(ticketsData.tickets);
     if (projectsRes.ok) setProjects(projectsData.projects);
+    if (employeesRes.ok) setEmployees(employeesData.employees);
   }
 
   async function handleCreate() {
@@ -189,12 +242,14 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
       currentUser={currentUser}
       projects={projects}
       projectCounts={projectCounts}
+      employeeCount={employees.filter((e) => e.active).length}
       myIssuesCount={myIssuesCount}
       view="board"
       filter={filter}
       onFilterChange={setFilter}
       projectId={projectId}
       onProjectChange={handleProjectChange}
+      onCreate={isAdmin ? () => setShowModal(true) : null}
     >
       <div className="board">
         {error && (
@@ -208,6 +263,25 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
 
         <div className="board-toolbar">
           <div className="toolbar-title">
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <Link href="/">Projects</Link>
+              {activeProject && (
+                <>
+                  <span className="breadcrumb-sep" aria-hidden="true">
+                    /
+                  </span>
+                  <span>{activeProject.name}</span>
+                </>
+              )}
+              {!activeProject && (
+                <>
+                  <span className="breadcrumb-sep" aria-hidden="true">
+                    /
+                  </span>
+                  <span>All issues</span>
+                </>
+              )}
+            </nav>
             <div className="toolbar-title-row">
               {activeProject && (
                 <span
@@ -229,7 +303,7 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
                 </button>
               )}
               {activeProject && ' · '}
-              {filter === 'mine' ? 'My issues' : 'All issues'} · {total}{' '}
+              {filter === 'mine' ? 'My tickets' : 'All tickets'} · {total}{' '}
               {total === 1 ? 'ticket' : 'tickets'}
             </p>
           </div>
@@ -341,24 +415,8 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
                 }}
               >
                 <div className="column-head">
-                  <span
-                    className="status-dot"
-                    style={{ background: meta.color }}
-                  />
                   <span className="column-name">{meta.label}</span>
                   <span className="column-count">{columnTickets.length}</span>
-                  <div className="column-actions">
-                    {isAdmin && (
-                      <button
-                        className="icon-btn column-add"
-                        onClick={() => setShowModal(true)}
-                        aria-label={`Create a new ticket in ${meta.label}`}
-                        title="New ticket"
-                      >
-                        +
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 <div className="column-body">
@@ -372,14 +430,27 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
                         key={t.id}
                         ticket={t}
                         canUpdate={isDev}
+                        employees={employees}
+                        canReassign={isAdmin}
                         onDragStart={setDraggingId}
                         onDragEnd={() => setDraggingId(null)}
                         onUpdate={updateStatus}
+                        onReassign={handleReassign}
                         isDragging={draggingId === t.id}
                       />
                     ))
                   )}
                 </div>
+
+                {isAdmin && (
+                  <button
+                    className="column-create"
+                    onClick={() => setShowModal(true)}
+                  >
+                    <span aria-hidden="true">+</span>
+                    Create issue
+                  </button>
+                )}
               </div>
             );
           })}
@@ -388,7 +459,7 @@ export default function Board({ initialTickets, initialProjects, currentUser, de
 
       {showModal && (
         <CreateTicketModal
-          developers={developers}
+          employees={employees}
           projects={projects}
           defaultProjectId={activeProject ? activeProject.id : ''}
           onClose={() => setShowModal(false)}

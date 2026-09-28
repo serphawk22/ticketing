@@ -10,8 +10,8 @@ export default async function ProjectsPage() {
   const session = await requireAuth();
   if (!session) redirect('/login');
 
-  const projects = getAllProjects();
-  const tickets = getAllTickets();
+  const projects = await getAllProjects();
+  const tickets = await getAllTickets();
   const userId = session.user.id;
 
   const myIssuesCount = tickets.filter(

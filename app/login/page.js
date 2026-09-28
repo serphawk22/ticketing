@@ -41,7 +41,9 @@ export default function LoginPage() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="logo-mark" title="Ticket Manager">T</div>
+          <div className="logo-tile" aria-hidden="true">
+            T
+          </div>
           <h1>Ticket Manager</h1>
         </div>
         <p className="sub">Sign in to continue</p>
@@ -81,10 +83,12 @@ export default function LoginPage() {
 
         {error && <div className="error-text">{error}</div>}
 
-        <p className="hint">
-          Demo accounts — admin: <b>admin@example.com</b> / <b>admin123</b>
+        <p className="auth-demo">
+          Demo accounts
           <br />
-          developer: <b>dev@example.com</b> / <b>dev123</b>
+          admin: <code>admin@example.com</code> / <code>admin123</code>
+          <br />
+          developer: <code>dev@example.com</code> / <code>dev123</code>
         </p>
       </div>
     </div>

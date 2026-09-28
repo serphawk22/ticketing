@@ -11,9 +11,34 @@ import {
   formatFullDateTime,
 } from './meta';
 
-function TicketDetailModal({ ticket, onClose }) {
+function ChevronIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function TicketDetailModal({
+  ticket,
+  employees = [],
+  canReassign,
+  onReassign,
+  onClose,
+}) {
   const priority = PRIORITY_META[ticket.priority];
   const status = STATUS_META[ticket.status];
+  const assignable = employees.filter((e) => e.active);
 
   useEffect(() => {
     function onKey(e) {
@@ -113,15 +138,43 @@ function TicketDetailModal({ ticket, onClose }) {
               <div className="person">
                 <span className="person-label">Assignee</span>
                 <Avatar
-                  name={ticket.assigned_to_name}
-                  assigned={Boolean(ticket.assigned_to)}
+                  name={ticket.employee_name}
+                  assigned={Boolean(ticket.employee_id)}
                   size={24}
                 />
                 <span className="person-name">
-                  {ticket.assigned_to_name || 'Unassigned'}
+                  {ticket.employee_name || 'Unassigned'}
                 </span>
               </div>
             </div>
+
+            {canReassign && (
+              <div className="form-group reassign-field">
+                <label htmlFor={`assignee-${ticket.id}`}>Assign to</label>
+                <div className="select-field select-field-block">
+                  <select
+                    id={`assignee-${ticket.id}`}
+                    value={ticket.employee_id ?? ''}
+                    onChange={(e) =>
+                      onReassign(ticket.id, e.target.value || null)
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="">Unassigned</option>
+                    {assignable.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                        {emp.title ? ` — ${emp.title}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronIcon />
+                </div>
+                <span className="field-hint">
+                  The new assignee is emailed about this ticket.
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="detail-meta">
@@ -137,9 +190,12 @@ function TicketDetailModal({ ticket, onClose }) {
 export default function TicketCard({
   ticket,
   canUpdate,
+  employees,
+  canReassign,
   onDragStart,
   onDragEnd,
   onUpdate,
+  onReassign,
   isDragging,
 }) {
   const [open, setOpen] = useState(false);
@@ -212,7 +268,7 @@ export default function TicketCard({
                 value={ticket.status}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => onUpdate(ticket.id, e.target.value)}
-                aria-label="Move to status"
+                aria-label={`Move ${ticket.title} to status`}
               >
                 {STATUS_ORDER.map((s) => (
                   <option key={s} value={s}>
@@ -226,7 +282,6 @@ export default function TicketCard({
               className="status-badge"
               style={{ background: status.bg, color: status.text }}
             >
-              <span className="chip-dot" style={{ background: status.color }} />
               {status.label}
             </span>
           )}
@@ -236,15 +291,23 @@ export default function TicketCard({
               {formatShortDate(ticket.created_at)}
             </span>
             <Avatar
-              name={ticket.assigned_to_name}
-              assigned={Boolean(ticket.assigned_to)}
+              name={ticket.employee_name}
+              assigned={Boolean(ticket.employee_id)}
               size={24}
             />
           </div>
         </div>
       </div>
 
-      {open && <TicketDetailModal ticket={ticket} onClose={() => setOpen(false)} />}
+      {open && (
+        <TicketDetailModal
+          ticket={ticket}
+          employees={employees}
+          canReassign={canReassign}
+          onReassign={onReassign}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }

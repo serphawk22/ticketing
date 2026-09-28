@@ -7,7 +7,7 @@ export async function GET() {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  return NextResponse.json({ projects: getAllProjects() });
+  return NextResponse.json({ projects: await getAllProjects() });
 }
 
 export async function POST(request) {
@@ -39,14 +39,14 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Project color must be a hex value.' }, { status: 400 });
   }
 
-  if (getProjectByKey(projectKey)) {
+  if (await getProjectByKey(projectKey)) {
     return NextResponse.json(
       { error: `Project key ${projectKey} is already in use.` },
       { status: 409 }
     );
   }
 
-  const project = createProject({
+  const project = await createProject({
     key: projectKey,
     name: name.trim(),
     description: String(description ?? '').trim(),

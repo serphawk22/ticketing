@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import ProjectModal from '@/components/ProjectModal';
@@ -53,6 +54,7 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
       onFilterChange={() => router.push('/')}
       projectId="all"
       onProjectChange={() => router.push('/')}
+      onCreate={isAdmin ? () => setEditing({ isNew: true }) : null}
     >
       <div className="board">
         {error && (
@@ -66,6 +68,9 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
 
         <div className="board-toolbar">
           <div className="toolbar-title">
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <Link href="/projects">Projects</Link>
+            </nav>
             <h1>Projects</h1>
             <p className="board-subtitle">
               {projects.length} {projects.length === 1 ? 'project' : 'projects'}

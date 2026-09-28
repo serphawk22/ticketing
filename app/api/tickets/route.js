@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getAllTickets } from '@/lib/tickets';
-import { projectExists } from '@/lib/projects';
+import { getAllTickets, getTicket } from '@/lib/tickets';
+import { employeeExists, getEmployee } from '@/lib/employees';
+import { notifyAssignment } from '@/lib/mail';
+
+const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
 export async function GET() {
   const session = await requireAuth();
@@ -10,7 +13,7 @@ export async function GET() {
 
   return NextResponse.json({
     role: session.user.role,
-    tickets: getAllTickets(),
+    tickets: await getAllTickets(),
   });
 }
 
@@ -26,21 +29,28 @@ export async function POST(request) {
     title,
     description,
     priority = 'medium',
-    assigned_to,
     project_id = null,
+    employee_id = null,
   } = await request.json();
 
   if (!title?.trim() || !description?.trim()) {
     return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
   }
 
-  if (project_id && !projectExists(project_id)) {
-    return NextResponse.json({ error: 'Project not found.' }, { status: 400 });
+  if (!VALID_PRIORITIES.includes(priority)) {
+    return NextResponse.json({ error: 'Invalid priority.' }, { status: 400 });
   }
 
-  const info = db
+  if (employee_id && !await employeeExists(employee_id)) {
+    return NextResponse.json(
+      { error: 'Employee not found or deactivated.' },
+      { status: 400 }
+    );
+  }
+
+  const info = await db
     .prepare(
-      `INSERT INTO tickets (title, description, priority, created_by, assigned_to, project_id)
+      `INSERT INTO tickets (title, description, priority, created_by, project_id, employee_id)
        VALUES (?, ?, ?, ?, ?, ?)`
     )
     .run(
@@ -48,13 +58,22 @@ export async function POST(request) {
       description.trim(),
       priority,
       session.user.id,
-      assigned_to || null,
-      project_id || null
+      project_id || null,
+      employee_id || null
     );
 
-  const ticket = db
-    .prepare('SELECT * FROM tickets WHERE id = ?')
-    .get(info.lastInsertRowid);
+  const ticket = await getTicket(info.lastInsertRowid);
 
-  return NextResponse.json({ ticket }, { status: 201 });
+  let notification = null;
+  if (employee_id) {
+    const employee = await getEmployee(employee_id);
+    notification = await notifyAssignment({
+      ticket,
+      employee,
+      actorName: session.user.name,
+      trigger: 'assignment',
+    });
+  }
+
+  return NextResponse.json({ ticket, notification }, { status: 201 });
 }

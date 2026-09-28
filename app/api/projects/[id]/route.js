@@ -15,7 +15,7 @@ export async function PATCH(request, { params }) {
   }
 
   const { id } = await params;
-  const existing = getProject(id);
+  const existing = await getProject(id);
   if (!existing) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
@@ -30,7 +30,7 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Project color must be a hex value.' }, { status: 400 });
   }
 
-  const project = updateProject(id, {
+  const project = await updateProject(id, {
     name: name === undefined ? existing.name : name.trim(),
     description:
       description === undefined ? existing.description : String(description).trim(),
@@ -52,12 +52,12 @@ export async function DELETE(request, { params }) {
   }
 
   const { id } = await params;
-  const existing = getProject(id);
+  const existing = await getProject(id);
   if (!existing) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
-  const detached = deleteProject(id);
+  const detached = await deleteProject(id);
 
   return NextResponse.json({ deleted: true, detachedTickets: detached });
 }

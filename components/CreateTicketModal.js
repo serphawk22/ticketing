@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { PRIORITY_META, PRIORITY_ORDER } from './meta';
 
 export default function CreateTicketModal({
-  developers,
+  employees = [],
   projects = [],
   defaultProjectId = '',
   onClose,
@@ -13,12 +13,14 @@ export default function CreateTicketModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
-  const [assignedTo, setAssignedTo] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
   );
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const assignable = employees.filter((e) => e.active);
 
   useEffect(() => {
     function onKey(e) {
@@ -41,7 +43,7 @@ export default function CreateTicketModal({
           title,
           description,
           priority,
-          assigned_to: assignedTo ? Number(assignedTo) : null,
+          employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
         }),
       });
@@ -132,19 +134,26 @@ export default function CreateTicketModal({
             </div>
 
             <div className="form-group">
-              <label htmlFor="assignee">Assignee</label>
+              <label htmlFor="assignee">Assign to</label>
               <select
                 id="assignee"
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
               >
                 <option value="">Unassigned</option>
-                {developers.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
+                {assignable.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name}
+                    {emp.title ? ` — ${emp.title}` : ''}
                   </option>
                 ))}
               </select>
+              {employeeId && (
+                <span className="field-hint">
+                  {assignable.find((emp) => String(emp.id) === employeeId)?.email} will
+                  be emailed when this ticket is assigned.
+                </span>
+              )}
             </div>
 
             <div className="form-group">
