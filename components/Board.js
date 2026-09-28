@@ -68,8 +68,9 @@ export default function Board({
   const [search, setSearch] = useState('');
   const [draggingId, setDraggingId] = useState(null);
 
-  const isDev = currentUser.role === 'developer';
   const isAdmin = currentUser.role === 'admin';
+  // Any signed-in user can move a ticket. Only reassignment and creation stay admin-only.
+  const canMove = true;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -309,7 +310,16 @@ export default function Board({
           </div>
 
           <div className="toolbar-actions">
-            {isDev && <span className="drag-hint">Drag between columns</span>}
+            {canMove && <span className="drag-hint">Drag between columns</span>}
+
+            {!isAdmin && (
+              <span
+                className="drag-hint"
+                title="Creating issues and reassigning tickets are limited to admins"
+              >
+                Creating and reassigning is admin-only
+              </span>
+            )}
 
             <div className="search-field">
               <SearchIcon />
@@ -400,15 +410,15 @@ export default function Board({
           {STATUS_ORDER.map((status) => {
             const meta = STATUS_META[status];
             const columnTickets = visible.filter((t) => t.status === status);
-            const droppable = isDev && draggingId != null;
+            const droppable = canMove && draggingId != null;
 
             return (
               <div
                 key={status}
                 className={`column${droppable ? ' droppable' : ''}`}
-                onDragOver={(e) => isDev && e.preventDefault()}
+                onDragOver={(e) => canMove && e.preventDefault()}
                 onDrop={(e) => {
-                  if (isDev) {
+                  if (canMove) {
                     e.preventDefault();
                     handleDrop(status);
                   }
@@ -429,7 +439,7 @@ export default function Board({
                       <TicketCard
                         key={t.id}
                         ticket={t}
-                        canUpdate={isDev}
+                        canUpdate={canMove}
                         employees={employees}
                         canReassign={isAdmin}
                         onDragStart={setDraggingId}

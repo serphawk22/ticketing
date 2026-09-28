@@ -148,6 +148,15 @@ function TicketDetailModal({
               </div>
             </div>
 
+            {!canReassign && (
+              <p
+                className="drag-hint"
+                title="Reassigning a ticket is limited to admins"
+              >
+                Reassigning is admin-only
+              </p>
+            )}
+
             {canReassign && (
               <div className="form-group reassign-field">
                 <label htmlFor={`assignee-${ticket.id}`}>Assign to</label>

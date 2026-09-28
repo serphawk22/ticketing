@@ -20,7 +20,6 @@ export async function PATCH(request, { params }) {
 
   const { status, employee_id } = await request.json();
   const isAdmin = session.user.role === 'admin';
-  const isDev = session.user.role === 'developer';
 
   if (status === undefined && employee_id === undefined) {
     return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
@@ -28,13 +27,6 @@ export async function PATCH(request, { params }) {
 
   if (status !== undefined && !VALID_STATUSES.includes(status)) {
     return NextResponse.json({ error: 'Invalid status.' }, { status: 400 });
-  }
-
-  if (status !== undefined && !isDev) {
-    return NextResponse.json(
-      { error: 'Only developers can update ticket status.' },
-      { status: 403 }
-    );
   }
 
   const reassigning = employee_id !== undefined && Number(employee_id || 0) !== Number(ticket.employee_id || 0);
