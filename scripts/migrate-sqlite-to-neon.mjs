@@ -20,11 +20,12 @@
  * set identically in production.
  */
 
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { PG_SCHEMA } from '../lib/schema.postgres.js';
 
 const require = createRequire(import.meta.url);
 const Database = require('better-sqlite3');
@@ -105,7 +106,12 @@ function main() {
   const statements = [];
   const summary = [];
 
-  statements.push(readFileSync(SCHEMA_PATH, 'utf8'));
+  // lib/schema.postgres.js is the single source of truth for the schema, shared
+  // with the runtime in lib/db.js. Regenerate db/schema.postgres.sql from it so
+  // the checked-in copy cannot drift from what the application applies.
+  writeFileSync(SCHEMA_PATH, PG_SCHEMA);
+
+  statements.push(PG_SCHEMA);
   statements.push('BEGIN;');
 
   if (TRUNCATE) {
