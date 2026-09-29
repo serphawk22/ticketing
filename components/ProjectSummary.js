@@ -504,7 +504,7 @@ export default function ProjectSummary({
                     <div className="activity-text">
                       <p>
                         <strong>{item.employee_name || item.created_by_name}</strong>{' '}
-                        updated <span className="activity-key">TM-{item.id}</span> {item.title}
+                        updated <span className="activity-key">{`${data.project?.key || 'TM'}-${item.id}`}</span> {item.title}
                       </p>
                       <span className="activity-time">
                         {relativeTime(item.updated_at)} · {STATUS_META[item.status]?.label}

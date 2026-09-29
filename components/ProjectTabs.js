@@ -13,11 +13,13 @@ const TABS = [
   { key: 'attachments', label: 'Attachments' },
 ];
 
-const AVAILABLE = new Set(['summary', 'board']);
+const AVAILABLE = new Set(['summary', 'board', 'list']);
 
-export function tabHref(projectId, key) {
-  return key === 'board' ? `/?project=${projectId}` : `/projects/${projectId}/summary`;
-}
+const HREF = {
+  summary: (id) => `/projects/${id}/summary`,
+  board: (id) => `/?project=${id}`,
+  list: (id) => `/projects/${id}/list`,
+};
 
 export default function ProjectTabs({ projectId, active = 'summary' }) {
   return (
@@ -47,7 +49,7 @@ export default function ProjectTabs({ projectId, active = 'summary' }) {
             className={`tab${isActive ? ' active' : ''}`}
             role="tab"
             aria-selected={isActive}
-            href={tabHref(projectId, tab.key)}
+            href={HREF[tab.key](projectId)}
           >
             {tab.label}
           </Link>

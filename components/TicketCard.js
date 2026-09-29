@@ -11,6 +11,7 @@ import {
   TypeIcon,
   formatShortDate,
   formatFullDateTime,
+  ticketKey,
 } from './meta';
 
 function ChevronIcon() {
@@ -31,7 +32,7 @@ function ChevronIcon() {
   );
 }
 
-function TicketDetailModal({
+export function TicketDetailModal({
   ticket,
   employees = [],
   canReassign,
@@ -60,7 +61,7 @@ function TicketDetailModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header>
-          <h3>TM-{ticket.id}</h3>
+          <h3>{ticketKey(ticket)}</h3>
           <button
             type="button"
             className="modal-close"
@@ -79,7 +80,7 @@ function TicketDetailModal({
             >
               <TypeIcon type={ticket.type} size={12} />
             </span>
-            <span className="card-key">{`TM-${ticket.id}`}</span>
+            <span className="card-key">{ticketKey(ticket)}</span>
             {ticket.project_key && (
               <span
                 className="project-chip"
@@ -247,7 +248,7 @@ export default function TicketCard({
           >
             <TypeIcon type={ticket.type} size={12} />
           </span>
-          <span className="card-key">TM-{ticket.id}</span>
+          <span className="card-key">{ticketKey(ticket)}</span>
           {ticket.project_key && (
             <span
               className="project-chip"
