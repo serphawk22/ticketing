@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
-import { TicketDetailModal } from './TicketCard';
+import TicketDetailModal from './ticket/TicketDetailModal';
+import useTicketModal from './useTicketModal';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -191,7 +192,6 @@ export default function ListView({
   const [sort, setSort] = useState({ key: 'created', dir: 'desc' });
   const [hidden, setHidden] = useState(() => new Set(DEFAULT_HIDDEN));
   const [selected, setSelected] = useState(() => new Set());
-  const [openTicket, setOpenTicket] = useState(null);
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [openMenu, setOpen] = useState(null);
   const [page, setPage] = useState(1);
@@ -439,7 +439,19 @@ export default function ListView({
     }
   }
 
-  const detailTicket = openTicket ? tickets.find((t) => t.id === openTicket) : null;
+  // The chevrons walk the rows actually on screen, which is the page slice when
+  // the list is paginated.
+  const modal = useTicketModal({ visible: pageRows, lookup: tickets });
+
+  const applyTicketUpdate = useCallback((next) => {
+    if (!next) return;
+    setTickets((ts) => ts.map((t) => (t.id === next.id ? { ...t, ...next } : t)));
+  }, []);
+
+  function openTicket(id) {
+    const found = tickets.find((t) => t.id === id);
+    if (found) modal.select(found);
+  }
 
   function renderRow(t) {
     const priority = PRIORITY_META[t.priority];
@@ -471,10 +483,10 @@ export default function ListView({
             <span className="card-type-icon is-plain" title={(TYPE_META[t.type] || TYPE_META.task).label}>
               <TypeIcon type={t.type} size={12} />
             </span>
-            <button type="button" className={`list-key${done ? ' is-done' : ''}`} onClick={() => setOpenTicket(t.id)}>
+            <button type="button" className={`list-key${done ? ' is-done' : ''}`} onClick={() => openTicket(t.id)}>
               {ticketKey(t)}
             </button>
-            <button type="button" className={`list-title${done ? ' is-done' : ''}`} onClick={() => setOpenTicket(t.id)}>
+            <button type="button" className={`list-title${done ? ' is-done' : ''}`} onClick={() => openTicket(t.id)}>
               {t.title}
             </button>
           </span>
@@ -551,7 +563,7 @@ export default function ListView({
         )}
 
         <td className="list-cell list-cell-more">
-          <button type="button" className="list-row-more" onClick={() => setOpenTicket(t.id)} aria-label={`More actions for ${ticketKey(t)}`}>
+          <button type="button" className="list-row-more" onClick={() => openTicket(t.id)} aria-label={`More actions for ${ticketKey(t)}`}>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
               <circle cx="5" cy="12" r="1.8" />
               <circle cx="12" cy="12" r="1.8" />
@@ -939,13 +951,18 @@ export default function ListView({
         )}
       </div>
 
-      {detailTicket && (
+      {modal.selected && (
         <TicketDetailModal
-          ticket={detailTicket}
+          ticket={modal.selected}
           employees={employees}
-          canReassign={isAdmin}
-          onReassign={handleReassign}
-          onClose={() => setOpenTicket(null)}
+          currentUser={currentUser}
+          siblingTickets={tickets}
+          canStep={modal.canStep}
+          onClose={modal.close}
+          onNext={modal.next}
+          onPrev={modal.prev}
+          onTicketChanged={applyTicketUpdate}
+          onOpenTicket={openTicket}
         />
       )}
 

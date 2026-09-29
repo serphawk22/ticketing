@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Avatar from './Avatar';
 import {
   PRIORITY_META,
@@ -10,7 +9,6 @@ import {
   PriorityIcon,
   TypeIcon,
   formatShortDate,
-  formatFullDateTime,
   ticketKey,
 } from './meta';
 
@@ -32,174 +30,6 @@ function ChevronIcon() {
   );
 }
 
-export function TicketDetailModal({
-  ticket,
-  employees = [],
-  canReassign,
-  onReassign,
-  onClose,
-}) {
-  const priority = PRIORITY_META[ticket.priority];
-  const status = STATUS_META[ticket.status];
-  const assignable = employees.filter((e) => e.active);
-
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Ticket ${ticket.title}`}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header>
-          <h3>{ticketKey(ticket)}</h3>
-          <button
-            type="button"
-            className="modal-close"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </header>
-
-        <div className="detail-body">
-          <div className="detail-id">
-            <span
-              className="card-type-icon is-plain"
-              title={(TYPE_META[ticket.type] || TYPE_META.task).label}
-            >
-              <TypeIcon type={ticket.type} size={12} />
-            </span>
-            <span className="card-key">{ticketKey(ticket)}</span>
-            {ticket.project_key && (
-              <span
-                className="project-chip"
-                style={{ '--chip-color': ticket.project_color }}
-                title={ticket.project_name}
-              >
-                {ticket.project_key}
-              </span>
-            )}
-            <span
-              className="priority-icon"
-              title={`${priority.label} priority`}
-            >
-              <PriorityIcon color={priority.color} arrow={priority.arrow} />
-            </span>
-            <span
-              className="status-badge"
-              style={{ background: status.bg, color: status.text }}
-            >
-              <span className="chip-dot" style={{ background: status.color }} />
-              {status.label}
-            </span>
-          </div>
-
-          <h2>{ticket.title}</h2>
-
-          <div className="detail-section">
-            <h4>Description</h4>
-            <p className="detail-description">
-              {ticket.description || 'No description.'}
-            </p>
-          </div>
-
-          <div className="detail-section">
-            <h4>Project</h4>
-            {ticket.project_id ? (
-              <div className="person">
-                <span
-                  className="project-dot"
-                  style={{ background: ticket.project_color }}
-                  aria-hidden="true"
-                />
-                <span className="person-name">{ticket.project_name}</span>
-                <span className="project-key">{ticket.project_key}</span>
-              </div>
-            ) : (
-              <p className="detail-description">No project.</p>
-            )}
-          </div>
-
-          <div className="detail-section">
-            <h4>People</h4>
-            <div className="detail-people">
-              <div className="person">
-                <span className="person-label">Reporter</span>
-                <Avatar name={ticket.created_by_name} assigned size={24} />
-                <span className="person-name">{ticket.created_by_name}</span>
-              </div>
-              <div className="person">
-                <span className="person-label">Assignee</span>
-                <Avatar
-                  name={ticket.employee_name}
-                  assigned={Boolean(ticket.employee_id)}
-                  size={24}
-                />
-                <span className="person-name">
-                  {ticket.employee_name || 'Unassigned'}
-                </span>
-              </div>
-            </div>
-
-            {!canReassign && (
-              <p
-                className="drag-hint"
-                title="Reassigning a ticket is limited to admins"
-              >
-                Reassigning is admin-only
-              </p>
-            )}
-
-            {canReassign && (
-              <div className="form-group reassign-field">
-                <label htmlFor={`assignee-${ticket.id}`}>Assign to</label>
-                <div className="select-field select-field-block">
-                  <select
-                    id={`assignee-${ticket.id}`}
-                    value={ticket.employee_id ?? ''}
-                    onChange={(e) =>
-                      onReassign(ticket.id, e.target.value || null)
-                    }
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <option value="">Unassigned</option>
-                    {assignable.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name}
-                        {emp.title ? ` — ${emp.title}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronIcon />
-                </div>
-                <span className="field-hint">
-                  The new assignee is emailed about this ticket.
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="detail-meta">
-            Created {formatFullDateTime(ticket.created_at)} · Updated{' '}
-            {formatFullDateTime(ticket.updated_at)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function TicketCard({
   ticket,
   canUpdate,
@@ -210,118 +40,108 @@ export default function TicketCard({
   onUpdate,
   onReassign,
   isDragging,
+  isActive = false,
+  onOpen,
 }) {
-  const [open, setOpen] = useState(false);
   const priority = PRIORITY_META[ticket.priority];
   const status = STATUS_META[ticket.status];
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      setOpen(true);
+      onOpen(ticket.id);
     }
   }
 
   return (
-    <>
-      <div
-        className={`ticket-card${isDragging ? ' dragging' : ''}`}
-        style={{ '--card-accent': priority.color }}
-        draggable={canUpdate}
-        tabIndex={0}
-        role="button"
-        aria-label={`Ticket #${ticket.id}: ${ticket.title}`}
-        onClick={(e) => {
-          if (e.target.closest('.status-field')) return;
-          setOpen(true);
-        }}
-        onKeyDown={handleKeyDown}
-        onDragStart={(e) => {
-          onDragStart(ticket.id);
-        }}
-        onDragEnd={onDragEnd}
-      >
-        <div className="card-head">
+    <div
+      className={`ticket-card${isDragging ? ' dragging' : ''}${isActive ? ' is-active' : ''}`}
+      style={{ '--card-accent': priority.color }}
+      draggable={canUpdate}
+      tabIndex={0}
+      role="button"
+      aria-label={`Ticket #${ticket.id}: ${ticket.title}`}
+      aria-haspopup="dialog"
+      onClick={(e) => {
+        if (e.target.closest('.status-field')) return;
+        onOpen(ticket.id);
+      }}
+      onKeyDown={handleKeyDown}
+      onDragStart={(e) => {
+        onDragStart(ticket.id);
+      }}
+      onDragEnd={onDragEnd}
+    >
+      <div className="card-head">
+        <span
+          className="card-type-icon is-plain"
+          title={(TYPE_META[ticket.type] || TYPE_META.task).label}
+        >
+          <TypeIcon type={ticket.type} size={12} />
+        </span>
+        <span className="card-key">{ticketKey(ticket)}</span>
+        {ticket.project_key && (
           <span
-            className="card-type-icon is-plain"
-            title={(TYPE_META[ticket.type] || TYPE_META.task).label}
+            className="project-chip"
+            style={{ '--chip-color': ticket.project_color }}
+            title={ticket.project_name}
           >
-            <TypeIcon type={ticket.type} size={12} />
+            {ticket.project_key}
           </span>
-          <span className="card-key">{ticketKey(ticket)}</span>
-          {ticket.project_key && (
-            <span
-              className="project-chip"
-              style={{ '--chip-color': ticket.project_color }}
-              title={ticket.project_name}
-            >
-              {ticket.project_key}
-            </span>
-          )}
-          <span className="card-head-spacer" />
-          <span
-            className="priority-icon"
-            title={`${priority.label} priority`}
-            aria-label={`${priority.label} priority`}
-          >
-            <PriorityIcon color={priority.color} arrow={priority.arrow} />
-          </span>
-        </div>
-
-        <div className="card-title">{ticket.title}</div>
-
-        <div className="card-foot">
-          {canUpdate ? (
-            <span className="status-field">
-              <span
-                className="status-field-dot"
-                style={{ background: status.color }}
-              />
-              <select
-                className="status-select"
-                value={ticket.status}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => onUpdate(ticket.id, e.target.value)}
-                aria-label={`Move ${ticket.title} to status`}
-              >
-                {STATUS_ORDER.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_META[s].label}
-                  </option>
-                ))}
-              </select>
-            </span>
-          ) : (
-            <span
-              className="status-badge"
-              style={{ background: status.bg, color: status.text }}
-            >
-              {status.label}
-            </span>
-          )}
-
-          <div className="card-meta">
-            <span className="card-date">
-              {formatShortDate(ticket.created_at)}
-            </span>
-            <Avatar
-              name={ticket.employee_name}
-              assigned={Boolean(ticket.employee_id)}
-              size={24}
-            />
-          </div>
-        </div>
+        )}
+        <span className="card-head-spacer" />
+        <span
+          className="priority-icon"
+          title={`${priority.label} priority`}
+          aria-label={`${priority.label} priority`}
+        >
+          <PriorityIcon color={priority.color} arrow={priority.arrow} />
+        </span>
       </div>
 
-      {open && (
-        <TicketDetailModal
-          ticket={ticket}
-          employees={employees}
-          canReassign={canReassign}
-          onReassign={onReassign}
-          onClose={() => setOpen(false)}
-        />
-      )}
-    </>
+      <div className="card-title">{ticket.title}</div>
+
+      <div className="card-foot">
+        {canUpdate ? (
+          <span className="status-field">
+            <span
+              className="status-field-dot"
+              style={{ background: status.color }}
+            />
+            <select
+              className="status-select"
+              value={ticket.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onUpdate(ticket.id, e.target.value)}
+              aria-label={`Move ${ticket.title} to status`}
+            >
+              {STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_META[s].label}
+                </option>
+              ))}
+            </select>
+          </span>
+        ) : (
+          <span
+            className="status-badge"
+            style={{ background: status.bg, color: status.text }}
+          >
+            {status.label}
+          </span>
+        )}
+
+        <div className="card-meta">
+          <span className="card-date">
+            {formatShortDate(ticket.created_at)}
+          </span>
+          <Avatar
+            name={ticket.employee_name}
+            assigned={Boolean(ticket.employee_id)}
+            size={24}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

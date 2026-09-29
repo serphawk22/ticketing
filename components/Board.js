@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TicketCard from './TicketCard';
+import TicketDetailModal from './ticket/TicketDetailModal';
+import useTicketModal from './useTicketModal';
 import CreateTicketModal from './CreateTicketModal';
 import ProjectModal from './ProjectModal';
 import AppShell from './AppShell';
@@ -151,6 +153,20 @@ export default function Board({
     () => projects.find((p) => String(p.id) === String(projectId)) || null,
     [projects, projectId]
   );
+
+  const modal = useTicketModal({ visible, lookup: tickets });
+
+  // The modal edits the ticket directly, so the board has to see the result
+  // without a reload or it will show stale values behind the overlay.
+  const applyTicketUpdate = useCallback((next) => {
+    if (!next) return;
+    setTickets((ts) => ts.map((t) => (t.id === next.id ? { ...t, ...next } : t)));
+  }, []);
+
+  function openModal(id) {
+    const found = tickets.find((t) => t.id === id);
+    if (found) modal.select(found);
+  }
 
   async function updateStatus(id, status) {
     setError('');
@@ -450,6 +466,8 @@ export default function Board({
                         onUpdate={updateStatus}
                         onReassign={handleReassign}
                         isDragging={draggingId === t.id}
+                        isActive={modal.selected?.id === t.id}
+                        onOpen={openModal}
                       />
                     ))
                   )}
@@ -485,6 +503,21 @@ export default function Board({
           project={editingProject}
           onClose={() => setShowProjectModal(false)}
           onSave={handleProjectSave}
+        />
+      )}
+
+      {modal.selected && (
+        <TicketDetailModal
+          ticket={modal.selected}
+          employees={employees}
+          currentUser={currentUser}
+          siblingTickets={tickets}
+          canStep={modal.canStep}
+          onClose={modal.close}
+          onNext={modal.next}
+          onPrev={modal.prev}
+          onTicketChanged={applyTicketUpdate}
+          onOpenTicket={openModal}
         />
       )}
     </AppShell>
