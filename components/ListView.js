@@ -512,7 +512,10 @@ export default function ListView({
         {visibleColumns.some((c) => c.key === 'status') && (
           <td className="list-cell">
             <span className="list-status-wrap">
-              <span className="list-lozenge" style={{ background: lozenge.bg, color: lozenge.text }}>
+              <span
+                className={`list-lozenge${canUpdate ? ' is-editable' : ''}`}
+                style={{ background: lozenge.bg, color: lozenge.text }}
+              >
                 {STATUS_META[t.status].label}
               </span>
               {canUpdate ? (

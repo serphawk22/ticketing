@@ -2878,6 +2878,7 @@ textarea {
   position: relative;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
 }
 
 .list-lozenge {
@@ -2889,6 +2890,12 @@ textarea {
   font-size: var(--fs-12);
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* The chevron is absolutely positioned inside the pill's overlay, so the pill
+   has to reserve room for it or the arrow lands on the last letters. */
+.list-lozenge.is-editable {
+  padding-right: 22px;
 }
 
 .list-status-select {
