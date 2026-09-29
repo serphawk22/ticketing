@@ -6,7 +6,9 @@ import {
   PRIORITY_META,
   STATUS_META,
   STATUS_ORDER,
+  TYPE_META,
   PriorityIcon,
+  TypeIcon,
   formatShortDate,
   formatFullDateTime,
 } from './meta';
@@ -71,10 +73,11 @@ function TicketDetailModal({
 
         <div className="detail-body">
           <div className="detail-id">
-            <span className="card-type-icon" title="Task">
-              <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
-                <path d="M7.4 2.2h1.2v3.1h3.1v1.2H8.6v3.1H7.4V6.5H4.3V5.3h3.1V2.2Z" />
-              </svg>
+            <span
+              className="card-type-icon is-plain"
+              title={(TYPE_META[ticket.type] || TYPE_META.task).label}
+            >
+              <TypeIcon type={ticket.type} size={12} />
             </span>
             <span className="card-key">{`TM-${ticket.id}`}</span>
             {ticket.project_key && (
@@ -238,10 +241,11 @@ export default function TicketCard({
         onDragEnd={onDragEnd}
       >
         <div className="card-head">
-          <span className="card-type-icon" title="Task">
-            <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
-              <path d="M7.4 2.2h1.2v3.1h3.1v1.2H8.6v3.1H7.4V6.5H4.3V5.3h3.1V2.2Z" />
-            </svg>
+          <span
+            className="card-type-icon is-plain"
+            title={(TYPE_META[ticket.type] || TYPE_META.task).label}
+          >
+            <TypeIcon type={ticket.type} size={12} />
           </span>
           <span className="card-key">TM-{ticket.id}</span>
           {ticket.project_key && (

@@ -7,6 +7,7 @@ import CreateTicketModal from './CreateTicketModal';
 import ProjectModal from './ProjectModal';
 import AppShell from './AppShell';
 import Avatar from './Avatar';
+import ProjectTabs from './ProjectTabs';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -405,6 +406,8 @@ export default function Board({
             )}
           </div>
         </div>
+
+        {activeProject && <ProjectTabs projectId={activeProject.id} active="board" />}
 
         <div className="board-columns">
           {STATUS_ORDER.map((status) => {

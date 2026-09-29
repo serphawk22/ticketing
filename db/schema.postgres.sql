@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS tickets (
               CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
   priority    text        NOT NULL DEFAULT 'medium'
               CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  type        text        NOT NULL DEFAULT 'task'
+              CHECK (type IN ('task', 'bug', 'story', 'epic')),
   created_by  integer     NOT NULL REFERENCES users (id),
   assigned_to integer              REFERENCES users (id),
   project_id  integer              REFERENCES projects (id),
@@ -88,3 +90,19 @@ CREATE INDEX IF NOT EXISTS tickets_assignee_idx ON tickets (assigned_to);
 CREATE INDEX IF NOT EXISTS employees_active_idx  ON employees (active);
 CREATE INDEX IF NOT EXISTS sessions_user_idx    ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS outbox_ticket_idx   ON email_outbox (ticket_id);
+
+-- Additive changes. CREATE TABLE IF NOT EXISTS leaves an existing table alone,
+-- so a column introduced after a database was first migrated has to be added
+-- explicitly. Each block checks information_schema first, which keeps the whole
+-- script safe to re-run.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'type'
+  ) THEN
+    ALTER TABLE tickets ADD COLUMN type text NOT NULL DEFAULT 'task'
+      CHECK (type IN ('task', 'bug', 'story', 'epic'));
+  END IF;
+END
+$$;

@@ -426,7 +426,7 @@ export default function AppShell({
                 <button
                   key={p.id}
                   className={`nav-item${
-                    view === 'board' && String(projectId) === String(p.id) ? ' active' : ''
+                    projectId != null && String(projectId) === String(p.id) ? ' active' : ''
                   }`}
                   onClick={() => selectProject(p.id)}
                   title={p.name}

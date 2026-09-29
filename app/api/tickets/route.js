@@ -6,6 +6,7 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
 
 export async function GET() {
   const session = await requireAuth();
@@ -29,6 +30,7 @@ export async function POST(request) {
     title,
     description,
     priority = 'medium',
+    type = 'task',
     project_id = null,
     employee_id = null,
   } = await request.json();
@@ -41,6 +43,10 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid priority.' }, { status: 400 });
   }
 
+  if (!VALID_TYPES.includes(type)) {
+    return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
+  }
+
   if (employee_id && !await employeeExists(employee_id)) {
     return NextResponse.json(
       { error: 'Employee not found or deactivated.' },
@@ -50,13 +56,14 @@ export async function POST(request) {
 
   const info = await db
     .prepare(
-      `INSERT INTO tickets (title, description, priority, created_by, project_id, employee_id)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tickets (title, description, priority, type, created_by, project_id, employee_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       title.trim(),
       description.trim(),
       priority,
+      type,
       session.user.id,
       project_id || null,
       employee_id || null

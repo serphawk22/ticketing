@@ -6,6 +6,7 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 
 const VALID_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
 
 export async function PATCH(request, { params }) {
   const session = await requireAuth();
@@ -18,10 +19,10 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
   }
 
-  const { status, employee_id } = await request.json();
+  const { status, employee_id, type } = await request.json();
   const isAdmin = session.user.role === 'admin';
 
-  if (status === undefined && employee_id === undefined) {
+  if (status === undefined && employee_id === undefined && type === undefined) {
     return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
   }
 
@@ -29,11 +30,23 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Invalid status.' }, { status: 400 });
   }
 
+  if (type !== undefined && !VALID_TYPES.includes(type)) {
+    return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
+  }
+
   const reassigning = employee_id !== undefined && Number(employee_id || 0) !== Number(ticket.employee_id || 0);
 
   if (reassigning && !isAdmin) {
     return NextResponse.json(
       { error: 'Only admins can reassign tickets.' },
+      { status: 403 }
+    );
+  }
+
+  // Editing fields other than status is admin-only, matching ticket creation.
+  if ((type !== undefined || employee_id !== undefined) && !isAdmin) {
+    return NextResponse.json(
+      { error: 'Only admins can edit tickets.' },
       { status: 403 }
     );
   }
@@ -46,6 +59,7 @@ export async function PATCH(request, { params }) {
   }
 
   const nextStatus = status ?? ticket.status;
+  const nextType = type ?? ticket.type ?? 'task';
   let nextEmployeeId = ticket.employee_id;
 
   if (reassigning) {
@@ -56,9 +70,9 @@ export async function PATCH(request, { params }) {
 
   await db.prepare(
     `UPDATE tickets
-     SET status = ?, employee_id = ?, updated_at = datetime('now')
+     SET status = ?, type = ?, employee_id = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).run(nextStatus, nextEmployeeId || null, ticketId);
+  ).run(nextStatus, nextType, nextEmployeeId || null, ticketId);
 
   const updated = await getTicket(ticketId);
   const notifications = [];

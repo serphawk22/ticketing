@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PRIORITY_META, PRIORITY_ORDER } from './meta';
+import { PRIORITY_META, PRIORITY_ORDER, TYPE_META, TYPE_ORDER } from './meta';
 
 export default function CreateTicketModal({
   employees = [],
@@ -13,6 +13,7 @@ export default function CreateTicketModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
+  const [type, setType] = useState('task');
   const [employeeId, setEmployeeId] = useState('');
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
@@ -43,6 +44,7 @@ export default function CreateTicketModal({
           title,
           description,
           priority,
+          type,
           employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
         }),
@@ -128,6 +130,21 @@ export default function CreateTicketModal({
                 {PRIORITY_ORDER.map((p) => (
                   <option key={p} value={p}>
                     {PRIORITY_META[p].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="ticket-type">Issue type</label>
+              <select
+                id="ticket-type"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
+                {TYPE_ORDER.map((t) => (
+                  <option key={t} value={t}>
+                    {TYPE_META[t].label}
                   </option>
                 ))}
               </select>

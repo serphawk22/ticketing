@@ -118,7 +118,9 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
                       aria-hidden="true"
                     />
                     <div className="project-card-title">
-                      <h2>{p.name}</h2>
+                      <h2>
+                        <Link href={`/projects/${p.id}/summary`}>{p.name}</Link>
+                      </h2>
                       <span className="project-key">{p.key}</span>
                     </div>
                   </header>
@@ -137,6 +139,12 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
                   </div>
 
                   <footer className="project-card-foot">
+                    <button
+                      className="btn-ghost"
+                      onClick={() => router.push(`/projects/${p.id}/summary`)}
+                    >
+                      View summary
+                    </button>
                     <button
                       className="btn-ghost"
                       onClick={() => router.push(`/?project=${p.id}`)}
