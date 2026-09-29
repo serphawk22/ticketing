@@ -2789,6 +2789,118 @@ textarea {
   height: 16px;
 }
 
+/* Parent/child hierarchy */
+
+/* The caret turns 90° when the branch opens. 0.15s is short enough to feel
+   like a click and long enough to read as movement. */
+.list-tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.list-tree-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.list-tree-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.list-tree-toggle.is-open svg {
+  transform: rotate(90deg);
+}
+
+/* Number of children hidden behind a collapsed parent. */
+.list-child-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+/* "2/5 done" next to a parent title. Deliberately muted: it is context, not a
+   control, and the parent row itself keeps the same weight as every other row. */
+.list-child-progress {
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* Quick-add a child. Only shown on hover, like the row overflow menu, so the
+   grid stays quiet until the pointer is on the row. */
+.list-add-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  opacity: 0;
+  flex: 0 0 auto;
+}
+
+.list-row:hover .list-add-child,
+.list-add-child:focus-visible {
+  opacity: 1;
+}
+
+.list-add-child:hover {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+
+.list-hierarchy-note {
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.list-count-note {
+  color: var(--text-subtle);
+}
+
+.form-parent {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: var(--bg-subtle);
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.form-parent strong {
+  color: var(--text-link);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 /* Work cell */
 .list-cell-work {
   min-width: 320px;
@@ -4414,3 +4526,48 @@ input.inline-input.tm-title-edit {
 .tm-time-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tm-time-label { color: var(--text-subtle); font-size: var(--fs-11); }
 .tm-time-value { font-size: var(--fs-12); color: var(--text); }
+
+/* Parent bar above the modal title */
+.tm-parent-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: var(--fs-12);
+  color: var(--text-subtle);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--divider);
+}
+.tm-parent-label {
+  color: var(--text-disabled);
+}
+.tm-parent-chip {
+  padding: 1px 6px;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  color: var(--text-link);
+  background: var(--bg-selected);
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+.tm-parent-chip:hover {
+  text-decoration: underline;
+}
+.tm-parent-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Child rows carry the list's own columns */
+.tm-child-type {
+  flex: none;
+  color: var(--text-subtle);
+}
+.tm-child-status {
+  flex: none;
+  padding: 1px 6px;
+  font-size: var(--fs-11);
+  line-height: 16px;
+  border-radius: 3px;
+}

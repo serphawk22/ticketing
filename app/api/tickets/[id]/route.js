@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
+import { ticketKey } from '@/lib/ticketMeta';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { logActivityChanges } from '@/lib/ticketActivity';
+import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER } from '@/lib/ticketMeta';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'team'];
@@ -26,6 +28,13 @@ function parseNumber(value, { integer = false } = {}) {
   if (!Number.isFinite(n) || n < 0) return undefined;
   if (integer && !Number.isInteger(n)) return undefined;
   return n;
+}
+
+// 'No parent' for the empty case, so the activity log never shows a bare id.
+async function keyOf(id) {
+  if (id == null) return 'No parent';
+  const t = await getTicket(id);
+  return t ? ticketKey(t) : 'No parent';
 }
 
 export async function PATCH(request, { params }) {
@@ -99,6 +108,39 @@ export async function PATCH(request, { params }) {
     edits.estimate_seconds = value;
   }
 
+  if (body.parent_id !== undefined) {
+    if (body.parent_id === null || body.parent_id === '') {
+      edits.parent_id = null;
+    } else {
+      const value = Number(body.parent_id);
+      if (!Number.isInteger(value)) {
+        return NextResponse.json({ error: 'Invalid parent.' }, { status: 400 });
+      }
+      if (value === ticketId) {
+        return NextResponse.json(
+          { error: 'A ticket cannot be its own parent.' },
+          { status: 400 }
+        );
+      }
+      if (!await getTicket(value)) {
+        return NextResponse.json({ error: 'Parent ticket not found.' }, { status: 404 });
+      }
+      // Parenting is a tree, so a ticket may not move underneath one of its own
+      // descendants: that would orphan the subtree in between.
+      const loadParentId = async (id) => {
+        const row = await db.prepare('SELECT parent_id FROM tickets WHERE id = ?').get(id);
+        return row?.parent_id ?? null;
+      };
+      if (await wouldCreateCycle(loadParentId, ticketId, value)) {
+        return NextResponse.json(
+          { error: 'That would make a ticket its own ancestor.' },
+          { status: 409 }
+        );
+      }
+      edits.parent_id = value;
+    }
+  }
+
   if (body.employee_id !== undefined) {
     if (!isAdmin) {
       return NextResponse.json(
@@ -157,6 +199,24 @@ export async function PATCH(request, { params }) {
   values.push(ticketId);
 
   await db.prepare(`UPDATE tickets SET ${assignments.join(', ')} WHERE id = ?`).run(values);
+
+  // Activity reads far better with ticket keys than with raw ids, so translate
+  // the parent change on the way into the history. The stored column keeps the
+  // id; only the human-facing log gets the pretty form.
+  if (edits.parent_id !== undefined) {
+    const [beforeParent, afterParent] = await Promise.all([
+      keyOf(ticket.parent_id),
+      keyOf(edits.parent_id),
+    ]);
+    await logActivityChanges(
+      ticketId,
+      session.user.id,
+      { ...ticket, parent_id: beforeParent },
+      { ...ticket, ...edits, parent_id: afterParent },
+      ['parent_id']
+    );
+    logged.delete('parent_id');
+  }
 
   await logActivityChanges(
     ticketId,

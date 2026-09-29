@@ -33,6 +33,7 @@ export async function POST(request) {
     type = 'task',
     project_id = null,
     employee_id = null,
+    parent_id = null,
   } = await request.json();
 
   if (!title?.trim() || !description?.trim()) {
@@ -54,10 +55,16 @@ export async function POST(request) {
     );
   }
 
+  // Creating a child is a normal create that happens to name a parent. The
+  // parent has to exist; a new ticket cannot yet be an ancestor of anything.
+  if (parent_id && !(await getTicket(parent_id))) {
+    return NextResponse.json({ error: 'Parent ticket not found.' }, { status: 400 });
+  }
+
   const info = await db
     .prepare(
-      `INSERT INTO tickets (title, description, priority, type, created_by, project_id, employee_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tickets (title, description, priority, type, created_by, project_id, employee_id, parent_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       title.trim(),
@@ -66,7 +73,8 @@ export async function POST(request) {
       type,
       session.user.id,
       project_id || null,
-      employee_id || null
+      employee_id || null,
+      parent_id || null
     );
 
   const ticket = await getTicket(info.lastInsertRowid);

@@ -7,6 +7,7 @@ export default function CreateTicketModal({
   employees = [],
   projects = [],
   defaultProjectId = '',
+  parent = null,
   onClose,
   onCreate,
 }) {
@@ -47,6 +48,9 @@ export default function CreateTicketModal({
           type,
           employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
+          // Set when the modal was opened from a row's quick-add, so the new
+          // ticket lands in the tree instead of at the top level.
+          parent_id: parent ? parent.id : null,
         }),
       });
       const data = await res.json();
@@ -82,7 +86,7 @@ export default function CreateTicketModal({
               <rect x="3" y="3" width="18" height="18" rx="3" />
               <path d="M12 8v8M8 12h8" />
             </svg>
-            New ticket
+            {parent ? 'New child work item' : 'New ticket'}
           </h3>
           <button
             type="button"
@@ -95,6 +99,12 @@ export default function CreateTicketModal({
         </header>
 
         <form onSubmit={handleSubmit}>
+          {parent && (
+            <p className="form-parent">
+              Child of <strong>{parent.project_key ? `${parent.project_key}-${parent.id}` : `#${parent.id}`}</strong>
+              {parent.title ? ` — ${parent.title}` : ''}
+            </p>
+          )}
           <div className="form-group">
             <label htmlFor="summary">Summary</label>
             <input

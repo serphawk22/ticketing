@@ -9,6 +9,7 @@ import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
 import useTicketModal from './useTicketModal';
+import { HierarchyIcon } from './ticket/icons';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -21,6 +22,7 @@ import {
   formatListDateTime,
   ticketKey,
 } from './meta';
+import { buildTicketTree, countHidden, flattenTree, isDone } from '../lib/ticketTree';
 
 const GROUPS = [
   { key: 'none', label: 'None' },
@@ -145,12 +147,34 @@ function MenuCheck() {
   );
 }
 
-function isDone(t) {
-  return t.status === 'resolved' || t.status === 'closed';
+// Which parents are folded away is a per-project view preference, so it is
+// remembered across visits. The closed set is what gets stored rather than the
+// open one: a parent nobody has touched should show its children, and an
+// "expanded" allowlist cannot tell "never seen" apart from "closed on purpose".
+const COLLAPSED_KEY = (projectId) => `ticketing:collapsed-parents:${projectId}`;
+
+function readCollapsed(projectId) {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_KEY(projectId));
+    if (!raw) return new Set();
+    const ids = JSON.parse(raw);
+    return Array.isArray(ids) ? new Set(ids.map(Number).filter(Number.isInteger)) : new Set();
+  } catch {
+    return new Set();
+  }
 }
 
-function EmptyState({ hasAny, filtered, onReset }) {
-  return (
+function writeCollapsed(projectId, ids) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(COLLAPSED_KEY(projectId), JSON.stringify([...ids]));
+  } catch {
+    // A full or blocked storage is not worth failing the view over.
+  }
+}
+
+function EmptyState({ hasAny, filtered, onReset }) {  return (
     <div className="list-empty">
       <svg viewBox="0 0 64 48" width="64" height="48" aria-hidden="true">
         <rect x="6" y="10" width="52" height="30" rx="4" fill="#F4F5F7" />
@@ -192,10 +216,12 @@ export default function ListView({
   const [sort, setSort] = useState({ key: 'created', dir: 'desc' });
   const [hidden, setHidden] = useState(() => new Set(DEFAULT_HIDDEN));
   const [selected, setSelected] = useState(() => new Set());
-  const [collapsed, setCollapsed] = useState(() => new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  const [collapsedParents, setCollapsedParents] = useState(() => new Set());
   const [openMenu, setOpen] = useState(null);
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [createParent, setCreateParent] = useState(null);
   const [error, setError] = useState('');
 
   const rootRef = useRef(null);
@@ -203,6 +229,23 @@ export default function ListView({
   const isAdmin = currentUser.role === 'admin';
   // Moving a ticket is open to any signed-in user, matching the board.
   const canUpdate = true;
+
+  // Load the saved folded branches whenever the project changes. Only the
+  // toggle writes back, so mounting never clobbers the stored set with the
+  // empty one this component starts with.
+  useEffect(() => {
+    setCollapsedParents(readCollapsed(projectId));
+  }, [projectId]);
+
+  function toggleParent(id) {
+    setCollapsedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      writeCollapsed(projectId, next);
+      return next;
+    });
+  }
 
   const visibleColumns = useMemo(
     () => COLUMNS.filter((c) => c.always || !hidden.has(c.key)),
@@ -302,6 +345,14 @@ export default function ListView({
     return [...buckets.entries()].map(([label, rows]) => ({ label, rows }));
   }, [sorted, group]);
 
+  // Hierarchy is a view concern layered on top of the sorted flat list: the
+  // sort applies to every ticket, and the tree just decides which rows end up
+  // next to which. When a group is active the tree is bypassed entirely, since
+  // a parent whose children sit in a different bucket cannot stay intact.
+  const hierarchyActive = group === 'none';
+
+  const tree = useMemo(() => buildTicketTree(sorted), [sorted]);
+
   const total = filtered.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -313,12 +364,46 @@ export default function ListView({
     ? groups.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
     : sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // Top-level count drives both the footer and pagination, the way Jira counts
+  // a parent as one row and hides however many children it has.
+  const topLevelCount = hierarchyActive
+    ? tree.roots.length
+    : groups
+      ? groups.reduce((sum, g) => sum + g.rows.length, 0)
+      : total;
+  const topLevelPageCount = Math.max(1, Math.ceil(topLevelCount / PAGE_SIZE));
+  const safeTopLevelPage = Math.min(safePage, topLevelPageCount);
+
+  // Slice the tree to the current page of top-level rows, then flatten, so a
+  // parent on page 2 never drags its children onto page 1.
+  const visibleNodes = useMemo(() => {
+    if (!hierarchyActive) return [];
+    const roots = tree.roots.slice(
+      (safeTopLevelPage - 1) * PAGE_SIZE,
+      safeTopLevelPage * PAGE_SIZE
+    );
+    return flattenTree(roots, collapsedParents);
+  }, [hierarchyActive, tree, collapsedParents, safeTopLevelPage]);
+
   // Any change to the inputs invalidates the current page number.
   useEffect(() => {
     setPage(1);
   }, [search, filters, group, sort]);
 
-  const pageRows = groups ? paged.flatMap((g) => g.rows) : paged;
+  // Visible rows in draw order, which is also the order the modal's previous /
+  // next chevrons walk.
+  // Children that exist but are not on screen because a branch above them is
+  // folded away.
+  const hiddenChildren = useMemo(
+    () => (hierarchyActive ? countHidden(tree.roots, collapsedParents) : 0),
+    [hierarchyActive, tree, collapsedParents]
+  );
+
+  const pageRows = hierarchyActive
+    ? visibleNodes.map((n) => n.ticket)
+    : groups
+      ? paged.flatMap((g) => g.rows)
+      : paged;
   const pageIds = pageRows.map((t) => t.id);
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const someOnPageSelected = pageIds.some((id) => selected.has(id));
@@ -362,7 +447,7 @@ export default function ListView({
   }
 
   function toggleGroup(label) {
-    setCollapsed((prev) => {
+    setCollapsedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
@@ -453,7 +538,18 @@ export default function ListView({
     if (found) modal.select(found);
   }
 
-  function renderRow(t) {
+  // Open the create modal pre-loaded with this row as the parent, and open the
+  // parent afterwards so the new child is visible without hunting for it.
+  function addChildTo(parent) {
+    setCreateParent(parent);
+    setShowCreate(true);
+  }
+
+  function renderRow(node) {
+    const t = node.ticket;
+    const depth = node.depth;
+    const hasChildren = node.hasChildren;
+    const isOpen = !collapsedParents.has(t.id);
     const priority = PRIORITY_META[t.priority];
     const done = isDone(t);
     const lozenge = LOZENGE[t.status] || LOZENGE.open;
@@ -462,7 +558,7 @@ export default function ListView({
     return (
       <tr
         key={t.id}
-        className={`list-row${isSelected ? ' is-selected' : ''}`}
+        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}`}
         aria-selected={isSelected}
       >
         <td className="list-cell list-cell-check">
@@ -475,11 +571,34 @@ export default function ListView({
         </td>
 
         <td className="list-cell list-cell-expand">
-          <span className="list-expand-slot" aria-hidden="true" />
+          {hasChildren ? (
+            <button
+              type="button"
+              className={`list-tree-toggle${isOpen ? ' is-open' : ''}`}
+              onClick={() => toggleParent(t.id)}
+              aria-expanded={isOpen}
+              aria-label={`${isOpen ? 'Collapse' : 'Expand'} child work items of ${ticketKey(t)}`}
+              title={`${node.childCount} child work ${node.childCount === 1 ? 'item' : 'items'}`}
+            >
+              <CaretIcon open={isOpen} />
+            </button>
+          ) : (
+            <span className="list-expand-slot" aria-hidden="true" />
+          )}
         </td>
 
         <td className="list-cell list-cell-work">
-          <span className="list-work">
+          <span className="list-work" style={{ paddingLeft: `${depth * 20}px` }}>
+            {hasChildren && !isOpen && (
+              <span className="list-child-count" title={`${node.childCount} hidden child work items`}>
+                {node.childCount}
+              </span>
+            )}
+            {hasChildren && (
+              <span className="list-hierarchy-icon" title="Has child work items" aria-label="Parent ticket">
+                <HierarchyIcon size={12} />
+              </span>
+            )}
             <span className="card-type-icon is-plain" title={(TYPE_META[t.type] || TYPE_META.task).label}>
               <TypeIcon type={t.type} size={12} />
             </span>
@@ -489,6 +608,22 @@ export default function ListView({
             <button type="button" className={`list-title${done ? ' is-done' : ''}`} onClick={() => openTicket(t.id)}>
               {t.title}
             </button>
+            {hasChildren && node.doneCount > 0 && (
+              <span className="list-child-progress" title={`${node.doneCount} of ${node.childCount} children done`}>
+                {node.doneCount}/{node.childCount} done
+              </span>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                className="list-add-child"
+                onClick={() => addChildTo(t)}
+                title={`Add a child work item to ${ticketKey(t)}`}
+                aria-label={`Add a child work item to ${ticketKey(t)}`}
+              >
+                <PlusIcon />
+              </button>
+            )}
           </span>
         </td>
 
@@ -754,7 +889,7 @@ export default function ListView({
                     aria-checked={group === g.key}
                     onClick={() => {
                       setGroup(g.key);
-                      setCollapsed(new Set());
+                      setCollapsedGroups(new Set());
                       setOpen(null);
                     }}
                   >
@@ -819,6 +954,11 @@ export default function ListView({
         </div>
 
         <div className="list-frame">
+          {groups && (
+            <p className="list-hierarchy-note" role="status">
+              Hierarchy hidden while grouped. Turn grouping off to see parent and child rows together.
+            </p>
+          )}
           <div className="list-scroll" role="region" aria-label="Work items" tabIndex={0}>
             <table className="list-table">
               <thead>
@@ -866,7 +1006,7 @@ export default function ListView({
               <tbody>
                 {groups
                   ? paged.map((g) => {
-                      const isCollapsed = collapsed.has(g.label);
+                      const isCollapsed = collapsedGroups.has(g.label);
                       return [
                         <tr
                           key={`g-${g.label}`}
@@ -881,10 +1021,10 @@ export default function ListView({
                             </button>
                           </td>
                         </tr>,
-                        ...(isCollapsed ? [] : g.rows.map(renderRow)),
+                        ...(isCollapsed ? [] : g.rows.map((t) => renderRow({ ticket: t, depth: 0, hasChildren: false, childCount: 0, doneCount: 0 }))),
                       ];
                     })
-                  : paged.map(renderRow)}
+                  : visibleNodes.map(renderRow)}
               </tbody>
             </table>
 
@@ -905,10 +1045,18 @@ export default function ListView({
 
             <div className="list-count">
               <span>
-                {safePage * PAGE_SIZE >= total ? total : (safePage - 1) * PAGE_SIZE + 1}
+                {safeTopLevelPage * PAGE_SIZE >= topLevelCount
+                  ? topLevelCount
+                  : (safeTopLevelPage - 1) * PAGE_SIZE + 1}
                 {'–'}
-                {Math.min(safePage * PAGE_SIZE, total)} of {total}
+                {Math.min(safeTopLevelPage * PAGE_SIZE, topLevelCount)} of {topLevelCount}
               </span>
+              {hiddenChildren > 0 && (
+                <span className="list-count-note">
+                  {' · '}
+                  {hiddenChildren} nested {hiddenChildren === 1 ? 'item' : 'items'}
+                </span>
+              )}
               {selected.size > 0 && (
                 <span className="list-selected-note">{selected.size} selected</span>
               )}
@@ -921,7 +1069,7 @@ export default function ListView({
                   setSort({ key: 'created', dir: 'desc' });
                   setHidden(new Set(DEFAULT_HIDDEN));
                   setSelected(new Set());
-                  setCollapsed(new Set());
+                  setCollapsedGroups(new Set());
                   setPage(1);
                 }}
                 title="Reset the view"
@@ -938,13 +1086,13 @@ export default function ListView({
           </div>
         </div>
 
-        {pageCount > 1 && (
+        {topLevelPageCount > 1 && (
           <div className="list-pager">
-            <button type="button" className="btn-ghost" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            <button type="button" className="btn-ghost" disabled={safeTopLevelPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
               Previous
             </button>
-            <span>{`Page ${safePage} of ${pageCount}`}</span>
-            <button type="button" className="btn-ghost" disabled={safePage >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
+            <span>{`Page ${safeTopLevelPage} of ${topLevelPageCount}`}</span>
+            <button type="button" className="btn-ghost" disabled={safeTopLevelPage >= topLevelPageCount} onClick={() => setPage((p) => Math.min(topLevelPageCount, p + 1))}>
               Next
             </button>
           </div>
@@ -971,12 +1119,32 @@ export default function ListView({
           employees={employees}
           projects={projects}
           defaultProjectId={projectId}
-          onClose={() => setShowCreate(false)}
-          onCreate={async () => {
+          parent={createParent}
+          onClose={() => {
             setShowCreate(false);
+            setCreateParent(null);
+          }}
+          onCreate={async (created) => {
+            setShowCreate(false);
+            const parent = createParent;
+            setCreateParent(null);
             const res = await fetch('/api/tickets');
             const data = await res.json();
-            if (res.ok) setTickets(data.tickets.filter((t) => t.project_id === projectId));
+            if (!res.ok) return;
+            setTickets(data.tickets.filter((t) => t.project_id === projectId));
+            // Make sure the branch that just grew is open, so the new child is
+            // on screen without the user having to go looking for it.
+            if (parent) {
+              setCollapsedParents((prev) => {
+                const next = new Set(prev);
+                next.delete(parent.id);
+                return next;
+              });
+            }
+            if (created) {
+              const found = tickets.find((t) => t.id === parent?.id);
+              if (found) modal.select(found);
+            }
           }}
         />
       )}

@@ -3,9 +3,12 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getRelations } from '@/lib/ticketDetail';
-import { RELATION_ORDER, CHILD_RELATION } from '@/lib/ticketMeta';
+import { RELATION_ORDER } from '@/lib/ticketMeta';
 
-const VALID_TYPES = [...RELATION_ORDER, CHILD_RELATION, 'child_of'];
+// Parenting is not a link any more: it lives in tickets.parent_id so the list
+// can render a real tree without joining. Only the peer-to-peer link types are
+// writable here, and the child picker in the modal PATCHes parent_id instead.
+const VALID_TYPES = [...RELATION_ORDER];
 
 export const dynamic = 'force-dynamic';
 
@@ -52,22 +55,6 @@ export async function POST(request, { params }) {
     .get(ticketId, relatedId, type);
   if (existing) {
     return NextResponse.json({ error: 'That link already exists.' }, { status: 409 });
-  }
-
-  // Parenting is a hierarchy, so refuse the two links that would make it a
-  // cycle: the other ticket already claims this one as its child.
-  if (type === CHILD_RELATION) {
-    const reverse = await db
-      .prepare(
-        "SELECT id FROM ticket_relations WHERE ticket_id = ? AND related_ticket_id = ? AND relation_type = 'child_of'"
-      )
-      .get(relatedId, ticketId);
-    if (reverse) {
-      return NextResponse.json(
-        { error: 'That would make the two tickets each other parent and child.' },
-        { status: 409 }
-      );
-    }
   }
 
   await db

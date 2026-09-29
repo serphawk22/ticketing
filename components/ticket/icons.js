@@ -18,6 +18,16 @@ function Svg({ size = 16, children, ...rest }) {
   );
 }
 
+// Parent row marker in the list and the "Child of" bar in the modal.
+export const HierarchyIcon = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="6" height="5" rx="1" />
+    <rect x="3" y="16" width="6" height="5" rx="1" />
+    <rect x="15" y="9.5" width="6" height="5" rx="1" />
+    <path d="M6 8v8" />
+    <path d="M9 5.5h3a1 1 0 0 1 1 1v6" />
+  </Svg>
+);
 export const ChevronDown = (p) => (
   <Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>
 );

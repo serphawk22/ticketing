@@ -9,6 +9,7 @@ import {
   CloseIcon,
   DotsIcon,
   EyeIcon,
+  HierarchyIcon,
   LightningIcon,
   LinkIcon,
   PaperclipIcon,
@@ -255,6 +256,46 @@ export default function TicketDetailModal({
     [id, load]
   );
 
+  // Parenting is a column on the ticket, not a link row, so adding and
+  // removing a child re-parents that ticket and refreshes both tickets.
+  const addChild = useCallback(
+    async (childId) => {
+      try {
+        // The row that moved is the child's, so hand that back to the list
+        // rather than the ticket the modal is showing.
+        const data = await call(`/api/tickets/${childId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parent_id: id }),
+        });
+        setLinkOpen(false);
+        setLinkQuery('');
+        onTicketChanged?.(data.ticket);
+        await load();
+      } catch (err) {
+        setError(err.message);
+      }
+    },
+    [id, load, onTicketChanged]
+  );
+
+  const removeChild = useCallback(
+    async (item) => {
+      try {
+        const data = await call(`/api/tickets/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parent_id: null }),
+        });
+        onTicketChanged?.(data.ticket);
+        await load();
+      } catch (err) {
+        setError(err.message);
+      }
+    },
+    [id, load, onTicketChanged]
+  );
+
   const logTime = useCallback(
     async (seconds, note) => {
       try {
@@ -353,11 +394,12 @@ export default function TicketDetailModal({
 
   // A linked issue can be outside the current filter, so hand the key back to
   // the page rather than an id it may not know about.
+  // List and Board both open tickets by id, so every jump out of the modal
+  // hands over an id rather than the row we happen to be holding.
   const openLinked = useCallback(
     (item) => {
       const target = siblingTickets.find((x) => x.id === item.id);
-      if (target) onOpenTicket?.(target);
-      else onOpenTicket?.({ id: item.id, project_key: item.project_key });
+      onOpenTicket?.(target ? target.id : item.id);
     },
     [siblingTickets, onOpenTicket]
   );
@@ -383,6 +425,22 @@ export default function TicketDetailModal({
         data-testid="tm-modal"
         onMouseDown={(e) => e.stopPropagation()}
       >
+        {detail.parent && (
+          <div className="tm-parent-bar">
+            <HierarchyIcon size={13} />
+            <span className="tm-parent-label">Child of</span>
+            <button
+              type="button"
+              className="tm-parent-chip"
+              onClick={() => openLinked(detail.parent)}
+              title={`Open ${detail.parent.title}`}
+            >
+              {ticketKey(detail.parent)}
+            </button>
+            <span className="tm-parent-title">{detail.parent.title}</span>
+          </div>
+        )}
+
         <header className="tm-topbar">
           <div className="tm-topbar-left">
             <span className="tm-type-icon" style={{ color: typeMeta.color }} title={typeMeta.label}>
@@ -609,11 +667,13 @@ export default function TicketDetailModal({
                 setLinkType(CHILD_RELATION);
                 setChildOpen(true);
               }}
-              onRemove={removeRelation}
+              onRemove={removeChild}
               onOpen={openLinked}
               collapsed={!childOpen}
               onToggle={() => setChildOpen((v) => !v)}
               canEdit
+              showChildMeta
+              removeLabel={(item) => `Remove ${ticketKey(item)} as a child of ${ticketKey(detail.ticket)}`}
             />
 
             <RelationsSection
@@ -671,7 +731,14 @@ export default function TicketDetailModal({
                 <ul className="tm-link-results">
                   {linkCandidates.map((candidate) => (
                     <li key={candidate.id}>
-                      <button type="button" onClick={() => addRelation(candidate.id, linkType)}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          linkType === CHILD_RELATION
+                            ? addChild(candidate.id)
+                            : addRelation(candidate.id, linkType)
+                        }
+                      >
                         <span className="tm-link-key">{ticketKey(candidate)}</span>
                         <span className="tm-link-title">{candidate.title}</span>
                       </button>

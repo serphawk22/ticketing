@@ -1,8 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { formatShortDate, ticketKey, STATUS_META } from '../meta';
+import { formatShortDate, ticketKey, STATUS_META, TYPE_META, TypeIcon } from '../meta';
 import { ChevronRight, PaperclipIcon, TrashIcon, UploadIcon } from './icons';
+import Avatar from '../Avatar';
 
 export function AttachmentsSection({ attachments, onUpload, onDelete, onOpen, canEdit, collapsed, onToggle }) {
   const inputRef = useRef(null);
@@ -114,6 +115,10 @@ export function RelationsSection({
   canEdit,
   addLabel,
   showAdd = true,
+  // Child rows carry the same columns the list shows, so a parent reads as a
+  // parent at a glance. Linked rows instead name the kind of link.
+  showChildMeta = false,
+  removeLabel,
 }) {
   return (
     <section className="tm-section">
@@ -136,6 +141,14 @@ export function RelationsSection({
             <ul className="tm-link-list">
               {items.map((item) => (
                 <li key={item.relation_id || item.id} className="tm-link-row">
+                  {showChildMeta && (
+                    <span
+                      className="tm-child-type"
+                      title={(TYPE_META[item.type] || TYPE_META.task).label}
+                    >
+                      <TypeIcon type={item.type} size={14} />
+                    </span>
+                  )}
                   <button type="button" className="tm-link-key" onClick={() => onOpen(item)}>
                     {ticketKey(item)}
                   </button>
@@ -152,12 +165,31 @@ export function RelationsSection({
                       title={STATUS_META[item.status]?.label}
                     />
                   </span>
+                  {showChildMeta && (
+                    <>
+                      <span
+                        className="tm-child-status"
+                        style={{
+                          background: STATUS_META[item.status]?.bg,
+                          color: STATUS_META[item.status]?.text,
+                        }}
+                      >
+                        {STATUS_META[item.status]?.label || item.status}
+                      </span>
+                      <Avatar
+                        name={item.employee_name}
+                        assigned={!!item.employee_id}
+                        size={20}
+                        unassignedIcon
+                      />
+                    </>
+                  )}
                   {canEdit && onRemove && (
                     <button
                       type="button"
                       className="tm-icon-btn tm-icon-danger"
                       onClick={() => onRemove(item)}
-                      aria-label={`Remove link to ${ticketKey(item)}`}
+                      aria-label={removeLabel ? removeLabel(item) : `Remove link to ${ticketKey(item)}`}
                     >
                       <TrashIcon size={14} />
                     </button>
