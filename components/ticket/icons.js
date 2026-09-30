@@ -118,3 +118,45 @@ export const ArrowRightIcon = (p) => (
 export const UploadIcon = (p) => (
   <Svg {...p}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M7 9l5-5 5 5" /><path d="M12 4v12" /></Svg>
 );
+
+// Row menu. These follow the stroke weights of the set above so the menu reads
+// as one row of peers rather than a mix of weights.
+export const ViewIcon = (p) => (
+  <Svg {...p}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></Svg>
+);
+export const WorkIcon = (p) => (
+  <Svg {...p}><path d="M4 6h10M4 12h10M4 18h6" /></Svg>
+);
+export const CopyIcon = (p) => (
+  <Svg {...p}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" /></Svg>
+);
+export const SubtaskIcon = (p) => (
+  <Svg {...p}><rect x="3" y="4" width="8" height="6" rx="1.5" /><rect x="3" y="14" width="8" height="6" rx="1.5" /><rect x="15" y="9" width="6" height="6" rx="1.5" /><path d="M7 10v4M11 7h2a1 1 0 011 1v1M11 17h2a1 1 0 001-1v-1" /></Svg>
+);
+export const MoveIcon = (p) => (
+  <Svg {...p}><path d="M12 3v18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3" /><path d="M3 12h18" /></Svg>
+);
+export const CloneIcon = (p) => (
+  <Svg {...p}><path d="M11 3H6a1 1 0 00-1 1v14a1 1 0 001 1h1" /><rect x="9" y="7" width="11" height="14" rx="2" /></Svg>
+);
+export const ArchiveIcon = (p) => (
+  <Svg {...p}><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8" /><path d="M10 12h4" /></Svg>
+);
+export const UnarchiveIcon = (p) => (
+  <Svg {...p}><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8" /><path d="M12 17v-5M9.5 14.5L12 12l2.5 2.5" /></Svg>
+);
+export const WebLinkIcon = (p) => (
+  <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a15 15 0 010 18M12 3a15 15 0 000 18" /></Svg>
+);
+export const VoteIcon = (p) => (
+  <Svg {...p}><path d="M7 11v9H4a1 1 0 01-1-1v-7a1 1 0 011-1h3z" /><path d="M7 11l4-7a2 2 0 013 2l-1 4h4.5a1.5 1.5 0 011.5 2l-2 6a2 2 0 01-2 1.5H7" /></Svg>
+);
+export const SlackIcon = (p) => (
+  <Svg {...p}><path d="M9.5 3.5a2 2 0 112 2H9.5a1 1 0 01-1-1v-1z" /><path d="M14.5 9.5a2 2 0 112-2 1 1 0 01-1 1h-1z" /><path d="M20.5 14.5a2 2 0 11-2 2v-2a1 1 0 011-1z" /><path d="M9.5 20.5a2 2 0 11-2-2h2a1 1 0 011 1z" /><path d="M3.5 9.5a2 2 0 112 2h-2a1 1 0 01-1-1z" /><path d="M3.5 14.5a2 2 0 112-2v2a1 1 0 01-1 1z" /><path d="M20.5 9.5a2 2 0 11-2 2v-2a1 1 0 011-1z" /><path d="M14.5 20.5a2 2 0 112-2h-2a1 1 0 01-1 1z" /></Svg>
+);
+export const WatchIcon = (p) => (
+  <Svg {...p}><path d="M12 3.5l2.5 5.2 5.5.8-4 3.9 1 5.6-5-2.7-5 2.7 1-5.6-4-3.9 5.5-.8z" /></Svg>
+);
+export const WatchersIcon = (p) => (
+  <Svg {...p}><circle cx="9" cy="8" r="3.2" /><path d="M3 19a6 6 0 0112 0" /><path d="M16 5.3a3.2 3.2 0 010 5.4M17.5 14.4A6 6 0 0121 19" /></Svg>
+);

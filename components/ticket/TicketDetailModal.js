@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../Avatar';
-import { TYPE_META, TypeIcon, RELATION_META, RELATION_ORDER, CHILD_RELATION, ticketKey } from '../meta';
+import { TYPE_META, TypeIcon, RELATION_META, RELATION_ORDER, relationLabelFor, CHILD_RELATION, ticketKey } from '../meta';
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +21,7 @@ import { InlineText, Menu, MenuItem, MenuLabel } from './parts';
 import DescriptionEditor from './DescriptionEditor';
 import ActivityFeed from './ActivityFeed';
 import DetailsSidebar from './DetailsSidebar';
-import { AttachmentsSection, RelationsSection } from './sections';
+import { AttachmentsSection, RelationsSection, SlackSection, VotesSection, WatchersSection, WebLinksSection } from './sections';
 
 const emptyDetail = {
   ticket: null,
@@ -31,6 +31,8 @@ const emptyDetail = {
   relations: [],
   childItems: [],
   watchers: [],
+  votes: [],
+  webLinks: [],
   timeLogs: [],
   loggedSeconds: 0,
 };
@@ -67,6 +69,10 @@ export default function TicketDetailModal({
   const [attachmentsOpen, setAttachmentsOpen] = useState(true);
   const [childOpen, setChildOpen] = useState(true);
   const [linkedOpen, setLinkedOpen] = useState(true);
+  const [votesOpen, setVotesOpen] = useState(true);
+  const [watchersOpen, setWatchersOpen] = useState(true);
+  const [webLinksOpen, setWebLinksOpen] = useState(true);
+  const [slackOpen, setSlackOpen] = useState(true);
   const [configureOpen, setConfigureOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -330,11 +336,81 @@ export default function TicketDetailModal({
     }
   }, [id, watching]);
 
+  // One vote each, so "voted" means the current user is in the returned list;
+  // the detail payload is the one source of truth.
+  const hasVoted = useMemo(
+    () => Boolean(currentUser && (detail.votes || []).some((v) => v.user_id === currentUser.id)),
+    [detail.votes, currentUser]
+  );
+
+  const toggleVote = useCallback(async () => {
+    try {
+      const data = await call(`/api/tickets/${id}/votes`, {
+        method: hasVoted ? 'DELETE' : 'POST',
+      });
+      setDetail((d) => ({ ...d, votes: data.votes || [] }));
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [id, hasVoted]);
+
+  const addWebLink = useCallback(
+    async (link) => {
+      const data = await call(`/api/tickets/${id}/web-links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(link),
+      });
+      setDetail((d) => ({ ...d, webLinks: data.webLinks || [] }));
+    },
+    [id]
+  );
+
+  const removeWebLink = useCallback(
+    async (link) => {
+      const data = await call(`/api/tickets/${id}/web-links?link=${link.id}`, { method: 'DELETE' });
+      setDetail((d) => ({ ...d, webLinks: data.webLinks || [] }));
+    },
+    [id]
+  );
+
+  const addWatcher = useCallback(
+    async (userId) => {
+      const data = await call(`/api/tickets/${id}/watchers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      setDetail((d) => ({ ...d, watchers: data.watchers || [] }));
+    },
+    [id]
+  );
+
+  const removeWatcher = useCallback(
+    async (userId) => {
+      const data = await call(`/api/tickets/${id}/watchers`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      setDetail((d) => ({ ...d, watchers: data.watchers || [] }));
+    },
+    [id]
+  );
+
+  const saveSlack = useCallback(
+    async (channel) => {
+      await patch({ slack_channel: channel });
+    },
+    [patch]
+  );
+
   // Everything already linked from this ticket, so the picker can hide them
-  // instead of failing with a duplicate error.
+  // instead of failing with a duplicate error. Incoming rows carry this ticket
+  // in related_ticket_id, so the linked id comes from the row's own id instead.
   const linkedIds = useMemo(() => {
     const ids = new Set();
-    (detail.relations || []).forEach((r) => ids.add(r.related_ticket_id));
+    (detail.relations || []).forEach((r) => ids.add(r.direction === 'incoming' ? r.id : r.related_ticket_id));
     (detail.childItems || []).forEach((r) => ids.add(r.id));
     return ids;
   }, [detail.relations, detail.childItems]);
@@ -405,13 +481,18 @@ export default function TicketDetailModal({
   );
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const t = detail.ticket || ticket;
-  const typeMeta = TYPE_META[t.type] || TYPE_META.task;
   const watchers = detail.watchers || [];
   const meEmployee = useMemo(
     () => employees.find((e) => currentUser && e.email === currentUser.email),
     [employees, currentUser]
   );
+
+  // Nothing is selected on the first paint of a page that embeds this modal, so
+  // every hook has to run before this guard. Dereferencing the ticket earlier
+  // threw on every page that mounts the modal closed.
+  if (!ticket && !detail.ticket) return null;
+  const t = detail.ticket || ticket;
+  const typeMeta = TYPE_META[t.type] || TYPE_META.task;
 
   if (!ticket) return null;
 
@@ -681,7 +762,7 @@ export default function TicketDetailModal({
               items={detail.relations}
               emptyHint="Nothing linked yet."
               addLabel="Add linked work item"
-              relationLabel={(type) => RELATION_META[type]?.label || type}
+              relationLabel={relationLabelFor}
               onAdd={() => {
                 setLinkOpen(true);
                 setLinkType('relates_to');
@@ -692,6 +773,40 @@ export default function TicketDetailModal({
               collapsed={!linkedOpen}
               onToggle={() => setLinkedOpen((v) => !v)}
               canEdit
+            />
+
+            <VotesSection
+              votes={detail.votes}
+              voted={hasVoted}
+              onToggleVote={toggleVote}
+              collapsed={!votesOpen}
+              onToggle={() => setVotesOpen((v) => !v)}
+            />
+
+            <WatchersSection
+              watchers={detail.watchers}
+              users={employees}
+              currentUser={currentUser}
+              isAdmin={isAdmin}
+              onAdd={addWatcher}
+              onRemove={removeWatcher}
+              collapsed={!watchersOpen}
+              onToggle={() => setWatchersOpen((v) => !v)}
+            />
+
+            <WebLinksSection
+              items={detail.webLinks}
+              onAdd={addWebLink}
+              onRemove={removeWebLink}
+              collapsed={!webLinksOpen}
+              onToggle={() => setWebLinksOpen((v) => !v)}
+            />
+
+            <SlackSection
+              channel={t.slack_channel}
+              onSave={saveSlack}
+              collapsed={!slackOpen}
+              onToggle={() => setSlackOpen((v) => !v)}
             />
 
             {linkOpen && (

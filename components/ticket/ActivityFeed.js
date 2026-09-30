@@ -36,6 +36,9 @@ function ValueChip({ field, value }) {
   if (field === 'employee_id') {
     return <span className="tm-chip-plain">user {value}</span>;
   }
+  if (field === 'project_id') {
+    return <span className="tm-chip-plain">project {value}</span>;
+  }
   const text = String(value);
   return (
     <span className="tm-chip-plain" title={text}>

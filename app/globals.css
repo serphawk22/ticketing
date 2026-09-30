@@ -7,8 +7,8 @@
   /* Typography */
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-size: 14px;
-  --line-height: 20px;
+  --font-size: 16px;
+  --line-height: 24px;
   --fs-11: 11px;
   --fs-12: 12px;
   --fs-16: 16px;
@@ -713,46 +713,6 @@ textarea {
 
 .sidebar-backdrop {
   display: none;
-}
-
-.project-block {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 12px 12px 16px;
-  border-bottom: 1px solid var(--divider);
-}
-
-.project-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  color: #fff;
-  font-weight: 600;
-  font-size: var(--font-size);
-}
-
-.project-block-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.project-block-name {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-block-sub {
-  font-size: var(--fs-12);
-  line-height: 16px;
-  color: var(--text-subtle);
 }
 
 .sidebar-scroll {
@@ -2696,12 +2656,25 @@ textarea {
   table-layout: auto;
 }
 
+/* The Jira list grid: a vertical divider on the right edge of every column,
+   header and body alike, so the whole table reads as a spreadsheet. The very
+   last column is the table's right edge and carries no divider. */
+.list-table th,
+.list-table td {
+  border-right: 1px solid var(--border);
+}
+
+.list-table th:last-child,
+.list-table td:last-child {
+  border-right: none;
+}
+
 .list-th {
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 32px;
-  padding: 0 8px;
+  height: 40px;
+  padding: 0 12px;
   background: var(--bg-surface);
   font-size: var(--fs-12);
   font-weight: 600;
@@ -2720,8 +2693,8 @@ textarea {
   align-items: center;
   gap: 4px;
   width: 100%;
-  height: 32px;
-  padding: 0 8px;
+  height: 40px;
+  padding: 0 12px;
   border: none;
   background: none;
   color: inherit;
@@ -2739,15 +2712,56 @@ textarea {
   color: var(--text);
 }
 
-.list-columns-hint {
+.list-th-columns {
+  width: 36px;
+  padding: 0 !important;
+  text-align: right;
+}
+
+.list-columns-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.list-columns-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.list-columns-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The picker is portaled to <body>, so its position is pinned to the icon by
+   inline coordinates. The generic .list-menu rules (top/left 0) would drag it
+   to the viewport corner, hence the resets. */
+.list-columns-menu {
+  top: auto;
+  left: auto;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.list-more-hint {
   display: inline-flex;
   color: var(--text-subtle);
-  cursor: help;
 }
 
 .list-row > .list-cell {
   height: 42px;
-  padding: 0 8px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   font-size: var(--fs-12);
   color: var(--text);
@@ -2768,7 +2782,8 @@ textarea {
 }
 
 .list-cell-check,
-.list-cell-expand {
+.list-cell-expand,
+.list-cell-columns {
   width: 32px;
   padding: 0 !important;
   text-align: center;
@@ -2847,7 +2862,17 @@ textarea {
 }
 
 /* Quick-add a child. Only shown on hover, like the row overflow menu, so the
-   grid stays quiet until the pointer is on the row. */
+   grid stays quiet until the pointer is on the row. It lives in its own
+   reserved gutter at the left of the Work cell, which is why appearing or
+   disappearing never shifts the title (or the columns after it). */
+.list-add-child-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  flex: 0 0 18px;
+}
+
 .list-add-child {
   display: inline-flex;
   align-items: center;
@@ -3043,6 +3068,7 @@ textarea {
 /* Row overflow action, revealed on hover */
 .list-cell-more {
   width: 36px;
+  padding: 0 !important;
   text-align: center;
 }
 
@@ -4570,4 +4596,1630 @@ input.inline-input.tm-title-edit {
   font-size: var(--fs-11);
   line-height: 16px;
   border-radius: 3px;
+}
+
+/* ==========================================================================
+   Project calendar
+   Month/week grid on the left, a resizable "Unscheduled work" panel on the
+   right. Everything reuses the tokens and the status/priority/avatar pieces
+   the list and board already draw.
+   ========================================================================== */
+
+.cal-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Fullscreen: the browser gives us the viewport, so drop the app chrome and
+   let the grid take the lot. */
+.cal-view:fullscreen {
+  background: var(--bg);
+  padding: 16px;
+  overflow: auto;
+}
+
+/* --- toolbar --- */
+
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.cal-search {
+  width: 220px;
+  flex: 0 0 auto;
+  transition: width var(--t-base);
+}
+
+.cal-search:focus-within {
+  width: 300px;
+}
+
+.cal-people {
+  display: flex;
+  align-items: center;
+  padding-left: 2px;
+}
+
+/* Right-aligned cluster: Today, the period stepper, the view picker and the
+   two icon toggles. margin-left:auto is what pins it to the far edge. */
+.cal-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.cal-period {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  height: var(--control-h);
+}
+
+.cal-period-label {
+  min-width: 92px;
+  padding: 0 4px;
+  text-align: center;
+  font-size: var(--font-size);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cal-step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 100%;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.cal-step-btn:hover {
+  background: var(--bg-hover);
+}
+
+.cal-view-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  padding: 0 10px;
+}
+
+.cal-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.cal-icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.cal-icon-btn.is-active {
+  background: var(--bg-selected);
+  border-color: var(--primary);
+  color: var(--selected-text);
+}
+
+/* --- popovers --- */
+
+.cal-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.cal-menu {
+  min-width: 200px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.cal-menu-label {
+  margin: 0;
+  padding: 8px 12px 4px;
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cal-menu-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cal-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+
+.cal-ghost-btn:hover {
+  background: var(--bg-hover);
+}
+
+.cal-ghost-btn.active {
+  color: var(--selected-text);
+  font-weight: 500;
+}
+
+.cal-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--primary-text);
+  font-size: var(--fs-11);
+  font-weight: 600;
+}
+
+/* --- two-region body --- */
+
+.cal-body {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.cal-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cal-panel-slot {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.cal-resizer {
+  flex: 0 0 auto;
+  width: 7px;
+  margin-left: -3px;
+  margin-right: -3px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* The 1px divider is drawn on the panel itself; the handle is a wider hit area
+   that sits over it so the border stays put. */
+.cal-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  transition: background-color var(--t-fast);
+}
+
+.cal-resizer:hover::after,
+.cal-resizer:focus-visible::after {
+  background: var(--primary);
+}
+
+.cal-resizer:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Three grip dots, revealed on hover. */
+.cal-resizer-grip {
+  position: relative;
+  width: 3px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-pressed);
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+
+.cal-resizer:hover .cal-resizer-grip,
+.cal-resizer:focus-visible .cal-resizer-grip {
+  opacity: 1;
+}
+
+/* --- grid --- */
+
+.cal-grid-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-weekday {
+  padding: 7px 8px;
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+/* One row per week; the cells carry the 1px lines between them. */
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  flex: 1 1 0;
+}
+
+.cal-grid.is-week .cal-week {
+  min-height: 420px;
+}
+
+.cal-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 90px;
+  padding: 5px 6px 6px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* The last column and the last row have nothing to divide them from. */
+.cal-week:last-child .cal-cell {
+  border-bottom: none;
+}
+
+.cal-cell:nth-child(5) {
+  border-right: none;
+}
+
+/* Days borrowed from the neighbouring month recede, but stay droppable and
+   clickable: a ticket can legitimately be due on Sat 3 Oct shown here. */
+.cal-cell.is-outside {
+  background: var(--bg-surface);
+}
+
+.cal-cell.is-droppable {
+  outline: 1px dashed transparent;
+  outline-offset: -2px;
+}
+
+.cal-cell.is-drop {
+  background: var(--bg-selected);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.cal-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 20px;
+}
+
+.cal-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cal-cell.is-outside .cal-day {
+  color: var(--text-disabled);
+}
+
+/* Today: a filled blue pill behind the number, the way Jira marks it. */
+.cal-day.is-today {
+  background: #deebff;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.cal-cell-add {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.cal-cell:hover .cal-cell-add,
+.cal-cell-add:focus-visible {
+  display: inline-flex;
+}
+
+.cal-cell-add:hover {
+  background: var(--bg-pressed);
+  color: var(--text);
+}
+
+.cal-cell-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+/* --- chips --- */
+
+.cal-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--chip-accent, var(--border-input));
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--text);
+  font-size: var(--fs-12);
+  line-height: 18px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--t-fast), border-color var(--t-fast);
+}
+
+.cal-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-input);
+  border-left-color: var(--chip-accent, var(--border-input));
+}
+
+.cal-chip.is-dragging {
+  opacity: 0.4;
+}
+
+.cal-chip-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chip-accent, var(--border-input));
+}
+
+.cal-chip-key {
+  flex: none;
+  color: var(--text-subtle);
+  font-weight: 600;
+}
+
+.cal-chip-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-overflow-wrap {
+  position: relative;
+}
+
+.cal-overflow-btn {
+  padding: 1px 5px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--selected-text);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cal-overflow-btn:hover {
+  background: var(--bg-hover);
+}
+
+.cal-overflow {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  min-width: 260px;
+  max-width: 340px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.cal-overflow .menu-item-text strong {
+  font-weight: 600;
+}
+
+/* --- unscheduled panel --- */
+
+.cal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.cal-panel.is-drop-target {
+  background: var(--bg-selected);
+}
+
+.cal-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+
+.cal-panel-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.cal-panel-hint {
+  margin: 2px 0 0;
+  color: var(--text-subtle);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cal-panel-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -2px -4px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.cal-panel-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.cal-panel-search {
+  width: auto;
+  margin: 0 12px;
+}
+
+.cal-panel-search input {
+  width: 100%;
+  background: var(--bg);
+}
+
+.cal-panel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-panel-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.cal-panel-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cal-panel-list::-webkit-scrollbar-thumb {
+  background: var(--bg-pressed);
+  border-radius: var(--radius-pill);
+}
+
+.cal-panel-list::-webkit-scrollbar-thumb:hover {
+  background: var(--border-input);
+}
+
+.cal-panel-empty {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--text-subtle);
+  font-size: 13px;
+  text-align: center;
+}
+
+.cal-unsched-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--card-accent, var(--border));
+  background: var(--bg);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--t-fast);
+}
+
+.cal-unsched-card:hover {
+  background: var(--bg-hover);
+}
+
+.cal-unsched-card.is-dragging {
+  opacity: 0.4;
+  background: var(--bg-selected);
+}
+
+.cal-unsched-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cal-unsched-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  /* Two lines then an ellipsis, so a long summary cannot push the card open. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cal-unsched-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cal-unsched-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.cal-unsched-key-link {
+  color: var(--selected-text);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cal-unsched-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.cal-unsched-priority {
+  display: inline-flex;
+  align-items: center;
+}
+
+.cal-status-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal-panel-foot {
+  flex: none;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+/* --- responsive ---
+   Below 900px the panel is collapsed by CalendarView itself, so all that is
+   left here is letting the five day columns scroll sideways rather than
+   squashing until they are unreadable. */
+@media (max-width: 900px) {
+  .cal-grid-wrap {
+    overflow-x: auto;
+  }
+
+  .cal-weekdays,
+  .cal-week {
+    min-width: 560px;
+  }
+
+  .cal-toolbar-right {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .cal-period-label {
+    min-width: 76px;
+  }
+}
+
+/* =========================================================
+   List overflow menu, saved view preferences, bulk edit
+   ========================================================= */
+
+/* ---------------- Overflow button + menu ---------------- */
+
+.list-overflow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.list-overflow-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.list-overflow-btn[aria-expanded='true'] {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.list-overflow {
+  width: 260px;
+  max-height: 70vh;
+}
+
+.list-overflow .menu-item {
+  min-height: 32px;
+  padding: 8px 12px;
+  font-size: var(--font-size);
+  color: var(--text);
+}
+
+.list-feedback-item {
+  color: var(--text-subtle);
+}
+
+.list-feedback-item:hover {
+  color: var(--text);
+}
+
+.list-submenu-wrap {
+  position: relative;
+}
+
+.list-submenu-trigger {
+  justify-content: space-between;
+}
+
+.list-submenu-chevron {
+  display: inline-flex;
+  color: var(--text-subtle);
+}
+
+/* Portalled to the body and positioned from the trigger's viewport box, since
+   the parent menu is a scroll container that would clip a nested flyout. It
+   opens to the left of the trigger row, as the parent menu is already flush
+   against the right edge of the toolbar. */
+.list-submenu {
+  position: fixed;
+  min-width: 232px;
+  z-index: 60;
+}
+
+/* Bridges the gap to the trigger row. Without it a pointer travelling from the
+   trigger to the flyout crosses a strip of neither element, and the menu
+   closes on leave before the pointer arrives. */
+.list-submenu-bridge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 16px;
+}
+
+.list-submenu .menu-item {
+
+  min-height: 32px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+/* ---------------- Toggle switch ---------------- */
+
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--text-disabled);
+  transition: background-color var(--t-base);
+}
+
+.switch.is-on {
+  background: var(--primary);
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+  transition: transform var(--t-base);
+}
+
+.switch.is-on .switch-knob {
+  transform: translateX(14px);
+}
+
+.list-toggle-row {
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.list-toggle-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.list-toggle-row .menu-item-text {
+  flex: 1 1 auto;
+}
+
+/* ---------------- Notice banner ---------------- */
+
+.notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: var(--fs-12);
+}
+
+.notice-banner button {
+  margin-left: auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ---------------- Format rules ---------------- */
+
+.modal-note {
+  margin: 0 0 12px;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.modal-note code {
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: var(--bg-hover);
+  font-size: 11px;
+}
+
+.form-error {
+  margin: 0 0 12px;
+  color: var(--danger);
+  font-size: var(--fs-12);
+}
+
+.modal-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.rules-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  text-align: center;
+}
+
+.rule-row {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.rule-summary {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+}
+
+.rule-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.rule-controls select,
+.rule-controls input {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-12);
+}
+
+.rule-controls input {
+  min-width: 120px;
+}
+
+.rule-equals {
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.rule-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.rule-move,
+.rule-remove {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+
+.rule-move:hover:not(:disabled),
+.rule-remove:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.rule-move:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rule-remove {
+  color: var(--danger);
+}
+
+/* Conditional row formatting. Format rules hand the row a set of custom
+   properties, which the cells consume: cells paint their own background and
+   colour, so a value set on the row itself would be painted over. */
+.list-row > .list-cell {
+  font-weight: var(--fmt-weight, inherit);
+  color: var(--fmt-color, var(--text));
+  text-decoration: var(--fmt-decoration, none);
+}
+
+.list-row.is-formatted > .list-cell {
+  background: var(--fmt-bg);
+}
+
+/* Hovering repaints every cell surface, so the rule's highlight has to be
+   re-applied on top of it or it disappears while the pointer is on the row. */
+.list-row.is-formatted:hover > .list-cell {
+  background: var(--fmt-bg);
+  filter: brightness(0.98);
+}
+
+/* ---------------- Chart modal ---------------- */
+
+.modal-wide {
+  width: min(760px, 92vw);
+}
+
+.chart-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chart-modal-controls {
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  align-self: flex-start;
+}
+
+.chart-mode-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chart-mode-btn.is-active {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+
+.chart-modal-split {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.chart-modal-split .donut-legend {
+  flex: 1 1 200px;
+}
+
+.legend-pct {
+  margin-left: auto;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-subhead {
+  margin: 0 0 8px;
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---------------- Bulk edit bar ---------------- */
+
+.bulk-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 -2px 6px rgba(9, 30, 66, 0.1);
+}
+
+.bulk-count {
+  color: var(--text);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-bar select,
+.bulk-bar input {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-12);
+}
+
+.bulk-labels {
+  min-width: 140px;
+}
+
+.bulk-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+}
+
+.bulk-delete:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* ---------------- CSV import ---------------- */
+
+.import-drop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-filename {
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.import-preview {
+  margin-bottom: 12px;
+}
+
+.import-summary {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+.import-scroll {
+  max-height: 40vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.import-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-12);
+}
+
+.import-table th,
+.import-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface);
+  font-weight: 600;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+.import-table tr.is-invalid {
+  background: var(--danger-bg);
+}
+
+.import-line {
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.import-empty,
+.import-note {
+  color: var(--danger);
+}
+
+.import-assignee {
+  color: var(--text-subtle);
+}
+
+.import-progress {
+  margin: 0 0 8px;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+/* ---------------- Feedback ---------------- */
+
+.feedback-form .form-group {
+  margin-bottom: 8px;
+}
+
+.feedback-form textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size);
+  resize: vertical;
+}
+
+.feedback-sent {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}
+
+.feedback-sent h4 {
+  margin: 0 0 8px;
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.feedback-sent ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feedback-sent li {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.feedback-sent p {
+  margin: 0 0 4px;
+  font-size: var(--fs-12);
+}
+
+.feedback-sent span {
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+}
+
+/* Visually hidden but still reachable by keyboard and screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-row work item menu
+ *
+ * Fixed positioned like the overflow flyout so a long menu is never
+ * clipped by the table cell it was opened from, and capped in height so
+ * all 21 items cannot run off the bottom of the viewport.
+ * ------------------------------------------------------------------ */
+
+.row-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 232px;
+  max-width: 300px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #DFE1E6);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(9, 30, 66, 0.18);
+  padding: 4px;
+  overflow: hidden;
+}
+
+.row-menu-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text, #172B4D);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-menu-item:hover:not(:disabled),
+.row-menu-item:focus-visible {
+  background: var(--hover-bg, #F4F5F7);
+  outline: none;
+}
+
+.row-menu-item:disabled {
+  color: var(--muted, #6B778C);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.row-menu-item.is-danger { color: var(--danger, #DE350B); }
+.row-menu-item.is-danger:hover:not(:disabled) { background: #FFEBE6; }
+
+.row-menu-item svg { flex: none; opacity: 0.8; }
+
+.row-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border, #DFE1E6);
+}
+
+/* Chevrons only appear on the side that actually has more menu off-screen. */
+.row-menu-chev {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.row-menu-chev-top {
+  top: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+}
+
+.row-menu-chev-bottom {
+  bottom: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+}
+
+/* ------------------------------------------------------------------ *
+ * Toasts
+ * ------------------------------------------------------------------ */
+
+.toaster {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 40px));
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #172B4D;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(9, 30, 66, 0.28);
+  font-size: 14px;
+}
+
+.toast.is-error { background: #BF2600; }
+.toast-text { flex: 1; }
+
+.toast-action {
+  border: 0;
+  background: transparent;
+  color: #79F2C0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.toast-action:hover { background: rgba(121, 242, 192, 0.16); }
+
+.toast-close {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.toast-close:hover { color: #fff; }
+
+/* ------------------------------------------------------------------ *
+ * Row menu dialogs
+ * ------------------------------------------------------------------ */
+
+.modal-narrow { max-width: 460px; }
+
+.dialog-field { display: block; margin-bottom: 12px; }
+.dialog-fieldset { border: 0; margin: 0 0 12px; padding: 0; }
+.dialog-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #5E6C84);
+}
+
+.tm-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #DFE1E6);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+
+.tm-input:focus {
+  outline: 2px solid var(--accent-ring, #B3D4FF);
+  outline-offset: 0;
+  border-color: var(--accent, #0C66E4);
+}
+
+.tm-input-select { cursor: pointer; }
+.tm-error { margin: 0; color: var(--danger, #DE350B); font-size: 13px; }
+.tm-empty { margin: 12px 0 0; color: var(--muted, #6B778C); font-size: 14px; }
+
+.dialog-hint { margin: 0 0 12px; color: var(--muted, #6B778C); font-size: 13px; }
+.dialog-warning {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: #FFF7D6;
+  border-radius: 4px;
+  color: #974F0C;
+  font-size: 13px;
+}
+
+.dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.modal-actions-padded { padding: 12px 20px 20px; }
+
+.picker-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #DFE1E6);
+  border-radius: 4px;
+}
+
+.picker-list:empty { display: none; }
+.picker-list-compact { max-height: 180px; }
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-row:hover:not(:disabled),
+.picker-row.is-active { background: var(--hover-bg, #F4F5F7); }
+.picker-type { flex: none; opacity: 0.7; }
+.picker-key { flex: none; font-size: 12px; color: var(--muted, #6B778C); }
+.picker-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-sub { font-size: 12px; color: var(--muted, #6B778C); }
+
+.picker-status {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.picker-none { padding: 8px; font-size: 13px; color: var(--muted, #6B778C); }
+
+.dialog-search-wrap { margin-bottom: 12px; }
+
+.watcher-list { list-style: none; margin: 0; padding: 0; }
+
+.watcher-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.watcher-name { flex: 1; font-size: 14px; }
+.watcher-you { font-size: 12px; color: var(--muted, #6B778C); }
+
+.watcher-remove {
+  border: 0;
+  background: transparent;
+  color: var(--muted, #6B778C);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.watcher-remove:hover:not(:disabled) { background: #FFEBE6; color: var(--danger, #DE350B); }
+.watcher-remove:disabled { cursor: not-allowed; opacity: 0.4; }
+
+/* Detail-modal side sections: votes, watcher add, web links, slack. */
+
+.tm-vote-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--border, #DFE1E6);
+  border-radius: 3px;
+  background: var(--sur, #FFFFFF);
+  color: var(--muted, #6B778C);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tm-vote-toggle:hover { background: var(--hover-bg, #F4F5F7); color: var(--text, #172B4D); }
+
+.tm-vote-toggle.is-voted {
+  border-color: #FFC400;
+  background: #FFF7E0;
+  color: #974F0C;
+}
+
+.tm-watcher-add { margin-top: 10px; }
+.tm-watcher-add .tm-input { width: 100%; box-sizing: border-box; }
+
+.tm-weblink-list { list-style: none; margin: 10px 0 0; padding: 0; }
+
+.tm-weblink-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.tm-weblink-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted, #6B778C);
+}
+
+.tm-weblink-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-weblink-label { font-size: 14px; }
+
+.tm-weblink-url {
+  font-size: 13px;
+  color: var(--text-link, #0052CC);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-weblink-url:hover { text-decoration: underline; }
+
+.tm-weblink-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tm-weblink-add .tm-input { flex: 1; min-width: 0; }
+.tm-weblink-add .tm-input:first-child { flex: 1.6; }
+
+.btn-sm { padding: 4px 10px; font-size: 13px; }
+
+.tm-slack-line { margin: 10px 0 0; font-size: 14px; }
+
+.tm-slack-channel {
+  font-weight: 600;
+  color: #36A37E;
 }

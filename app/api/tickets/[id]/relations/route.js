@@ -77,11 +77,14 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Invalid link.' }, { status: 400 });
   }
 
+  // Either end may remove the link, matching the bidirectional list: a ticket
+  // shown "is blocked by X" has to be able to drop that link even though the
+  // stored row points the other way.
   const result = await db
-    .prepare('DELETE FROM ticket_relations WHERE id = ? AND ticket_id = ?')
-    .run(relationId, ticketId);
+    .prepare('DELETE FROM ticket_relations WHERE id = ? AND (ticket_id = ? OR related_ticket_id = ?)')
+    .run(relationId, ticketId, ticketId);
 
-  if (!result.changes) {
+  if (!result.rowCount) {
     return NextResponse.json({ error: 'Link not found.' }, { status: 404 });
   }
 

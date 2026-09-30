@@ -8,6 +8,7 @@ export default function CreateTicketModal({
   projects = [],
   defaultProjectId = '',
   parent = null,
+  defaultDueDate = null,
   onClose,
   onCreate,
 }) {
@@ -15,6 +16,7 @@ export default function CreateTicketModal({
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
   const [type, setType] = useState('task');
+  const [category, setCategory] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
@@ -46,11 +48,15 @@ export default function CreateTicketModal({
           description,
           priority,
           type,
+          category,
           employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
           // Set when the modal was opened from a row's quick-add, so the new
           // ticket lands in the tree instead of at the top level.
           parent_id: parent ? parent.id : null,
+          // Set when the modal was opened from a calendar cell, so the ticket
+          // lands on the day that was clicked.
+          due_date: defaultDueDate || null,
         }),
       });
       const data = await res.json();
@@ -103,6 +109,11 @@ export default function CreateTicketModal({
             <p className="form-parent">
               Child of <strong>{parent.project_key ? `${parent.project_key}-${parent.id}` : `#${parent.id}`}</strong>
               {parent.title ? ` — ${parent.title}` : ''}
+            </p>
+          )}
+          {defaultDueDate && (
+            <p className="form-parent">
+              Due <strong>{defaultDueDate}</strong>
             </p>
           )}
           <div className="form-group">
@@ -158,6 +169,17 @@ export default function CreateTicketModal({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="ticket-category">Category</label>
+              <input
+                id="ticket-category"
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="Add category"
+              />
             </div>
 
             <div className="form-group">

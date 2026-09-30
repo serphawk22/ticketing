@@ -11,14 +11,17 @@ const TABS = [
   { key: 'reports', label: 'Reports' },
   { key: 'docs', label: 'Docs' },
   { key: 'attachments', label: 'Attachments' },
+  { key: 'archived', label: 'Archived' },
 ];
 
-const AVAILABLE = new Set(['summary', 'board', 'list']);
+const AVAILABLE = new Set(['summary', 'board', 'list', 'calendar', 'archived']);
 
 const HREF = {
   summary: (id) => `/projects/${id}/summary`,
   board: (id) => `/?project=${id}`,
   list: (id) => `/projects/${id}/list`,
+  calendar: (id) => `/projects/${id}/calendar`,
+  archived: (id) => `/projects/${id}/archived`,
 };
 
 export default function ProjectTabs({ projectId, active = 'summary' }) {

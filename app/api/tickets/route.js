@@ -34,6 +34,9 @@ export async function POST(request) {
     project_id = null,
     employee_id = null,
     parent_id = null,
+    due_date = null,
+    labels = '',
+    category = '',
   } = await request.json();
 
   if (!title?.trim() || !description?.trim()) {
@@ -47,6 +50,14 @@ export async function POST(request) {
   if (!VALID_TYPES.includes(type)) {
     return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
   }
+
+  // The calendar can hand over a due date with the create, so the new ticket
+  // lands on the day the user clicked rather than in the unscheduled list.
+  // Stored as a bare YYYY-MM-DD, the same shape the PATCH route accepts.
+  if (due_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())) {
+    return NextResponse.json({ error: 'Invalid due date.' }, { status: 400 });
+  }
+  const due = due_date ? String(due_date).trim() : null;
 
   if (employee_id && !await employeeExists(employee_id)) {
     return NextResponse.json(
@@ -63,8 +74,8 @@ export async function POST(request) {
 
   const info = await db
     .prepare(
-      `INSERT INTO tickets (title, description, priority, type, created_by, project_id, employee_id, parent_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tickets (title, description, priority, type, created_by, project_id, employee_id, parent_id, due_date, labels, category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       title.trim(),
@@ -74,7 +85,10 @@ export async function POST(request) {
       session.user.id,
       project_id || null,
       employee_id || null,
-      parent_id || null
+      parent_id || null,
+      due,
+      String(labels || '').trim(),
+      String(category || '').trim()
     );
 
   const ticket = await getTicket(info.lastInsertRowid);

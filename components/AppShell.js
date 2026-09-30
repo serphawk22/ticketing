@@ -85,17 +85,6 @@ function SidebarIcon() {
   );
 }
 
-function BoardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  );
-}
-
 function PersonIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -182,13 +171,6 @@ export default function AppShell({
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
-
-  const activeProject =
-    view === 'board' && projectId && String(projectId) !== 'all'
-      ? projects.find((p) => String(p.id) === String(projectId))
-      : null;
-
-  const primaryProject = activeProject || projects[0] || null;
 
   function isNavActive(item) {
     if (item.id === 'people') return view === 'employees';
@@ -359,32 +341,9 @@ export default function AppShell({
         )}
 
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
-          {primaryProject && (
-            <div className="project-block">
-              <span
-                className="project-icon"
-                style={{ background: primaryProject.color }}
-                aria-hidden="true"
-              >
-                {primaryProject.name.slice(0, 1).toUpperCase()}
-              </span>
-              <div className="project-block-text">
-                <span className="project-block-name">{primaryProject.name}</span>
-                <span className="project-block-sub">Software project</span>
-              </div>
-            </div>
-          )}
-
           <div className="sidebar-scroll">
             <div className="nav-label">Issues</div>
             <nav className="nav">
-              <button
-                className={`nav-item${view === 'board' && filter === 'all' ? ' active' : ''}`}
-                onClick={() => selectFilter('all')}
-              >
-                <BoardIcon />
-                <span className="nav-text">Board</span>
-              </button>
               <button
                 className={`nav-item${view === 'board' && filter === 'mine' ? ' active' : ''}`}
                 onClick={() => selectFilter('mine')}

@@ -9,7 +9,19 @@ import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
 import useTicketModal from './useTicketModal';
+import ConfirmModal from './ConfirmModal';
 import { HierarchyIcon } from './ticket/icons';
+import ListOverflowMenu from './list/ListOverflowMenu';
+import ListColumnsMenu from './list/ListColumnsMenu';
+import ChartViewModal from './list/ChartViewModal';
+import FormatRulesModal from './list/FormatRulesModal';
+import ImportCsvModal from './list/ImportCsvModal';
+import BulkBar from './list/BulkBar';
+import FeedbackModal from './list/FeedbackModal';
+import TicketRowMenu from './list/TicketRowMenu';
+import RowMenuDialog from './list/RowMenuDialog';
+import { useToasts, Toaster } from './Toaster';
+import { isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -17,14 +29,21 @@ import {
   PRIORITY_ORDER,
   TYPE_META,
   TYPE_ORDER,
+  LOZENGE_TINTS,
   PriorityIcon,
   TypeIcon,
   formatListDateTime,
+  formatListDate,
   ticketKey,
 } from './meta';
 import { buildTicketTree, countHidden, flattenTree, isDone } from '../lib/ticketTree';
 
+// Items that run on click. The rest open a dialog or navigate first, so a
+// destructive or structural change is never one stray click away.
+const DIRECT_ACTIONS = new Set(['delete', 'archive', 'vote']);
+
 const GROUPS = [
+
   { key: 'none', label: 'None' },
   { key: 'status', label: 'Status' },
   { key: 'assignee', label: 'Assignee' },
@@ -39,20 +58,18 @@ const COLUMNS = [
   { key: 'reporter', label: 'Reporter' },
   { key: 'priority', label: 'Priority' },
   { key: 'status', label: 'Status', always: true },
+  { key: 'category', label: 'Category' },
   { key: 'resolution', label: 'Resolution' },
   { key: 'created', label: 'Created' },
+  { key: 'updated', label: 'Updated' },
+  { key: 'due', label: 'Due date' },
 ];
 
-const DEFAULT_HIDDEN = ['reporter', 'resolution'];
+const DEFAULT_HIDDEN = [];
 
 // Jira tints the status lozenge by outcome, not by the board column colour:
-// open work sits grey/blue and finished work sits green.
-const LOZENGE = {
-  open: { bg: '#DEEBFF', text: '#0C66E4' },
-  in_progress: { bg: '#DEEBFF', text: '#0C66E4' },
-  resolved: { bg: '#E3FCEF', text: '#216E4E' },
-  closed: { bg: '#E3FCEF', text: '#216E4E' },
-};
+// open work sits grey/blue and finished work sits green. The tints live in
+// lib/ticketMeta so the calendar draws them from the same source.
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITY_ORDER.map((p, i) => [p, i]));
 
@@ -130,15 +147,6 @@ function SortArrow({ dir }) {
   );
 }
 
-function ColumnsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M9 4v16M15 4v16" />
-    </svg>
-  );
-}
-
 function MenuCheck() {
   return (
     <span className="menu-check" aria-hidden="true">
@@ -209,6 +217,7 @@ export default function ListView({
   myIssuesCount,
   currentUser,
 }) {
+  const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
@@ -224,8 +233,30 @@ export default function ListView({
   const [createParent, setCreateParent] = useState(null);
   const [error, setError] = useState('');
 
+  // Saved view preferences, keyed per project so one project's toggles do not
+  // leak into another's list.
+  const [hideDone, setHideDone] = useState(false);
+  const [showHierarchyPref, setShowHierarchyPref] = useState(true);
+  const [formatRules, setFormatRules] = useState([]);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [notice, setNotice] = useState('');
+  // Which row's menu is open, and the dialog it handed off to. Both live here
+  // rather than in the menu itself so a row action can close the menu and open
+  // a dialog without the two fighting over unmounting.
+  const [rowMenu, setRowMenu] = useState(null);
+  const [rowDialog, setRowDialog] = useState(null);
+  const [rowUsers, setRowUsers] = useState([]);
+  const { toasts, push, dismiss, pause, resume } = useToasts();
+
   const rootRef = useRef(null);
-  const projectId = project.id;
+  const projectId = project?.id ?? null;
   const isAdmin = currentUser.role === 'admin';
   // Moving a ticket is open to any signed-in user, matching the board.
   const canUpdate = true;
@@ -236,6 +267,31 @@ export default function ListView({
   useEffect(() => {
     setCollapsedParents(readCollapsed(projectId));
   }, [projectId]);
+
+  // The saved preferences are re-read per project. Reading on mount only would
+  // leave the previous project's toggles on screen when switching projects
+  // without a remount.
+  useEffect(() => {
+    const prefs = readViewPrefs(projectId);
+    setHideDone(prefs.hideDone);
+    setShowHierarchyPref(prefs.showHierarchy);
+    setFormatRules(prefs.formatRules);
+    setSelected(new Set());
+  }, [projectId]);
+
+  // One write path for the three saved preferences, so a toggle can never
+  // persist a stale copy of the other two.
+  function savePrefs(patch) {
+    const next = {
+      hideDone: 'hideDone' in patch ? patch.hideDone : hideDone,
+      showHierarchy: 'showHierarchy' in patch ? patch.showHierarchy : showHierarchyPref,
+      formatRules: 'formatRules' in patch ? patch.formatRules : formatRules,
+    };
+    writeViewPrefs(projectId, next);
+    if ('hideDone' in patch) setHideDone(next.hideDone);
+    if ('showHierarchy' in patch) setShowHierarchyPref(next.showHierarchy);
+    if ('formatRules' in patch) setFormatRules(next.formatRules);
+  }
 
   function toggleParent(id) {
     setCollapsedParents((prev) => {
@@ -250,6 +306,25 @@ export default function ListView({
   const visibleColumns = useMemo(
     () => COLUMNS.filter((c) => c.always || !hidden.has(c.key)),
     [hidden]
+  );
+
+  // Shared by the overflow menu's Columns section and the header's column
+  // settings icon, so toggling one always matches the other.
+  const columnsMenu = (
+    <>
+      <p className="list-menu-label">Columns</p>
+      {COLUMNS.filter((c) => !c.always).map((c) => {
+        const on = !hidden.has(c.key);
+        return (
+          <button key={c.key} type="button" className="menu-item" role="menuitemcheckbox" aria-checked={on} onClick={() => toggleColumn(c.key)}>
+            <span className={`list-column-check${on ? ' is-on' : ''}`} aria-hidden="true">
+              {on ? '✓' : ''}
+            </span>
+            <span className="menu-item-text">{c.label}</span>
+          </button>
+        );
+      })}
+    </>
   );
 
   useEffect(() => {
@@ -282,6 +357,9 @@ export default function ListView({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tickets.filter((t) => {
+      // A finished work item is still there, it is just not listed, which is
+      // why this sits with the other filters rather than after the sort.
+      if (hideDone && isDone(t)) return false;
       if (filters.assignee !== 'all') {
         const key = t.employee_id == null ? 'unassigned' : String(t.employee_id);
         if (key !== filters.assignee) return false;
@@ -296,7 +374,7 @@ export default function ListView({
         (t.description || '').toLowerCase().includes(q)
       );
     });
-  }, [tickets, search, filters]);
+  }, [tickets, search, filters, hideDone]);
 
   const sorted = useMemo(() => {
     const dir = sort.dir === 'asc' ? 1 : -1;
@@ -312,10 +390,16 @@ export default function ListView({
           return PRIORITY_RANK[t.priority] ?? 99;
         case 'status':
           return STATUS_ORDER.indexOf(t.status);
+        case 'category':
+          return (t.category || '￿').toLowerCase();
         case 'resolution':
           return isDone(t) ? 1 : 0;
         case 'created':
           return String(t.created_at || '');
+        case 'updated':
+          return String(t.updated_at || '');
+        case 'due':
+          return String(t.due_date || '￿');
         default:
           return t.id;
       }
@@ -348,8 +432,10 @@ export default function ListView({
   // Hierarchy is a view concern layered on top of the sorted flat list: the
   // sort applies to every ticket, and the tree just decides which rows end up
   // next to which. When a group is active the tree is bypassed entirely, since
-  // a parent whose children sit in a different bucket cannot stay intact.
-  const hierarchyActive = group === 'none';
+  // a parent whose children sit in a different bucket cannot stay intact. The
+  // saved preference is the other half of the condition: turning it off
+  // flattens the list back to the sort order.
+  const hierarchyActive = group === 'none' && showHierarchyPref;
 
   const tree = useMemo(() => buildTicketTree(sorted), [sorted]);
 
@@ -469,58 +555,151 @@ export default function ListView({
     setOpen(null);
   }
 
-  async function updateStatus(id, status) {
-    const previous = tickets;
-    setError('');
-    setTickets((ts) => ts.map((t) => (t.id === id ? { ...t, status } : t)));
+  /**
+   * The one write path for a ticket change. Status, assignee and bulk edits all
+   * go through here, so the optimistic update, the server response and the
+   * rollback behave identically whichever entry point was used.
+   */
+  const patchTicket = useCallback(
+    async (id, fields, { rollbackTo } = {}) => {
+      setError('');
+      setTickets((ts) =>
+        ts.map((t) => {
+          if (t.id !== id) return t;
+          const next = { ...t, ...fields };
+          if ('employee_id' in fields) {
+            const employee = employees.find((e) => e.id === Number(fields.employee_id));
+            next.employee_id = employee ? employee.id : null;
+            next.employee_name = employee?.name || null;
+          }
+          return next;
+        })
+      );
 
-    try {
-      const res = await fetch(`/api/tickets/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed.');
-      if (data.ticket) {
-        setTickets((ts) => ts.map((t) => (t.id === id ? data.ticket : t)));
+      try {
+        const res = await fetch(`/api/tickets/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fields),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Update failed.');
+        if (data.ticket) {
+          setTickets((ts) => ts.map((t) => (t.id === id ? data.ticket : t)));
+        }
+        return data.ticket;
+      } catch (e) {
+        // Only this row goes back; anything that already succeeded stays put.
+        setTickets((ts) => {
+          if (!rollbackTo) return ts;
+          const prior = rollbackTo.find((t) => t.id === id);
+          return prior ? ts.map((t) => (t.id === id ? prior : t)) : ts;
+        });
+        throw e;
       }
+    },
+    [employees]
+  );
+
+  async function updateStatus(id, status) {
+    try {
+      await patchTicket(id, { status }, { rollbackTo: tickets });
     } catch (e) {
-      setTickets(previous);
       setError(e.message);
     }
   }
 
   async function handleReassign(id, employeeId) {
-    const previous = tickets;
-    setError('');
-
-    setTickets((ts) =>
-      ts.map((t) => {
-        if (t.id !== id) return t;
-        const employee = employees.find((e) => e.id === Number(employeeId));
-        return {
-          ...t,
-          employee_id: employee ? employee.id : null,
-          employee_name: employee?.name || null,
-        };
-      })
-    );
-
     try {
-      const res = await fetch(`/api/tickets/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employee_id: employeeId ? Number(employeeId) : null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Reassignment failed.');
-      if (data.ticket) {
-        setTickets((ts) => ts.map((t) => (t.id === id ? data.ticket : t)));
-      }
+      await patchTicket(
+        id,
+        { employee_id: employeeId ? Number(employeeId) : null },
+        { rollbackTo: tickets }
+      );
     } catch (e) {
-      setTickets(previous);
       setError(e.message);
+    }
+  }
+
+  /**
+   * Bulk change, reusing the single-row PATCH rather than a second write path.
+   * Applied one ticket at a time with an optimistic update and a rollback, the
+   * same contract the status editor has, so a partial failure leaves the rows
+   * that did succeed correct instead of reverting all of them.
+   */
+  async function bulkApply(fields) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+
+    setBulkBusy(true);
+    setError('');
+    setNotice('');
+
+    // patchTicket paints each row as it goes, which is the same optimistic
+    // contract the single-row editors have.
+    const previous = tickets;
+
+    const failures = [];
+    for (const id of ids) {
+      try {
+        await patchTicket(id, fields, { rollbackTo: previous });
+      } catch (e) {
+        failures.push(`${ticketKey(previous.find((t) => t.id === id) || { id })}: ${e.message}`);
+      }
+    }
+
+    setBulkBusy(false);
+
+    if (failures.length > 0) {
+      // Each failed row rolled itself back, so the table already shows the
+      // server's state and only the failures need reporting.
+      setError(failures.join(' · '));
+    } else {
+      setNotice(`Updated ${ids.length} ${ids.length === 1 ? 'work item' : 'work items'}.`);
+      setSelected(new Set());
+      setBulkMode(false);
+    }
+  }
+
+  async function bulkDelete() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+
+    setBulkBusy(true);
+    setError('');
+    setNotice('');
+
+    const previous = tickets;
+    setTickets((ts) => ts.filter((t) => !selected.has(t.id)));
+
+    const failures = [];
+    let reparented = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/tickets/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Delete failed.');
+        reparented += data.reparentedChildren || 0;
+      } catch (e) {
+        failures.push(`${id}: ${e.message}`);
+      }
+    }
+
+    setBulkBusy(false);
+    setConfirmDelete(false);
+
+    if (failures.length > 0) {
+      setTickets(previous);
+      setError(failures.join(' · '));
+    } else {
+      setSelected(new Set());
+      setBulkMode(false);
+      setNotice(
+        `Deleted ${ids.length} ${ids.length === 1 ? 'work item' : 'work items'}.` +
+          (reparented > 0
+            ? ` ${reparented} child ${reparented === 1 ? 'work was' : 'works were'} moved up a level.`
+            : '')
+      );
     }
   }
 
@@ -545,6 +724,157 @@ export default function ListView({
     setShowCreate(true);
   }
 
+  function toggleRowMenu(t, anchor) {
+    setRowMenu((cur) => (cur?.id === t.id ? null : { id: t.id, anchor }));
+    setRowDialog(null);
+  }
+
+  const closeRowMenu = useCallback(() => setRowMenu(null), []);
+
+  async function openRowAction(key, ticket) {
+    setError('');
+    setNotice('');
+
+    // These only jump somewhere or copy, so they never open a dialog.
+    if (key === 'view' || key === 'comment' || key === 'log' || key === 'attach') {
+      // Comment, Log work and Attach files are all fields inside the detail
+      // modal, so the modal is the only place they can be filled in.
+      return openTicket(ticket.id);
+    }
+
+    if (key === 'copylink') {
+      const link = `${window.location.origin}/projects/${ticket.project_id}/list?issue=${ticket.id}`;
+      return copyText(link, 'Link copied.');
+    }
+
+    if (key === 'copykey') {
+      return copyText(ticketKey(ticket), `${ticketKey(ticket)} copied.`);
+    }
+
+    // The rest open a dialog. Watchers and voters need data the rows do not
+    // carry, so that is fetched by the dialog itself.
+    return setRowDialog({ key, ticket });
+  }
+
+  // Clipboard writes are async and can be denied, so both paths report through
+  // the toast rather than failing silently.
+  async function copyText(text, message) {
+    try {
+      await navigator.clipboard.writeText(text);
+      push({ message });
+    } catch {
+      push({ message: 'Could not copy to the clipboard.', tone: 'error' });
+    }
+  }
+
+  async function runRowAction(key, ticket) {
+    // Everything past this point is a mutation the user has committed to.
+    try {
+      if (key === 'delete') {
+        const res = await fetch(`/api/tickets/${ticket.id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Delete failed.');
+        setTickets((ts) => ts.filter((x) => x.id !== ticket.id));
+        setSelected(new Set());
+        push({
+          message: `Deleted ${ticketKey(ticket)}.`,
+          action: { label: 'Undo', onClick: () => restoreDeleted(ticket) },
+        });
+        return;
+      }
+
+      if (key === 'archive') {
+        const archived = ticket;
+        await patchTicket(ticket.id, { archived: true });
+        // Archived work leaves the working list, so it goes with it. The toast
+        // holds the only handle to bring it back.
+        setTickets((ts) => ts.filter((x) => x.id !== ticket.id));
+        push({
+          message: `Archived ${ticketKey(ticket)}.`,
+          action: {
+            label: 'Undo',
+            onClick: () => unarchiveRow(archived),
+          },
+        });
+        return;
+      }
+
+      // Voting is a one-click toggle: the item already reads "Add vote", so it
+      // only opens the list when the user has already voted and is undoing it.
+      if (key === 'vote') {
+        const res = await fetch(`/api/tickets/${ticket.id}/votes`);
+        const before = await res.json();
+        const already = before.voted;
+        const action = already ? 'DELETE' : 'POST';
+        const done = await fetch(`/api/tickets/${ticket.id}/votes`, { method: action });
+        const after = await done.json();
+        if (!done.ok) throw new Error(after.error || 'Could not update your vote.');
+        setRowDialog({ key: 'voters', ticket });
+        push({ message: already ? 'Vote removed.' : 'Vote added.' });
+        return;
+      }
+
+      if (key === 'subtask' || key === 'clone' || key === 'move' || key === 'link' || key === 'weblink' || key === 'slack' || key === 'watch' || key === 'voters' || key === 'watchers') {
+        return setRowDialog({ key, ticket });
+      }
+    } catch (e) {
+      setError(e.message);
+      push({ message: e.message, tone: 'error' });
+    }
+    return undefined;
+  }
+
+  // Restoring an archived row from the toast. patchTicket maps over existing
+  // rows, but the archive flow removed this one, so it is re-inserted here
+  // rather than left to silently not come back.
+  async function unarchiveRow(ticket) {
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not restore the work item.');
+      setTickets((ts) => {
+        if (ts.some((x) => x.id === ticket.id)) {
+          return ts.map((x) => (x.id === ticket.id ? { ...x, ...data.ticket } : x));
+        }
+        return [...ts, { ...ticket, ...data.ticket }].sort((a, b) => b.id - a.id);
+      });
+      push({ message: `Restored ${ticketKey(ticket)}.` });
+    } catch (e) {
+      push({ message: e.message, tone: 'error' });
+    }
+  }
+
+  // Undo for delete. The row is gone, so it is re-inserted at its old position
+  // rather than appended, which keeps the list from reordering under the user.
+  async function restoreDeleted(ticket) {
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: ticket.project_id,
+          title: ticket.title,
+          status: ticket.status,
+          priority: ticket.priority,
+          type: ticket.type,
+          parent_id: ticket.parent_id ?? null,
+          labels: ticket.labels,
+          employee_id: ticket.employee_id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not restore the work item.');
+      setTickets((ts) => [...ts, { ...ticket, ...data.ticket }].sort((a, b) => b.id - a.id));
+      push({ message: `Restored ${ticketKey(ticket)}.` });
+    } catch (e) {
+      push({ message: e.message, tone: 'error' });
+    }
+  }
+
   function renderRow(node) {
     const t = node.ticket;
     const depth = node.depth;
@@ -552,14 +882,22 @@ export default function ListView({
     const isOpen = !collapsedParents.has(t.id);
     const priority = PRIORITY_META[t.priority];
     const done = isDone(t);
-    const lozenge = LOZENGE[t.status] || LOZENGE.open;
+    const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
     const isSelected = selected.has(t.id);
+
+    // Conditional formatting is evaluated per render, so a saved rule shows up
+    // on the row without any extra state to keep in sync. The background goes
+    // through a custom property because each cell paints its own surface, which
+    // would otherwise cover a background set on the row itself.
+    const effects = matchRules(t, formatRules).map((r) => r.effect);
+    const style = rowStyle(effects);
 
     return (
       <tr
         key={t.id}
-        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}`}
+        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}${style['--fmt-bg'] ? ' is-formatted' : ''}`}
         aria-selected={isSelected}
+        style={Object.keys(style).length ? style : undefined}
       >
         <td className="list-cell list-cell-check">
           <input
@@ -589,6 +927,21 @@ export default function ListView({
 
         <td className="list-cell list-cell-work">
           <span className="list-work" style={{ paddingLeft: `${depth * 20}px` }}>
+            {/* A reserved gutter, so the "+" revealed on hover never overlaps
+                or nudges the row content (or the Assignee column). */}
+            {isAdmin && (
+              <span className="list-add-child-slot">
+                <button
+                  type="button"
+                  className="list-add-child"
+                  onClick={() => addChildTo(t)}
+                  title={`Add a child work item to ${ticketKey(t)}`}
+                  aria-label={`Add a child work item to ${ticketKey(t)}`}
+                >
+                  <PlusIcon />
+                </button>
+              </span>
+            )}
             {hasChildren && !isOpen && (
               <span className="list-child-count" title={`${node.childCount} hidden child work items`}>
                 {node.childCount}
@@ -612,17 +965,6 @@ export default function ListView({
               <span className="list-child-progress" title={`${node.doneCount} of ${node.childCount} children done`}>
                 {node.doneCount}/{node.childCount} done
               </span>
-            )}
-            {isAdmin && (
-              <button
-                type="button"
-                className="list-add-child"
-                onClick={() => addChildTo(t)}
-                title={`Add a child work item to ${ticketKey(t)}`}
-                aria-label={`Add a child work item to ${ticketKey(t)}`}
-              >
-                <PlusIcon />
-              </button>
             )}
           </span>
         </td>
@@ -687,8 +1029,16 @@ export default function ListView({
           </td>
         )}
 
+        {visibleColumns.some((c) => c.key === 'category') && (
+          <td className={`list-cell${t.category ? '' : ' list-cell-muted'}`}>
+            {t.category || 'None'}
+          </td>
+        )}
+
         {visibleColumns.some((c) => c.key === 'resolution') && (
-          <td className="list-cell list-cell-muted">{done ? 'Done' : 'Unresolved'}</td>
+          <td className="list-cell list-cell-muted">
+            {done ? STATUS_META[t.status].label : 'Unresolved'}
+          </td>
         )}
 
         {visibleColumns.some((c) => c.key === 'created') && (
@@ -697,8 +1047,29 @@ export default function ListView({
           </td>
         )}
 
+        {visibleColumns.some((c) => c.key === 'updated') && (
+          <td className="list-cell list-cell-muted list-cell-date">
+            {formatListDateTime(t.updated_at)}
+          </td>
+        )}
+
+        {visibleColumns.some((c) => c.key === 'due') && (
+          <td className="list-cell list-cell-muted list-cell-date">
+            {t.due_date ? formatListDate(t.due_date) : 'None'}
+          </td>
+        )}
+
+        <td className="list-cell list-cell-columns" aria-hidden="true" />
+
         <td className="list-cell list-cell-more">
-          <button type="button" className="list-row-more" onClick={() => openTicket(t.id)} aria-label={`More actions for ${ticketKey(t)}`}>
+          <button
+            type="button"
+            className="list-row-more"
+            onClick={(e) => toggleRowMenu(t, e.currentTarget)}
+            aria-label={`More actions for ${ticketKey(t)}`}
+            aria-haspopup="menu"
+            aria-expanded={rowMenu?.id === t.id}
+          >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
               <circle cx="5" cy="12" r="1.8" />
               <circle cx="12" cy="12" r="1.8" />
@@ -719,7 +1090,7 @@ export default function ListView({
       view="summary"
       filter="all"
       onFilterChange={() => {}}
-      projectId={String(projectId)}
+      projectId={projectId == null ? null : String(projectId)}
       onProjectChange={(id) => router.push(`/projects/${id}/list`)}
       onCreate={isAdmin ? () => setShowCreate(true) : undefined}
     >
@@ -731,28 +1102,41 @@ export default function ListView({
           </div>
         )}
 
+        {notice && (
+          <div className="notice-banner" role="status">
+            {notice}
+            <button type="button" onClick={() => setNotice('')} aria-label="Dismiss">
+              ×
+            </button>
+          </div>
+        )}
+
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
               <Link href="/projects">Projects</Link>
               <span className="breadcrumb-sep" aria-hidden="true">/</span>
-              <span>{project.name}</span>
+              <span>{project?.name || 'All work items'}</span>
             </nav>
             <div className="toolbar-title-row">
               <span
                 className="project-icon project-icon-sm"
-                style={{ background: project.color }}
+                style={{ background: project?.color || 'var(--primary)' }}
                 aria-hidden="true"
               >
-                {project.name.charAt(0).toUpperCase()}
+                {(project?.name || 'All').charAt(0).toUpperCase()}
               </span>
-              <h1>{project.name}</h1>
+              <h1>{project?.name || 'All work items'}</h1>
             </div>
-            {project.description && <p className="board-subtitle">{project.description}</p>}
+            <p className="board-subtitle">
+              {project?.description || 'Every work item across every project in this workspace.'}
+            </p>
           </div>
         </div>
 
-        <ProjectTabs projectId={projectId} active="list" />
+        {/* The project tab strip has no meaning without a single project, so
+            the cross-project list shows the heading on its own. */}
+        {project && <ProjectTabs projectId={projectId} active="list" />}
 
         <div className="list-toolbar">
           <div className="search-field list-search">
@@ -901,56 +1285,33 @@ export default function ListView({
             )}
           </div>
 
-          <div className="list-menu-wrap list-menu-wrap-right">
-            <button
-              type="button"
-              className="filter-btn"
-              aria-expanded={openMenu === 'more'}
-              aria-haspopup="true"
-              aria-label="View options"
-              title="View options"
-              onClick={() => setOpen(openMenu === 'more' ? null : 'more')}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
-                <circle cx="5" cy="12" r="1.8" />
-                <circle cx="12" cy="12" r="1.8" />
-                <circle cx="19" cy="12" r="1.8" />
-              </svg>
-            </button>
-
-            {openMenu === 'more' && (
-              <div className="menu-popup list-menu list-menu-right" role="menu">
-                <p className="list-menu-label">Columns</p>
-                {COLUMNS.filter((c) => !c.always).map((c) => {
-                  const on = !hidden.has(c.key);
-                  return (
-                    <button key={c.key} type="button" className="menu-item" role="menuitemcheckbox" aria-checked={on} onClick={() => toggleColumn(c.key)}>
-                      <span className={`list-column-check${on ? ' is-on' : ''}`} aria-hidden="true">
-                        {on ? '✓' : ''}
-                      </span>
-                      <span className="menu-item-text">{c.label}</span>
-                    </button>
-                  );
-                })}
-                <div className="menu-sep" />
-                <button
-                  type="button"
-                  className="menu-item"
-                  onClick={() => {
-                    setSearch('');
-                    setFilters({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
-                    setGroup('none');
-                    setSort({ key: 'created', dir: 'desc' });
-                    setHidden(new Set(DEFAULT_HIDDEN));
-                    setPage(1);
-                    setOpen(null);
-                  }}
-                >
-                  <span className="menu-item-text">Reset view</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <ListOverflowMenu
+            isAdmin={isAdmin}
+            hideDone={hideDone}
+            showHierarchy={showHierarchyPref}
+            selectedCount={selected.size}
+            scopeId={projectId}
+            scopeName={project?.name}
+            visibleColumns={visibleColumns}
+            rows={sorted}
+            columns={columnsMenu}
+            resetView={() => {
+              setSearch('');
+              setFilters({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
+              setGroup('none');
+              setSort({ key: 'created', dir: 'desc' });
+              setHidden(new Set(DEFAULT_HIDDEN));
+              setPage(1);
+            }}
+            onToggleHideDone={() => savePrefs({ hideDone: !hideDone })}
+            onToggleHierarchy={() => savePrefs({ showHierarchy: !showHierarchyPref })}
+            onOpenChart={() => setChartOpen(true)}
+            onOpenFormatRules={() => setRulesOpen(true)}
+            onOpenImport={() => setImportOpen(true)}
+            onOpenBulk={() => setBulkMode(true)}
+            onGoToAll={() => router.push('/work-items')}
+            onOpenFeedback={() => setFeedbackOpen(true)}
+          />
         </div>
 
         <div className="list-frame">
@@ -995,15 +1356,23 @@ export default function ListView({
                     );
                   })}
 
+                  <th className="list-th list-th-columns" scope="col">
+                    <ListColumnsMenu>{columnsMenu}</ListColumnsMenu>
+                  </th>
+
                   <th className="list-th list-cell-more" scope="col">
-                    <span className="list-columns-hint" title="Choose columns from the view options menu" aria-hidden="true">
-                      <ColumnsIcon />
+                    <span className="list-more-hint" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        <circle cx="5" cy="12" r="1.8" />
+                        <circle cx="12" cy="12" r="1.8" />
+                        <circle cx="19" cy="12" r="1.8" />
+                      </svg>
                     </span>
                   </th>
                 </tr>
               </thead>
 
-              <tbody>
+                <tbody>
                 {groups
                   ? paged.map((g) => {
                       const isCollapsed = collapsedGroups.has(g.label);
@@ -1013,7 +1382,7 @@ export default function ListView({
                           className="list-group-row"
                           aria-expanded={!isCollapsed}
                         >
-                          <td className="list-group-cell" colSpan={visibleColumns.length + 3}>
+                          <td className="list-group-cell" colSpan={visibleColumns.length + 4}>
                             <button type="button" className="list-group-btn" onClick={() => toggleGroup(g.label)}>
                               <CaretIcon open={!isCollapsed} />
                               <span className="list-group-name">{g.label}</span>
@@ -1024,7 +1393,11 @@ export default function ListView({
                         ...(isCollapsed ? [] : g.rows.map((t) => renderRow({ ticket: t, depth: 0, hasChildren: false, childCount: 0, doneCount: 0 }))),
                       ];
                     })
-                  : visibleNodes.map(renderRow)}
+                  // With the tree switched off the flat, sorted page is the row
+                  // set; visibleNodes is empty in that case by design.
+                  : hierarchyActive
+                    ? visibleNodes.map(renderRow)
+                    : paged.map((t) => renderRow({ ticket: t, depth: 0, hasChildren: false, childCount: 0, doneCount: 0 }))}
               </tbody>
             </table>
 
@@ -1060,6 +1433,9 @@ export default function ListView({
               {selected.size > 0 && (
                 <span className="list-selected-note">{selected.size} selected</span>
               )}
+              {bulkMode && selected.size === 0 && (
+                <span className="list-selected-note">Tick rows to bulk edit</span>
+              )}
               <button
                 type="button"
                 className="list-reset"
@@ -1086,6 +1462,21 @@ export default function ListView({
           </div>
         </div>
 
+        {bulkMode && selected.size > 0 && (
+          <BulkBar
+            count={selected.size}
+            employees={employees}
+            isAdmin={isAdmin}
+            busy={bulkBusy}
+            onApply={bulkApply}
+            onDelete={() => setConfirmDelete(true)}
+            onClear={() => {
+              setSelected(new Set());
+              setBulkMode(false);
+            }}
+          />
+        )}
+
         {topLevelPageCount > 1 && (
           <div className="list-pager">
             <button type="button" className="btn-ghost" disabled={safeTopLevelPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
@@ -1111,6 +1502,74 @@ export default function ListView({
           onPrev={modal.prev}
           onTicketChanged={applyTicketUpdate}
           onOpenTicket={openTicket}
+        />
+      )}
+
+      {chartOpen && (
+        <ChartViewModal
+          tickets={sorted}
+          scopeLabel={project?.name ? `${project.name} work items` : 'Work items'}
+          onClose={() => setChartOpen(false)}
+        />
+      )}
+
+      {rulesOpen && (
+        <FormatRulesModal
+          rules={formatRules}
+          onSave={(next) => {
+            savePrefs({ formatRules: next });
+            setRulesOpen(false);
+          }}
+          onClose={() => setRulesOpen(false)}
+        />
+      )}
+
+      {importOpen && (
+        <ImportCsvModal
+          projectId={projectId}
+          employees={employees}
+          onClose={() => setImportOpen(false)}
+          onImported={async ({ created, failures }) => {
+            setImportOpen(false);
+            if (created.length > 0) {
+              const res = await fetch('/api/tickets');
+              const data = await res.json();
+              if (res.ok) {
+                setTickets(
+                  projectId == null
+                    ? data.tickets
+                    : data.tickets.filter((t) => t.project_id === projectId)
+                );
+              }
+              setPage(1);
+            }
+            setNotice(
+              `Imported ${created.length} ${created.length === 1 ? 'work item' : 'work items'}.` +
+                (failures.length > 0 ? ` ${failures.length} failed: ${failures.map((f) => `line ${f.line} (${f.message})`).join('; ')}` : '')
+            );
+          }}
+        />
+      )}
+
+      {feedbackOpen && (
+        <FeedbackModal
+          scopeId={projectId ?? 'all'}
+          scopeName={project?.name}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete work items"
+          message={
+            selected.size === 1
+              ? 'This permanently deletes the selected work item. Any child work items move up a level rather than being deleted.'
+              : `This permanently deletes ${selected.size} work items. Any child work items move up a level rather than being deleted.`
+          }
+          confirmLabel="Delete"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={bulkDelete}
         />
       )}
 
@@ -1148,6 +1607,68 @@ export default function ListView({
           }}
         />
       )}
+      {rowMenu && (() => {
+        const ticket = tickets.find((t) => t.id === rowMenu.id);
+        // The row can vanish mid-menu, e.g. archived from a different surface.
+        if (!ticket) return null;
+        return (
+          <TicketRowMenu
+            open
+            ticket={ticket}
+            anchor={rowMenu.anchor}
+            // Everything routes through one of the two handlers, so the menu
+            // itself does not have to know which items are safe to run directly.
+            onOpen={(key) => {
+              if (DIRECT_ACTIONS.has(key)) runRowAction(key, ticket);
+              else openRowAction(key, ticket);
+            }}
+            onClose={closeRowMenu}
+          />
+        );
+      })()}
+
+      {rowDialog && (
+        <RowMenuDialog
+          state={rowDialog}
+          tickets={tickets}
+          projects={projects}
+          projectId={projectId}
+          employees={employees}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          onClose={() => setRowDialog(null)}
+          onPatch={patchTicket}
+          onMove={async (id, patch) => {
+            const t = tickets.find((x) => x.id === id);
+            const updated = await patchTicket(id, patch);
+            // A move into another project takes the row with it: this page is
+            // scoped to one project, so keeping a cross-project row sitting in
+            // the table would show work that belongs somewhere else.
+            if (patch.project_id != null && t && Number(patch.project_id) !== t.project_id) {
+              setTickets((ts) => ts.filter((x) => x.id !== id));
+            }
+            return updated;
+          }}
+          onCreate={async (payload) => {
+            const res = await fetch('/api/tickets', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Could not create the work item.');
+            setTickets((ts) => [data.ticket, ...ts]);
+            return data.ticket;
+          }}
+          onError={(m) => {
+            setError(m);
+            push({ message: m, tone: 'error' });
+          }}
+          onDone={(message, action) => push({ message, action })}
+        />
+      )}
+
+      <Toaster toasts={toasts} onDismiss={dismiss} onPause={pause} onResume={resume} />
     </AppShell>
   );
 }

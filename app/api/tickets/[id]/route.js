@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getTicket } from '@/lib/tickets';
+import { getTicket, deleteTicket, childTicketCount } from '@/lib/tickets';
+import { getProject } from '@/lib/projects';
 import { ticketKey } from '@/lib/ticketMeta';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { logActivityChanges } from '@/lib/ticketActivity';
+import { deleteAttachment } from '@/lib/storage';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER } from '@/lib/ticketMeta';
 
@@ -108,6 +110,49 @@ export async function PATCH(request, { params }) {
     edits.estimate_seconds = value;
   }
 
+  // Moving a ticket between projects is admin-only, matching the rule that only
+  // admins create tickets: a project change moves work into someone else's
+  // backlog, and their counts and dashboards follow it.
+  if (body.project_id !== undefined) {
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Only admins can move work items between projects.' },
+        { status: 403 }
+      );
+    }
+    if (body.project_id === null || body.project_id === '') {
+      edits.project_id = null;
+    } else {
+      const value = Number(body.project_id);
+      if (!Number.isInteger(value)) return badValue('project', body.project_id);
+      if (!(await getProject(value))) {
+        return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+      }
+      edits.project_id = value;
+    }
+  }
+
+  // Archiving is reversible by design, so anyone who can edit a ticket may do
+  // it, and it only ever flips the flag. archived_at is cleared on restore so
+  // the archived view does not keep showing a stale date.
+  if (body.archived !== undefined) {
+    edits.archived = body.archived ? 1 : 0;
+    edits.archived_at = edits.archived
+      ? new Date().toISOString().replace('T', ' ').slice(0, 19)
+      : null;
+  }
+
+  if (body.slack_channel !== undefined) {
+    const value = String(body.slack_channel ?? '').trim();
+    if (value && !/^#?[a-z0-9][a-z0-9._-]{0,79}$/i.test(value)) {
+      return NextResponse.json(
+        { error: 'Enter a channel name like #team-platform.' },
+        { status: 400 }
+      );
+    }
+    edits.slack_channel = value.replace(/^#/, '');
+  }
+
   if (body.parent_id !== undefined) {
     if (body.parent_id === null || body.parent_id === '') {
       edits.parent_id = null;
@@ -172,6 +217,18 @@ export async function PATCH(request, { params }) {
 
   let nextEmployeeId = ticket.employee_id;
   const logged = new Set(keys);
+
+  // archived_at and slack_channel are bookkeeping rather than a change to the
+  // work item, and neither has a label in the activity feed, so they are
+  // written but not logged. The archived flag itself is logged under
+  // 'archived', which the feed does render.
+  logged.delete('archived_at');
+  logged.delete('slack_channel');
+  if (edits.archived === Number(ticket.archived || 0)) {
+    // Re-archiving something already archived is a no-op, so it does not belong
+    // in the history either.
+    logged.delete('archived');
+  }
 
   // Moving an unassigned ticket into a status claims it for the actor, matching
   // the behaviour the board and list already had.
@@ -255,4 +312,41 @@ export async function PATCH(request, { params }) {
   }
 
   return NextResponse.json({ ticket: updated, notifications });
+}
+
+export async function DELETE(request, { params }) {
+  const session = await requireAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Deletion is the counterpart of creation, which the POST route already
+  // reserves for admins, so the two stay symmetrical.
+  if (session.user.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Only admins can delete work items.' },
+      { status: 403 }
+    );
+  }
+
+  const { id } = await params;
+  const ticket = await getTicket(id);
+  if (!ticket) {
+    return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
+  }
+
+  const children = await childTicketCount(ticket.id);
+  const { attachments } = await deleteTicket(ticket.id);
+
+  // Storage cleanup is best effort: the database rows are already gone, and a
+  // failed object delete should not turn a completed delete into an error.
+  await Promise.all(
+    attachments.map((a) => deleteAttachment(a.storage_key).catch(() => {}))
+  );
+
+  return NextResponse.json({
+    deleted: true,
+    ticket: { id: ticket.id, title: ticket.title },
+    // Children survive and are re-parented one level up, so the caller can say
+    // so rather than implying the whole branch went with the parent.
+    reparentedChildren: children,
+  });
 }
