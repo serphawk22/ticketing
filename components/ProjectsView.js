@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
@@ -9,6 +9,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 
 export default function ProjectsView({ initialProjects, currentUser, myIssuesCount }) {
   const [projects, setProjects] = useState(initialProjects);
+  const [workspaces, setWorkspaces] = useState([]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');
@@ -20,7 +21,23 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
     const res = await fetch('/api/projects');
     const data = await res.json();
     if (res.ok) setProjects(data.projects);
+
+    // The project modal offers a work space picker, so it needs the current
+    // list too. A failure here must not block the project refresh above.
+    try {
+      const wsRes = await fetch('/api/workspaces');
+      if (wsRes.ok) {
+        const wsData = await wsRes.json();
+        setWorkspaces(wsData.workspaces || []);
+      }
+    } catch {
+      // Keep the picker on its last known list.
+    }
   }
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   async function handleSave() {
     setEditing(null);
@@ -178,6 +195,7 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
       {editing && (
         <ProjectModal
           project={editing.isNew ? null : editing}
+          workspaces={workspaces}
           onClose={() => setEditing(null)}
           onSave={handleSave}
         />

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Avatar from './Avatar';
+import WorkspaceModal from './WorkspaceModal';
+import ProjectModal from './ProjectModal';
 
 /* ---------------- Icons ---------------- */
 
@@ -151,11 +153,54 @@ export default function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [navSearch, setNavSearch] = useState('');
+  const [workspaces, setWorkspaces] = useState([]);
+  // Views that mount AppShell copy the projects prop into their own state, so a
+  // router.refresh() after a create would not reach the sidebar. The sidebar
+  // therefore keeps its own list and refetches it after a change.
+  const [sidebarProjects, setSidebarProjects] = useState(projects);
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  // Holds the workspace a new project is being created in, or null. Projects
+  // are created from inside a work space rather than from a section-wide
+  // button, so a project always lands in an explicit home.
+  const [creatingProjectIn, setCreatingProjectIn] = useState(null);
   const menuRef = useRef(null);
   const router = useRouter();
 
   const isAdmin = currentUser.role === 'admin';
 
+  // The sidebar is the one place that groups projects by work space, and it
+  // renders on every view, so it loads the list itself rather than adding a
+  // workspaces prop to every page that mounts AppShell.
+  async function loadWorkspaces() {
+    try {
+      const res = await fetch('/api/workspaces');
+      if (!res.ok) return;
+      const data = await res.json();
+      setWorkspaces(data.workspaces || []);
+    } catch {
+      // A failed sidebar fetch should not take the page down; projects still
+      // render under an empty work space list.
+    }
+  }
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
+
+  useEffect(() => {
+    setSidebarProjects(projects);
+  }, [projects]);
+
+  async function loadSidebarProjects() {
+    try {
+      const res = await fetch('/api/projects');
+      if (!res.ok) return;
+      const data = await res.json();
+      setSidebarProjects(data.projects || []);
+    } catch {
+      // Keep the sidebar on its last known list.
+    }
+  }
   useEffect(() => {
     if (!menuOpen) return;
     function onDocClick(e) {
@@ -175,7 +220,7 @@ export default function AppShell({
   function isNavActive(item) {
     if (item.id === 'people') return view === 'employees';
     if (item.id === 'projects') return view === 'projects';
-    if (item.id === 'work') return view === 'board' && filter === 'mine';
+    if (item.id === 'work') return view === 'dashboard' || (view === 'board' && filter === 'mine');
     if (item.id === 'filters') return view === 'board' && filter !== 'mine';
     return false;
   }
@@ -191,7 +236,47 @@ export default function AppShell({
 
   function selectProject(id) {
     setSidebarOpen(false);
-    onProjectChange(id);
+    onProjectChange?.(id);
+  }
+
+  const groupedIds = new Set(
+    workspaces.map((w) => String(w.id))
+  );
+
+  // The developer dashboard already carries its own project and priority
+  // filters, so the separate Filters link would only point back at the page the
+  // reader is already on.
+  const topNav = view === 'dashboard'
+    ? TOP_NAV.filter((item) => item.id !== 'filters')
+    : TOP_NAV;
+
+  // Projects created before work spaces existed have no workspace_id, so they
+  // stay listed directly under the section rather than disappearing.
+  const ungrouped = sidebarProjects.filter(
+    (p) => p.workspace_id == null || !groupedIds.has(String(p.workspace_id))
+  );
+
+  function renderProjectItem(p) {
+    return (
+      <button
+        key={p.id}
+        className={`nav-item${
+          projectId != null && String(projectId) === String(p.id) ? ' active' : ''
+        }`}
+        onClick={() => selectProject(p.id)}
+        title={p.name}
+      >
+        <span
+          className="project-dot"
+          style={{ background: p.color }}
+          aria-hidden="true"
+        />
+        <span className="nav-text">{p.name}</span>
+        <span className="nav-count">
+          {projectCounts?.[p.id] ?? p.open_count ?? 0}
+        </span>
+      </button>
+    );
   }
 
   async function handleLogout() {
@@ -234,7 +319,7 @@ export default function AppShell({
         </Link>
 
         <nav className="topnav-items" aria-label="Primary">
-          {TOP_NAV.map((item) => (
+          {topNav.map((item) => (
             <Link
               key={item.id}
               href={item.href}
@@ -257,7 +342,7 @@ export default function AppShell({
             </button>
             {moreOpen && (
               <div className="menu-popup topnav-more-menu">
-                {TOP_NAV.map((item) => (
+                {topNav.map((item) => (
                   <Link
                     key={item.id}
                     href={item.href}
@@ -345,7 +430,7 @@ export default function AppShell({
             <div className="nav-label">Issues</div>
             <nav className="nav">
               <button
-                className={`nav-item${view === 'board' && filter === 'mine' ? ' active' : ''}`}
+                className={`nav-item${view === 'dashboard' || (view === 'board' && filter === 'mine') ? ' active' : ''}`}
                 onClick={() => selectFilter('mine')}
               >
                 <PersonIcon />
@@ -369,7 +454,21 @@ export default function AppShell({
               </Link>
             </nav>
 
-            <div className="nav-label">Projects</div>
+            <div className="nav-label nav-label-row">
+              <span>Work spaces</span>
+              <span className="nav-label-actions">
+                {isAdmin && (
+                  <button
+                    className="nav-label-add"
+                    onClick={() => setCreatingWorkspace(true)}
+                    aria-label="Create work space"
+                    title="Create work space"
+                  >
+                    <PlusIcon />
+                  </button>
+                )}
+              </span>
+            </div>
             <nav className="nav">
               <Link
                 href="/projects"
@@ -378,29 +477,40 @@ export default function AppShell({
               >
                 <FolderIcon />
                 <span className="nav-text">All projects</span>
-                <span className="nav-count">{projects.length}</span>
+                <span className="nav-count">{sidebarProjects.length}</span>
               </Link>
 
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  className={`nav-item${
-                    projectId != null && String(projectId) === String(p.id) ? ' active' : ''
-                  }`}
-                  onClick={() => selectProject(p.id)}
-                  title={p.name}
-                >
-                  <span
-                    className="project-dot"
-                    style={{ background: p.color }}
-                    aria-hidden="true"
-                  />
-                  <span className="nav-text">{p.name}</span>
-                  <span className="nav-count">
-                    {projectCounts?.[p.id] ?? p.open_count ?? 0}
-                  </span>
-                </button>
-              ))}
+              {workspaces.map((w) => {
+                const members = sidebarProjects.filter(
+                  (p) => String(p.workspace_id) === String(w.id)
+                );
+                return (
+                  <div className="nav-workspace" key={w.id}>
+                    <div className="nav-workspace-head" title={w.name}>
+                      <span
+                        className="workspace-dot"
+                        style={{ background: w.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="nav-text">{w.name}</span>
+                      <span className="nav-count">{members.length}</span>
+                      {isAdmin && (
+                        <button
+                          className="nav-workspace-add"
+                          onClick={() => setCreatingProjectIn(w.id)}
+                          aria-label={`Create project in ${w.name}`}
+                          title={`Create project in ${w.name}`}
+                        >
+                          <PlusIcon />
+                        </button>
+                      )}
+                    </div>
+                    {members.map(renderProjectItem)}
+                  </div>
+                );
+              })}
+
+              {ungrouped.map(renderProjectItem)}
             </nav>
           </div>
 
@@ -418,6 +528,31 @@ export default function AppShell({
             <SidebarIcon />
           </button>
         </aside>
+
+        {creatingWorkspace && (
+          <WorkspaceModal
+            onClose={() => setCreatingWorkspace(false)}
+            onSave={async () => {
+              setCreatingWorkspace(false);
+              await loadWorkspaces();
+              router.refresh();
+            }}
+          />
+        )}
+
+        {creatingProjectIn != null && (
+          <ProjectModal
+            workspaces={workspaces}
+            initialWorkspaceId={creatingProjectIn}
+            onClose={() => setCreatingProjectIn(null)}
+            onSave={async () => {
+              setCreatingProjectIn(null);
+              await loadSidebarProjects();
+              await loadWorkspaces();
+              router.refresh();
+            }}
+          />
+        )}
 
         {children}
       </div>

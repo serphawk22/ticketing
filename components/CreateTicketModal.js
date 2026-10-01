@@ -7,6 +7,9 @@ export default function CreateTicketModal({
   employees = [],
   projects = [],
   defaultProjectId = '',
+  // Set when the modal was opened from a specific person's row, so the ticket
+  // is assigned to them without a second click.
+  defaultEmployeeId = null,
   parent = null,
   defaultDueDate = null,
   onClose,
@@ -17,7 +20,9 @@ export default function CreateTicketModal({
   const [priority, setPriority] = useState('medium');
   const [type, setType] = useState('task');
   const [category, setCategory] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
+  const [employeeId, setEmployeeId] = useState(
+    defaultEmployeeId != null ? String(defaultEmployeeId) : ''
+  );
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
   );

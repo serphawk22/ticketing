@@ -33,6 +33,9 @@ function ChevronIcon() {
 export default function TicketCard({
   ticket,
   canUpdate,
+  // The developer dashboard shows the same card in a flat list with nothing to
+  // drop onto, so dragging is opt-out rather than tied to the status editor.
+  draggableCards = true,
   employees,
   canReassign,
   onDragStart,
@@ -57,7 +60,7 @@ export default function TicketCard({
     <div
       className={`ticket-card${isDragging ? ' dragging' : ''}${isActive ? ' is-active' : ''}`}
       style={{ '--card-accent': priority.color }}
-      draggable={canUpdate}
+      draggable={canUpdate && draggableCards}
       tabIndex={0}
       role="button"
       aria-label={`Ticket #${ticket.id}: ${ticket.title}`}
@@ -67,10 +70,12 @@ export default function TicketCard({
         onOpen(ticket.id);
       }}
       onKeyDown={handleKeyDown}
-      onDragStart={(e) => {
-        onDragStart(ticket.id);
-      }}
-      onDragEnd={onDragEnd}
+      onDragStart={
+        draggableCards && onDragStart
+          ? (e) => onDragStart(ticket.id, e)
+          : undefined
+      }
+      onDragEnd={draggableCards && onDragEnd ? onDragEnd : undefined}
     >
       <div className="card-head">
         <span

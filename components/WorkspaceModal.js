@@ -3,27 +3,12 @@
 import { useEffect, useState } from 'react';
 import { PROJECT_COLORS } from './meta';
 
-export default function ProjectModal({
-  project,
-  workspaces = [],
-  initialWorkspaceId = null,
-  onClose,
-  onSave,
-}) {
-  const isEdit = Boolean(project);
-  const [key, setKey] = useState(project?.key || '');
-  const [name, setName] = useState(project?.name || '');
-  const [description, setDescription] = useState(project?.description || '');
-  const [color, setColor] = useState(project?.color || PROJECT_COLORS[0]);
-  // A project created from inside a work space starts there rather than in the
-  // "No work space" default, so the picker agrees with where the user clicked.
-  const [workspaceId, setWorkspaceId] = useState(
-    project?.workspace_id != null
-      ? String(project.workspace_id)
-      : initialWorkspaceId != null
-        ? String(initialWorkspaceId)
-        : ''
-  );
+export default function WorkspaceModal({ workspace, onClose, onSave }) {
+  const isEdit = Boolean(workspace);
+  const [key, setKey] = useState(workspace?.key || '');
+  const [name, setName] = useState(workspace?.name || '');
+  const [description, setDescription] = useState(workspace?.description || '');
+  const [color, setColor] = useState(workspace?.color || PROJECT_COLORS[0]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -42,22 +27,16 @@ export default function ProjectModal({
 
     try {
       const res = await fetch(
-        isEdit ? `/api/projects/${project.id}` : '/api/projects',
+        isEdit ? `/api/workspaces/${workspace.id}` : '/api/workspaces',
         {
           method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key,
-            name,
-            description,
-            color,
-            workspace_id: workspaceId === '' ? null : Number(workspaceId),
-          }),
+          body: JSON.stringify({ key, name, description, color }),
         }
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save project.');
-      onSave(data.project);
+      if (!res.ok) throw new Error(data.error || 'Failed to save work space.');
+      onSave(data.workspace);
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
@@ -70,7 +49,7 @@ export default function ProjectModal({
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={isEdit ? 'Edit project' : 'Create project'}
+        aria-label={isEdit ? 'Edit work space' : 'Create work space'}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header>
@@ -86,9 +65,10 @@ export default function ProjectModal({
               strokeLinejoin="round"
               aria-hidden="true"
             >
-              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M3 10h18" />
             </svg>
-            {isEdit ? 'Edit project' : 'New project'}
+            {isEdit ? 'Edit work space' : 'New work space'}
           </h3>
           <button
             type="button"
@@ -103,13 +83,13 @@ export default function ProjectModal({
         <form onSubmit={handleSubmit}>
           <div className="form-row">
             <div className="form-group form-group-narrow">
-              <label htmlFor="project-key">Key</label>
+              <label htmlFor="workspace-key">Key</label>
               <input
-                id="project-key"
+                id="workspace-key"
                 type="text"
                 value={key}
                 onChange={(e) => setKey(e.target.value.toUpperCase().slice(0, 6))}
-                placeholder="WEB"
+                placeholder="SRP"
                 maxLength={6}
                 required
                 autoFocus
@@ -118,49 +98,35 @@ export default function ProjectModal({
             </div>
 
             <div className="form-group">
-              <label htmlFor="project-name">Name</label>
+              <label htmlFor="workspace-name">Name</label>
               <input
-                id="project-name"
+                id="workspace-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Web Platform"
+                placeholder="SerpHawk"
                 required
               />
             </div>
           </div>
 
           <div className="form-group">
-            <label htmlFor="project-description">Description</label>
+            <label htmlFor="workspace-description">Description</label>
             <textarea
-              id="project-description"
+              id="workspace-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this project cover?"
+              placeholder="What does this work space cover?"
             />
           </div>
 
-          {workspaces.length > 0 && (
-            <div className="form-group">
-              <label htmlFor="project-workspace">Work space</label>
-              <select
-                id="project-workspace"
-                value={workspaceId}
-                onChange={(e) => setWorkspaceId(e.target.value)}
-              >
-                <option value="">No work space</option>
-                {workspaces.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           <div className="form-group">
-            <label id="project-color-label">Color</label>
-            <div className="color-swatches" role="radiogroup" aria-labelledby="project-color-label">
+            <label id="workspace-color-label">Color</label>
+            <div
+              className="color-swatches"
+              role="radiogroup"
+              aria-labelledby="workspace-color-label"
+            >
               {PROJECT_COLORS.map((c) => (
                 <button
                   key={c}
@@ -183,7 +149,11 @@ export default function ProjectModal({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={submitting}>
-              {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create project'}
+              {submitting
+                ? 'Saving…'
+                : isEdit
+                  ? 'Save changes'
+                  : 'Create work space'}
             </button>
           </div>
         </form>

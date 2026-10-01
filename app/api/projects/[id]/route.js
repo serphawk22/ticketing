@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getProject, updateProject, deleteProject } from '@/lib/projects';
+import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectColor } from '@/lib/projectValidation';
 
 export async function PATCH(request, { params }) {
@@ -20,7 +21,7 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
-  const { name, description, color } = await request.json();
+  const { name, description, color, workspace_id } = await request.json();
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: 'Project name is required.' }, { status: 400 });
@@ -30,11 +31,22 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Project color must be a hex value.' }, { status: 400 });
   }
 
+  if (workspace_id !== undefined && workspace_id !== null
+      && !(await workspaceExists(workspace_id))) {
+    return NextResponse.json({ error: 'Workspace not found.' }, { status: 400 });
+  }
+
   const project = await updateProject(id, {
     name: name === undefined ? existing.name : name.trim(),
     description:
       description === undefined ? existing.description : String(description).trim(),
     color: color === undefined ? existing.color : color,
+    workspace_id:
+      workspace_id === undefined
+        ? existing.workspace_id
+        : workspace_id === null
+          ? null
+          : Number(workspace_id),
   });
 
   return NextResponse.json({ project });

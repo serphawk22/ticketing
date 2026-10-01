@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getAllProjects, createProject, getProjectByKey } from '@/lib/projects';
+import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
 
 export async function GET() {
@@ -21,7 +22,7 @@ export async function POST(request) {
     );
   }
 
-  const { key, name, description = '', color } = await request.json();
+  const { key, name, description = '', color, workspace_id = null } = await request.json();
   const projectKey = String(key ?? '').trim().toUpperCase();
 
   if (!isValidProjectKey(projectKey)) {
@@ -46,11 +47,19 @@ export async function POST(request) {
     );
   }
 
+  if (workspace_id != null && !(await workspaceExists(workspace_id))) {
+    return NextResponse.json(
+      { error: 'Workspace not found.' },
+      { status: 400 }
+    );
+  }
+
   const project = await createProject({
     key: projectKey,
     name: name.trim(),
     description: String(description ?? '').trim(),
     color,
+    workspace_id: workspace_id == null ? null : Number(workspace_id),
   });
 
   return NextResponse.json({ project }, { status: 201 });

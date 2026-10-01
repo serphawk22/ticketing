@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
@@ -26,7 +27,12 @@ import {
 export default function ArchivedView({ initialTickets, project, projects, projectCounts, myIssuesCount, currentUser }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [query, setQuery] = useState('');
+  const router = useRouter();
   const { toasts, push, dismiss, pause, resume } = useToasts();
+
+  function handleProjectChange(id) {
+    router.push(`/projects/${id}/summary`);
+  }
 
   const modal = useTicketModal({ visible: tickets, lookup: tickets });
 
@@ -85,6 +91,8 @@ export default function ArchivedView({ initialTickets, project, projects, projec
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
+      projectId={project.id}
+      onProjectChange={handleProjectChange}
     >
       <main className="page">
         <ProjectTabs projectId={project.id} active="archived" />

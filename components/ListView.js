@@ -20,6 +20,7 @@ import BulkBar from './list/BulkBar';
 import FeedbackModal from './list/FeedbackModal';
 import TicketRowMenu from './list/TicketRowMenu';
 import RowMenuDialog from './list/RowMenuDialog';
+import UserPicker from './UserPicker';
 import { useToasts, Toaster } from './Toaster';
 import { isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
@@ -354,6 +355,29 @@ export default function ListView({
     return [...byId.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [tickets]);
 
+  // The people an inline picker can offer: the same assignable roster ticket
+  // creation and the detail sidebar use, so every entry point agrees on who can
+  // be picked rather than only the people who happen to appear in this view.
+  const assignablePeople = useMemo(
+    () =>
+      employees
+        .filter((e) => e.active)
+        .map((e) => ({ id: e.id, name: e.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [employees]
+  );
+
+  // Reporters are accounts rather than employees, so the roster comes from who
+  // actually filed the work in view.
+  const reporters = useMemo(() => {
+    const byId = new Map();
+    for (const t of tickets) {
+      if (t.created_by == null || byId.has(t.created_by)) continue;
+      byId.set(t.created_by, { id: t.created_by, name: t.created_by_name });
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [tickets]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tickets.filter((t) => {
@@ -587,6 +611,11 @@ export default function ListView({
         if (data.ticket) {
           setTickets((ts) => ts.map((t) => (t.id === id ? data.ticket : t)));
         }
+        // Every write in the app goes through here, so this is also where the
+        // change is published to the views that read their copy from the server:
+        // the board cards, the detail sidebar and the roll-ups all follow the
+        // next render instead of holding a value that has already moved on.
+        router.refresh();
         return data.ticket;
       } catch (e) {
         // Only this row goes back; anything that already succeeded stays put.
@@ -598,7 +627,7 @@ export default function ListView({
         throw e;
       }
     },
-    [employees]
+    [employees, router]
   );
 
   async function updateStatus(id, status) {
@@ -971,21 +1000,29 @@ export default function ListView({
 
         {visibleColumns.some((c) => c.key === 'assignee') && (
           <td className="list-cell list-cell-assignee">
-            <span className="list-person">
-              <Avatar name={t.employee_name} assigned={Boolean(t.employee_id)} size={24} unassignedIcon />
-              <span className={t.employee_id ? 'list-person-name' : 'list-person-name is-empty'}>
-                {t.employee_name || 'Unassigned'}
-              </span>
-            </span>
+            <UserPicker
+              value={t.employee_id}
+              users={assignablePeople}
+              onSelect={(employeeId) => handleReassign(t.id, employeeId)}
+              // Reassigning is admin-only server side, so a developer sees the
+              // value without an affordance that could only fail.
+              readOnly={!isAdmin}
+              label={`Assignee of ${ticketKey(t)}`}
+              className="list-person"
+            />
           </td>
         )}
 
         {visibleColumns.some((c) => c.key === 'reporter') && (
           <td className="list-cell">
-            <span className="list-person">
-              <Avatar name={t.created_by_name} assigned size={24} />
-              <span className="list-person-name">{t.created_by_name}</span>
-            </span>
+            <UserPicker
+              value={t.created_by}
+              users={reporters}
+              readOnly
+              allowUnassigned={false}
+              label={`Reporter of ${ticketKey(t)}`}
+              className="list-person"
+            />
           </td>
         )}
 

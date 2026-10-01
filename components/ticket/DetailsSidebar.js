@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Avatar from '../Avatar';
+import { useEffect, useMemo, useState } from 'react';
 import {
   PRIORITY_META,
   PRIORITY_ORDER,
@@ -17,6 +16,7 @@ import {
 } from '../meta';
 import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonOutlineIcon } from './icons';
 import { ChipInput, FieldRow, InlineText, Menu, MenuItem, MenuLabel } from './parts';
+import UserPicker from '../UserPicker';
 
 function StatusControl({ status, onChange, disabled }) {
   const [open, setOpen] = useState(false);
@@ -64,53 +64,31 @@ function StatusControl({ status, onChange, disabled }) {
 }
 
 function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
-  const [open, setOpen] = useState(false);
-  const assigned = Boolean(ticket.employee_id);
-  const assignable = employees.filter((e) => e.active);
+  const assignable = useMemo(
+    () =>
+      employees
+        .filter((e) => e.active)
+        .map((e) => ({ id: e.id, name: e.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [employees]
+  );
 
   return (
     <FieldRow label="Assignee">
       <div className="tm-person">
-        <Avatar name={ticket.employee_name} assigned={assigned} size={24} unassignedIcon={!assigned} />
-        <button
-          type="button"
-          className={`tm-person-name${assigned ? '' : ' is-muted'}`}
-          onClick={() => canReassign && setOpen((v) => !v)}
-          disabled={!canReassign}
-        >
-          {ticket.employee_name || 'Unassigned'}
-        </button>
+        <UserPicker
+          value={ticket.employee_id}
+          users={assignable}
+          onSelect={onSave}
+          readOnly={!canReassign}
+          label="Assignee"
+        />
       </div>
-      {!assigned && canReassign && meEmployeeId && (
+      {!ticket.employee_id && canReassign && meEmployeeId && (
         <button type="button" className="tm-inline-link" onClick={() => onSave(meEmployeeId)}>
           Assign to me
         </button>
       )}
-      <Menu open={open} onClose={() => setOpen(false)} className="tm-person-menu">
-        <MenuLabel>Assign to</MenuLabel>
-        <MenuItem
-          active={!assigned}
-          onClick={() => {
-            onSave(null);
-            setOpen(false);
-          }}
-        >
-          Unassigned
-        </MenuItem>
-        {assignable.map((emp) => (
-          <MenuItem
-            key={emp.id}
-            active={emp.id === ticket.employee_id}
-            onClick={() => {
-              onSave(emp.id);
-              setOpen(false);
-            }}
-            icon={<Avatar name={emp.name} assigned size={20} />}
-          >
-            {emp.name}
-          </MenuItem>
-        ))}
-      </Menu>
     </FieldRow>
   );
 }
@@ -404,8 +382,15 @@ export default function DetailsSidebar({
             />
             <FieldRow label="Reporter">
               <div className="tm-person">
-                <Avatar name={ticket.created_by_name} assigned size={24} />
-                <span className="tm-person-name">{ticket.created_by_name}</span>
+                <UserPicker
+                  value={ticket.created_by}
+                  users={[
+                    { id: ticket.created_by, name: ticket.created_by_name },
+                  ].filter((u) => u.id != null)}
+                  readOnly
+                  allowUnassigned={false}
+                  label="Reporter"
+                />
               </div>
             </FieldRow>
             <PriorityField

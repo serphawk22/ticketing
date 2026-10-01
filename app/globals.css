@@ -735,6 +735,100 @@ textarea {
   margin-top: 0;
 }
 
+.nav-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 4px;
+}
+
+.nav-label-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 2px;
+}
+
+.nav-workspace-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.nav-workspace-head .nav-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-workspace-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.nav-workspace-head:hover .nav-workspace-add,
+.nav-workspace-add:focus-visible {
+  opacity: 1;
+}
+
+.nav-workspace-add:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.workspace-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+}
+
+.nav-workspace .nav-item {
+  padding-left: 24px;
+}
+
+.nav-label-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.nav-label-add:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 .nav {
   display: flex;
   flex-direction: column;
@@ -1503,6 +1597,328 @@ textarea {
   color: var(--text-disabled);
   font-size: var(--fs-12);
   text-align: center;
+}
+
+/* ---------------- Today's work summary (admin) ---------------- */
+
+.today-sum {
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.today-sum-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.today-sum-head:hover {
+  background: var(--bg-subtle);
+}
+
+.today-sum-caret {
+  display: inline-flex;
+  color: var(--text-subtle);
+  transition: transform var(--t-fast);
+}
+
+.today-sum-caret.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.today-sum-title {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.today-sum-meta {
+  font-size: var(--fs-12);
+  color: var(--text-subtle);
+}
+
+.today-sum-bar {
+  margin-left: auto;
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--neutral-bg);
+  overflow: hidden;
+}
+
+.today-sum-bar-done {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+
+.today-sum-body {
+  border-top: 1px solid var(--border);
+  padding: 4px 14px 12px;
+}
+
+.today-sum-row {
+  padding: 10px 0;
+}
+
+.today-sum-row + .today-sum-row {
+  border-top: 1px solid var(--border);
+}
+
+.today-sum-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.today-sum-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.today-sum-name {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.today-sum-role {
+  font-size: var(--fs-12);
+  color: var(--text-disabled);
+}
+
+.today-sum-counts {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+
+.today-sum-done {
+  color: var(--success);
+}
+
+.today-sum-open {
+  color: var(--warning);
+}
+
+.today-sum-none {
+  color: var(--text-disabled);
+  font-weight: 500;
+}
+
+.today-sum-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.today-sum-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  font-size: var(--fs-13);
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-sum-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.today-sum-item:disabled {
+  cursor: default;
+}
+
+.today-sum-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.today-sum-add:hover {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.today-sum-key {
+  font-weight: 600;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+.today-sum-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.today-sum-project {
+  font-size: var(--fs-12);
+  color: var(--text-disabled);
+  white-space: nowrap;
+}
+
+/* ---------------- Developer dashboard ---------------- */
+
+.dash {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 20px 24px;
+}
+
+.dash-sections {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dash-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.dash-section.droppable {
+  border-color: var(--primary);
+  background: rgba(9, 30, 66, 0.04);
+}
+
+.dash-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 2px 4px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dash-section-title svg {
+  color: var(--text-subtle);
+}
+
+.dash-section-hint {
+  font-size: var(--fs-12);
+  color: var(--text-disabled);
+}
+
+.dash-section-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  text-align: center;
+}
+
+.dash-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 2px;
+}
+
+.dash-list .ticket-card {
+  margin: 0;
+  cursor: grab;
+}
+
+.dash-section-empty,
+.dash-empty {
+  margin: 0;
+  padding: 14px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-disabled);
+  font-size: var(--fs-13);
+}
+
+.dash-empty {
+  padding: 24px;
+  text-align: center;
+}
+
+.dash-empty h2 {
+  margin: 0 0 6px;
+  font-size: var(--fs-16);
+  color: var(--text);
+}
+
+.dash-empty p {
+  margin: 0 auto;
+  max-width: 46ch;
+  color: var(--text-subtle);
+}
+
+@media (max-width: 1100px) {
+  .dash-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-list {
+    overflow-y: visible;
+  }
 }
 
 .column-create {
@@ -6222,4 +6638,188 @@ input.inline-input.tm-title-edit {
 .tm-slack-channel {
   font-weight: 600;
   color: #36A37E;
+}
+
+/* =========================================================
+   UserPicker — inline click-to-edit person field
+   One component behind every avatar+name cell in the app, so
+   the trigger, the box and the dropdown share these rules.
+   ========================================================= */
+
+.user-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast);
+}
+
+.user-picker-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.user-picker-trigger[aria-disabled='true'] {
+  cursor: default;
+}
+
+.user-picker-trigger[aria-disabled='true']:hover {
+  background: none;
+}
+
+.user-picker-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.user-picker-name.is-empty {
+  color: var(--text-subtle);
+}
+
+/* The cell becomes a real input in place, with the current value already
+   selected so typing replaces it. */
+.user-picker-edit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.user-picker-edit-avatar {
+  position: absolute;
+  left: 4px;
+  display: flex;
+  pointer-events: none;
+}
+
+/* Scoped under the wrapper so it outranks the app-wide input rules, which
+   would otherwise repaint the border on hover and on focus. */
+.user-picker-edit > .user-picker-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px 0 34px;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(9, 30, 66, 0.16);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-12);
+  line-height: 26px;
+}
+
+.user-picker-edit > .user-picker-input:hover,
+.user-picker-edit > .user-picker-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 1px 2px rgba(9, 30, 66, 0.16);
+  outline: none;
+}
+
+.user-picker-edit > .user-picker-input::selection {
+  background: var(--bg-selected);
+  color: var(--selected-text);
+}
+
+.user-picker-panel {
+  position: fixed;
+  z-index: 90;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 12px rgba(9, 30, 66, 0.15), 0 0 1px rgba(9, 30, 66, 0.31);
+  overflow: hidden;
+}
+
+.user-picker-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.user-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.user-picker-option.is-current {
+  background: var(--bg-selected);
+}
+
+.user-picker-option.is-active:not(.is-current) {
+  background: var(--bg-surface);
+}
+
+.user-picker-option-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-picker-empty {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+.user-picker-chev {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.user-picker-chev::after {
+  position: absolute;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-subtle);
+  border-bottom: 2px solid var(--text-subtle);
+  content: '';
+}
+
+.user-picker-chev-top::after {
+  top: 3px;
+  transform: translateX(-50%) rotate(-135deg);
+}
+
+.user-picker-chev-bottom::after {
+  bottom: 3px;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.user-picker-chev-top {
+  background: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+}
+
+.user-picker-chev-bottom {
+  background: linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
 }

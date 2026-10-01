@@ -10,6 +10,7 @@ import ProjectModal from './ProjectModal';
 import AppShell from './AppShell';
 import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
+import TodayByDeveloper from './TodayByDeveloper';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -57,12 +58,17 @@ export default function Board({
   initialProjects,
   initialEmployees,
   currentUser,
+  currentEmployeeId = null,
+  today,
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [projects, setProjects] = useState(initialProjects);
   const [employees, setEmployees] = useState(initialEmployees);
   const [projectId, setProjectId] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  // Set when a task is being created straight from a person's row in the
+  // Today's work summary, so it is assigned to them and due today.
+  const [addForEmployee, setAddForEmployee] = useState(null);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [error, setError] = useState('');
@@ -89,13 +95,20 @@ export default function Board({
     window.history.replaceState(null, '', url);
   }, []);
 
-  function matchesFilter(t) {
-    if (filter === 'all') return true;
+  // Ownership has to be checked against the employee record as well as the
+  // account: a ticket created by an admin records `employee_id`, and the signed
+  // in account has no employee column of its own.
+  function isMine(t) {
     return (
       t.created_by === currentUser.id ||
       t.assigned_to === currentUser.id ||
-      (currentUser.employee_id != null && t.employee_id === currentUser.employee_id)
+      (currentEmployeeId != null && t.employee_id === currentEmployeeId)
     );
+  }
+
+  function matchesFilter(t) {
+    if (filter === 'all') return true;
+    return isMine(t);
   }
 
   function matchesProject(t) {
@@ -129,15 +142,9 @@ export default function Board({
   );
 
   const myIssuesCount = useMemo(
-    () =>
-      tickets.filter(
-        (t) =>
-          t.created_by === currentUser.id ||
-          t.assigned_to === currentUser.id ||
-          (currentUser.employee_id != null &&
-            t.employee_id === currentUser.employee_id)
-      ).length,
-    [tickets, currentUser.id, currentUser.employee_id]
+    () => tickets.filter(isMine).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickets, currentUser.id, currentEmployeeId]
   );
 
   const projectCounts = useMemo(() => {
@@ -425,6 +432,16 @@ export default function Board({
 
         {activeProject && <ProjectTabs projectId={activeProject.id} active="board" />}
 
+        {isAdmin && !activeProject && (
+          <TodayByDeveloper
+            tickets={tickets}
+            employees={employees}
+            today={today}
+            onOpenTicket={openModal}
+            onAddTicket={setAddForEmployee}
+          />
+        )}
+
         <div className="board-columns">
           {STATUS_ORDER.map((status) => {
             const meta = STATUS_META[status];
@@ -495,6 +512,20 @@ export default function Board({
           defaultProjectId={activeProject ? activeProject.id : ''}
           onClose={() => setShowModal(false)}
           onCreate={handleCreate}
+        />
+      )}
+
+      {addForEmployee && (
+        <CreateTicketModal
+          employees={employees}
+          projects={projects}
+          defaultEmployeeId={addForEmployee.id}
+          defaultDueDate={today}
+          onClose={() => setAddForEmployee(null)}
+          onCreate={async () => {
+            setAddForEmployee(null);
+            await refresh();
+          }}
         />
       )}
 
