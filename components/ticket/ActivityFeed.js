@@ -12,6 +12,10 @@ const TABS = [
   { key: 'worklog', label: 'Work log', Icon: HistoryIcon },
 ];
 
+// created_by is the reporter, and FIELD_META describes the editable fields
+// rather than the columns, so its name lives here.
+const FIELD_LABELS = { created_by: 'Reporter' };
+
 function ValueChip({ field, value }) {
   if (!value) return <span className="tm-chip-empty">empty</span>;
   if (field === 'status' && STATUS_META[value]) {
@@ -36,6 +40,10 @@ function ValueChip({ field, value }) {
   if (field === 'employee_id') {
     return <span className="tm-chip-plain">user {value}</span>;
   }
+  // Already a name: the reporter change is logged translated, not by id.
+  if (field === 'created_by') {
+    return <span className="tm-chip-plain">{value}</span>;
+  }
   if (field === 'project_id') {
     return <span className="tm-chip-plain">project {value}</span>;
   }
@@ -49,7 +57,7 @@ function ValueChip({ field, value }) {
 
 function ActivityRow({ entry }) {
   const meta = FIELD_META[entry.field];
-  const label = meta?.label || entry.field;
+  const label = meta?.label || FIELD_LABELS[entry.field] || entry.field;
   return (
     <li className="tm-activity-row">
       <Avatar name={entry.actor_name} assigned size={24} />

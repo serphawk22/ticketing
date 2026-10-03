@@ -22,6 +22,7 @@ import FeedbackModal from './list/FeedbackModal';
 import TicketRowMenu from './list/TicketRowMenu';
 import RowMenuDialog from './list/RowMenuDialog';
 import UserPicker from './UserPicker';
+import { CategoryField, PriorityField, ReporterField, StatusField } from './TicketFields';
 import { useToasts, Toaster } from './Toaster';
 import { isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
@@ -56,7 +57,7 @@ const PAGE_SIZE = 25;
 
 const COLUMNS = [
   { key: 'work', label: 'Work', always: true },
-  { key: 'assignee', label: 'Assignee', always: true },
+  { key: 'assignee', label: 'Assignee' },
   { key: 'reporter', label: 'Reporter' },
   { key: 'priority', label: 'Priority' },
   { key: 'status', label: 'Status', always: true },
@@ -370,16 +371,19 @@ export default function ListView({
     [employees]
   );
 
-  // Reporters are accounts rather than employees, so the roster comes from who
-  // actually filed the work in view.
-  const reporters = useMemo(() => {
-    const byId = new Map();
-    for (const t of tickets) {
-      if (t.created_by == null || byId.has(t.created_by)) continue;
-      byId.set(t.created_by, { id: t.created_by, name: t.created_by_name });
-    }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [tickets]);
+  // A reporter is a user, not an employee, and tickets.created_by holds a user
+  // id. The employee rows carry the matching user id so the roster can be built
+  // from data this page already has, rather than a second query per page.
+  // A client can raise work, so clients belong in this roster. The rule that
+  // keeps clients out applies to assignees, not to reporters.
+  const reporters = useMemo(
+    () =>
+      employees
+        .filter((e) => e.active && e.user_id)
+        .map((e) => ({ id: e.user_id, name: e.name, email: e.email, role: e.role }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [employees]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1021,12 +1025,13 @@ export default function ListView({
 
         {visibleColumns.some((c) => c.key === 'reporter') && (
           <td className="list-cell">
-            <UserPicker
+            <ReporterField
               value={t.created_by}
-              users={reporters}
-              readOnly
-              allowUnassigned={false}
-              label={`Reporter of ${ticketKey(t)}`}
+              people={reporters}
+              onSelect={(v) => patchTicket(t.id, { created_by: v })}
+              // Rewriting who raised the work is an admin move, same as
+              // reassigning it.
+              readOnly={!isAdmin}
               className="list-person"
             />
           </td>
@@ -1034,50 +1039,32 @@ export default function ListView({
 
         {visibleColumns.some((c) => c.key === 'priority') && (
           <td className="list-cell">
-            <span className="list-priority">
-              <PriorityIcon color={priority.color} arrow={priority.arrow} />
-              <span>{priority.label}</span>
-            </span>
+            <PriorityField value={t.priority} onSelect={(v) => patchTicket(t.id, { priority: v })} />
           </td>
         )}
 
         {visibleColumns.some((c) => c.key === 'status') && (
           <td className="list-cell">
-            <span className="list-status-wrap">
-              <span
-                className={`list-lozenge${canUpdate ? ' is-editable' : ''}`}
-                style={{ background: lozenge.bg, color: lozenge.text }}
-              >
-                {STATUS_META[t.status].label}
-              </span>
-              {canUpdate ? (
-                <span className="list-status-select">
-                  <select
-                    value={t.status}
-                    onChange={(e) => updateStatus(t.id, e.target.value)}
-                    aria-label={`Change status of ${ticketKey(t)}`}
-                  >
-                    {STATUS_ORDER.map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_META[s].label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronIcon />
-                </span>
-              ) : (
-                <ChevronIcon />
-              )}
-            </span>
+            <StatusField
+              value={t.status}
+              onSelect={(v) => updateStatus(t.id, v)}
+              readOnly={!canUpdate}
+            />
           </td>
         )}
 
         {visibleColumns.some((c) => c.key === 'category') && (
           <td className={`list-cell${t.category ? '' : ' list-cell-muted'}`}>
-            {t.category || 'None'}
+            <CategoryField
+              value={t.category}
+              onSelect={(v) => patchTicket(t.id, { category: v })}
+              readOnly={!isAdmin}
+            />
           </td>
         )}
 
+        {/* Resolution is computed from the status, not stored, so it has no
+            dropdown to offer: an editable one would let the two disagree. */}
         {visibleColumns.some((c) => c.key === 'resolution') && (
           <td className="list-cell list-cell-muted">
             {done ? STATUS_META[t.status].label : 'Unresolved'}

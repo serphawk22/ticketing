@@ -4678,21 +4678,6 @@ textarea.inline-input { resize: vertical; }
   margin-bottom: 16px;
 }
 
-.tm-status-control { position: relative; }
-
-.tm-status-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-
-.tm-status-caret { color: var(--text-subtle); }
-.tm-status-menu { min-width: 200px; }
-
 .tm-automation-btn {
   border: 1px solid var(--border);
   background: var(--bg);
@@ -4766,11 +4751,6 @@ textarea.inline-input { resize: vertical; }
 .tm-value-btn:hover:not(:disabled) { background: var(--bg-hover); }
 .tm-value-btn:disabled { cursor: default; }
 
-.tm-priority-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
-.tm-priority-bar { width: 3px; border-radius: 1px; }
-.tm-priority-bar:nth-child(1) { height: 5px; }
-.tm-priority-bar:nth-child(2) { height: 8px; }
-.tm-priority-bar:nth-child(3) { height: 12px; }
 
 .tm-type-dot {
   width: 8px;
@@ -6652,7 +6632,10 @@ input.inline-input.tm-title-edit {
    the trigger, the box and the dropdown share these rules.
    ========================================================= */
 
-.user-picker-trigger {
+/* The neutral trigger every inline field shares: quiet until hovered, then a
+   row-shaped hit area. Field-specific looks (a person with an avatar, a
+   lozenge, an icon and a label) are layered on top of this by the field. */
+.idf-trigger {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -6669,16 +6652,47 @@ input.inline-input.tm-title-edit {
   transition: background-color var(--t-fast);
 }
 
-.user-picker-trigger:hover {
+.idf-trigger:hover {
   background: var(--bg-hover);
 }
 
-.user-picker-trigger[aria-disabled='true'] {
+.idf-trigger[aria-disabled='true'] {
   cursor: default;
 }
 
-.user-picker-trigger[aria-disabled='true']:hover {
+.idf-trigger[aria-disabled='true']:hover {
   background: none;
+}
+
+/* A person is an avatar plus a name, so the trigger needs the gap and the
+   hang-out margin that lets the highlight cover the cell edge to edge. */
+.user-picker-trigger {
+  gap: 6px;
+}
+
+.idf-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The modal's status control is a large button rather than a cell, so the same
+   dropdown can sit under a prominent trigger without a second implementation. */
+.idf-trigger-button {
+  gap: 8px;
+  padding: 6px 12px;
+  margin-left: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: var(--fs-13);
+  font-weight: 600;
+}
+
+.idf-caret { color: var(--text-subtle); flex: none; }
+
+.idf-trigger-button:hover {
+  border-color: var(--border-strong);
 }
 
 .user-picker-name {
@@ -6693,7 +6707,7 @@ input.inline-input.tm-title-edit {
 
 /* The cell becomes a real input in place, with the current value already
    selected so typing replaces it. */
-.user-picker-edit {
+.idf-edit {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -6701,7 +6715,7 @@ input.inline-input.tm-title-edit {
   min-width: 0;
 }
 
-.user-picker-edit-avatar {
+.idf-edit-avatar {
   position: absolute;
   left: 4px;
   display: flex;
@@ -6710,7 +6724,7 @@ input.inline-input.tm-title-edit {
 
 /* Scoped under the wrapper so it outranks the app-wide input rules, which
    would otherwise repaint the border on hover and on focus. */
-.user-picker-edit > .user-picker-input {
+.idf-edit > .idf-input {
   width: 100%;
   min-width: 0;
   height: 28px;
@@ -6725,19 +6739,19 @@ input.inline-input.tm-title-edit {
   line-height: 26px;
 }
 
-.user-picker-edit > .user-picker-input:hover,
-.user-picker-edit > .user-picker-input:focus {
+.idf-edit > .idf-input:hover,
+.idf-edit > .idf-input:focus {
   border-color: var(--primary);
   box-shadow: 0 1px 2px rgba(9, 30, 66, 0.16);
   outline: none;
 }
 
-.user-picker-edit > .user-picker-input::selection {
+.idf-edit > .idf-input::selection {
   background: var(--bg-selected);
   color: var(--selected-text);
 }
 
-.user-picker-panel {
+.idf-panel {
   position: fixed;
   z-index: 90;
   padding: 4px;
@@ -6748,14 +6762,14 @@ input.inline-input.tm-title-edit {
   overflow: hidden;
 }
 
-.user-picker-scroll {
+.idf-scroll {
   max-height: 280px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
-.user-picker-option {
+.idf-option {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -6773,27 +6787,27 @@ input.inline-input.tm-title-edit {
   cursor: pointer;
 }
 
-.user-picker-option.is-current {
+.idf-option.is-current {
   background: var(--bg-selected);
 }
 
-.user-picker-option.is-active:not(.is-current) {
+.idf-option.is-active:not(.is-current) {
   background: var(--bg-surface);
 }
 
-.user-picker-option-name {
+.idf-option-name {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.user-picker-empty {
+.idf-empty {
   margin: 0;
   padding: 6px 8px;
   color: var(--text-subtle);
   font-size: var(--fs-12);
 }
 
-.user-picker-chev {
+.idf-chev {
   position: absolute;
   left: 0;
   right: 0;
@@ -6802,7 +6816,7 @@ input.inline-input.tm-title-edit {
   z-index: 1;
 }
 
-.user-picker-chev::after {
+.idf-chev::after {
   position: absolute;
   left: 50%;
   width: 8px;
@@ -6812,21 +6826,21 @@ input.inline-input.tm-title-edit {
   content: '';
 }
 
-.user-picker-chev-top::after {
+.idf-chev-top::after {
   top: 3px;
   transform: translateX(-50%) rotate(-135deg);
 }
 
-.user-picker-chev-bottom::after {
+.idf-chev-bottom::after {
   bottom: 3px;
   transform: translateX(-50%) rotate(45deg);
 }
 
-.user-picker-chev-top {
+.idf-chev-top {
   background: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
 }
 
-.user-picker-chev-bottom {
+.idf-chev-bottom {
   background: linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
 }
 

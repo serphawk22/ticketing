@@ -17,51 +17,7 @@ import {
 import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonOutlineIcon } from './icons';
 import { ChipInput, FieldRow, InlineText, Menu, MenuItem, MenuLabel } from './parts';
 import UserPicker from '../UserPicker';
-
-function StatusControl({ status, onChange, disabled }) {
-  const [open, setOpen] = useState(false);
-  const meta = STATUS_META[status] || STATUS_META.open;
-  return (
-    <div className="tm-status-control">
-      <button
-        type="button"
-        className="tm-status-btn"
-        onClick={() => !disabled && setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={disabled}
-      >
-        <span className="tm-lozenge" style={{ background: meta.bg, color: meta.text }}>
-          {meta.label}
-        </span>
-        <ChevronRight size={12} className="tm-rot90 tm-status-caret" />
-      </button>
-      <Menu open={open} onClose={() => setOpen(false)} className="tm-status-menu">
-        <MenuLabel>Change status to</MenuLabel>
-        {STATUS_ORDER.map((key) => {
-          const option = STATUS_META[key];
-          return (
-            <MenuItem
-              key={key}
-              active={key === status}
-              onClick={() => {
-                onChange(key);
-                setOpen(false);
-              }}
-              icon={
-                <span className="tm-lozenge tm-lozenge-sm" style={{ background: option.bg, color: option.text }}>
-                  {option.label}
-                </span>
-              }
-            >
-              {option.label}
-            </MenuItem>
-          );
-        })}
-      </Menu>
-    </div>
-  );
-}
+import { CategoryField, PriorityField, ReporterField, StatusField } from '../TicketFields';
 
 function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
   const assignable = useMemo(
@@ -91,41 +47,6 @@ function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
           Assign to me
         </button>
       )}
-    </FieldRow>
-  );
-}
-
-function PriorityField({ priority, onSave, canEdit }) {
-  const [open, setOpen] = useState(false);
-  const meta = PRIORITY_META[priority] || PRIORITY_META.medium;
-  return (
-    <FieldRow label="Priority">
-      <button type="button" className="tm-value-btn" onClick={() => canEdit && setOpen((v) => !v)} disabled={!canEdit}>
-        <span className="tm-priority-bars" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="tm-priority-bar" style={{ background: i <= (PRIORITY_ORDER.length - 1 - PRIORITY_ORDER.indexOf(priority)) ? meta.color : 'var(--bg-border)' }} />
-          ))}
-        </span>
-        {meta.label}
-      </button>
-      <Menu open={open} onClose={() => setOpen(false)}>
-        <MenuLabel>Set priority</MenuLabel>
-        {PRIORITY_ORDER.map((key) => {
-          const option = PRIORITY_META[key];
-          return (
-            <MenuItem
-              key={key}
-              active={key === priority}
-              onClick={() => {
-                onSave(key);
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </MenuItem>
-          );
-        })}
-      </Menu>
     </FieldRow>
   );
 }
@@ -343,6 +264,17 @@ export default function DetailsSidebar({
   configureOpen,
   onToggleConfigure,
 }) {
+  // Same roster the list builds: employees carry the matching user id, because
+  // a reporter is a user and tickets.created_by holds a user id.
+  const reporters = useMemo(
+    () =>
+      employees
+        .filter((e) => e.active && e.user_id)
+        .map((e) => ({ id: e.user_id, name: e.name, email: e.email, role: e.role }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [employees]
+  );
+
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [automationOpen, setAutomationOpen] = useState(true);
   const labels = String(ticket.labels || '')
@@ -353,7 +285,12 @@ export default function DetailsSidebar({
   return (
     <aside className="tm-side" aria-label="Ticket details">
       <div className="tm-side-top">
-        <StatusControl status={ticket.status} onChange={(v) => onPatch({ status: v })} />
+        <StatusField
+          value={ticket.status}
+          onSelect={(v) => onPatch({ status: v })}
+          variant="button"
+          readOnly={false}
+        />
         <button
           type="button"
           className="tm-icon-btn tm-automation-btn"
@@ -384,22 +321,18 @@ export default function DetailsSidebar({
             />
             <FieldRow label="Reporter">
               <div className="tm-person">
-                <UserPicker
+                <ReporterField
                   value={ticket.created_by}
-                  users={[
-                    { id: ticket.created_by, name: ticket.created_by_name },
-                  ].filter((u) => u.id != null)}
-                  readOnly
-                  allowUnassigned={false}
-                  label="Reporter"
+                  people={reporters}
+                  readOnly={!isAdmin}
                 />
               </div>
             </FieldRow>
-            <PriorityField
-              priority={ticket.priority}
-              onSave={(v) => onPatch({ priority: v })}
-              canEdit
-            />
+            <FieldRow label="Priority">
+              <div className="tm-person">
+                <PriorityField value={ticket.priority} onSelect={(v) => onPatch({ priority: v })} />
+              </div>
+            </FieldRow>
             <TypeField type={ticket.type} onSave={(v) => onPatch({ type: v })} canEdit={isAdmin} />
             <FieldRow label="Labels">
               <ChipInput
@@ -427,13 +360,15 @@ export default function DetailsSidebar({
               onLog={onLogTime}
               canEdit
             />
-            <CustomField
-              label="Category"
-              value={ticket.category}
-              onSave={(v) => onPatch({ category: v })}
-              canEdit={isAdmin}
-              placeholder="Add category"
-            />
+            <FieldRow label="Category">
+              <div className="tm-person">
+                <CategoryField
+                  value={ticket.category}
+                  onSelect={(v) => onPatch({ category: v })}
+                  readOnly={!isAdmin}
+                />
+              </div>
+            </FieldRow>
             <CustomField
               label="Team"
               value={ticket.team}

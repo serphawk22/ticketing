@@ -217,6 +217,37 @@ export async function PATCH(request, { params }) {
     edits.employee_id = value;
   }
 
+  // Declared up here because the branch below fills it in before the edit
+  // bookkeeping further down runs.
+  let reporterName;
+
+  if (body.created_by !== undefined) {
+    // Reporter is who raised the work, keyed on the user rather than the
+    // employee directory. Admin-only, like the assignee: both rewrite who a
+    // ticket belongs to rather than what it says.
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Only admins can change the reporter.' },
+        { status: 403 }
+      );
+    }
+    const value = Number(body.created_by);
+    if (!Number.isInteger(value)) {
+      return NextResponse.json({ error: 'Invalid reporter.' }, { status: 400 });
+    }
+    const person = await db
+      .prepare('SELECT id, name FROM users WHERE id = ?')
+      .get(value);
+    if (!person) {
+      return NextResponse.json({ error: 'Reporter not found.' }, { status: 400 });
+    }
+    edits.created_by = value;
+    // created_by_name is a join alias, not a column, so it must never reach
+    // `edits` or it would end up in the UPDATE's SET list. The name is carried
+    // separately for the activity log.
+    reporterName = person.name;
+  }
+
   const keys = Object.keys(edits);
   if (keys.length === 0) {
     return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
@@ -284,6 +315,20 @@ export async function PATCH(request, { params }) {
       ['parent_id']
     );
     logged.delete('parent_id');
+  }
+
+  // Same idea as the parent translation above: the column keeps an id, the
+  // history keeps the name, because nobody wants to read "changed Reporter 4
+  // to 11" in an activity feed.
+  if (edits.created_by !== undefined) {
+    await logActivityChanges(
+      ticketId,
+      session.user.id,
+      { ...ticket, created_by: ticket.created_by_name },
+      { ...ticket, created_by: reporterName },
+      ['created_by']
+    );
+    logged.delete('created_by');
   }
 
   await logActivityChanges(
