@@ -14,13 +14,14 @@ const TABS = [
   { key: 'archived', label: 'Archived' },
 ];
 
-const AVAILABLE = new Set(['summary', 'board', 'list', 'calendar', 'archived']);
+const AVAILABLE = new Set(['summary', 'board', 'list', 'calendar', 'timeline', 'archived']);
 
 const HREF = {
   summary: (id) => `/projects/${id}/summary`,
   board: (id) => `/?project=${id}`,
   list: (id) => `/projects/${id}/list`,
   calendar: (id) => `/projects/${id}/calendar`,
+  timeline: (id) => `/projects/${id}/timeline`,
   archived: (id) => `/projects/${id}/archived`,
 };
 
