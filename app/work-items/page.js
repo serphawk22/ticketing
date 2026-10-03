@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
+import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllProjects } from '@/lib/projects';
 import { getAllTickets } from '@/lib/tickets';
 import { getEmployees } from '@/lib/employees';
@@ -13,8 +12,7 @@ export const dynamic = 'force-dynamic';
  * toggles rather than sharing each project's saved view.
  */
 export default async function AllWorkItemsPage() {
-  const session = await requireAuth();
-  if (!session) redirect('/login');
+  const session = await requireTeamUser();
 
   const [projects, allTickets, employees] = await Promise.all([
     getAllProjects(),

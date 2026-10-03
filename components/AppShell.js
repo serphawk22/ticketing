@@ -116,6 +116,14 @@ function FolderIcon() {
   );
 }
 
+function InboxIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M3 4h18v12h-5l-1.5 2h-5L8 16H3V4Zm2 2v8h4.2l1.3 1.8h3l1.3-1.8H19V6H5Z" />
+    </svg>
+  );
+}
+
 function PeopleIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -189,6 +197,21 @@ export default function AppShell({
   const menuRef = useRef(null);
   const router = useRouter();
 
+  // Client requests waiting to be routed to somebody. Fetched by the sidebar
+  // itself for the same reason the work spaces are: every view mounts AppShell
+  // with its own copy of the props, so a refresh after an assign would not reach
+  // the sidebar from above.
+  const [clientRequests, setClientRequests] = useState([]);
+  const [assignable, setAssignable] = useState([]);
+
+  // An admin-created account is still on its temporary password. Every
+  // authenticated page renders AppShell, so this is the one place that can hold
+  // the whole app back until the password has been changed.
+  const mustChangePassword = Boolean(currentUser.must_change_password);
+  useEffect(() => {
+    if (mustChangePassword) router.replace('/change-password');
+  }, [mustChangePassword, router]);
+
   const isAdmin = currentUser.role === 'admin';
 
   // The sidebar is the one place that groups projects by work space, and it
@@ -208,11 +231,25 @@ export default function AppShell({
 
   useEffect(() => {
     loadWorkspaces();
+    loadClientRequests();
   }, []);
 
   useEffect(() => {
     setSidebarProjects(projects);
   }, [projects]);
+
+  async function loadClientRequests() {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch('/api/client-requests');
+      if (!res.ok) return;
+      const data = await res.json();
+      setClientRequests(data.requests || []);
+      setAssignable(data.assignable || []);
+    } catch {
+      // A failed queue fetch should not take the sidebar down with it.
+    }
+  }
 
   async function loadSidebarProjects() {
     try {
@@ -573,6 +610,27 @@ export default function AppShell({
                 )}
               </Link>
             </nav>
+
+            {/* Always shown to an admin, empty or not. Hiding it until a
+                request existed made the whole feature undiscoverable: with an
+                empty queue there was no sign the page was there at all. */}
+            {isAdmin && (
+              <>
+                <div className="nav-label">Client requests</div>
+                <nav className="nav">
+                  <Link
+                    href="/client-requests"
+                    className={`nav-item${view === 'client-requests' ? ' active' : ''}`}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <InboxIcon />
+                    <span className="nav-text">All client requests</span>
+                    <span className="nav-count">{clientRequests.length}</span>
+                  </Link>
+
+                </nav>
+              </>
+            )}
 
             <div className="nav-label nav-label-row">
               <span>Work spaces</span>

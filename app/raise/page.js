@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
+import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllTickets, getTicketsRaisedBy } from '@/lib/tickets';
 import { getAllProjects } from '@/lib/projects';
 import RaiseTicketView from '@/components/RaiseTicketView';
@@ -7,8 +6,7 @@ import RaiseTicketView from '@/components/RaiseTicketView';
 export const dynamic = 'force-dynamic';
 
 export default async function RaiseTicketPage() {
-  const session = await requireAuth();
-  if (!session) redirect('/login');
+  const session = await requireTeamUser();
 
   const userId = session.user.id;
 

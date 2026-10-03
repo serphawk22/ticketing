@@ -1,5 +1,5 @@
+import requireTeamUser from '@/lib/requireTeamUser';
 import { notFound, redirect } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
 import { getAllProjects, getProject } from '@/lib/projects';
 import { getAllTickets } from '@/lib/tickets';
 import ComingSoonView from '@/components/ComingSoonView';
@@ -16,8 +16,7 @@ const PLACEHOLDER_TABS = {
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectPlaceholderPage({ params }) {
-  const session = await requireAuth();
-  if (!session) redirect('/login');
+  const session = await requireTeamUser();
 
   const { projectId, tab } = await params;
   if (!Object.hasOwn(PLACEHOLDER_TABS, tab)) notFound();

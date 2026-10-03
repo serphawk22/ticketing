@@ -203,6 +203,17 @@ export async function PATCH(request, { params }) {
         { status: 400 }
       );
     }
+    // Clients raise work rather than take it. The pickers already hide them,
+    // but the ids are guessable, so the rule is enforced here too.
+    if (value !== null) {
+      const target = await getEmployee(value);
+      if (target?.role === 'client') {
+        return NextResponse.json(
+          { error: 'Tickets cannot be assigned to a client.' },
+          { status: 400 }
+        );
+      }
+    }
     edits.employee_id = value;
   }
 

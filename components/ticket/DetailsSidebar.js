@@ -67,7 +67,9 @@ function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
   const assignable = useMemo(
     () =>
       employees
-        .filter((e) => e.active)
+        // Clients raise requests but never take ownership of the work, so they
+        // are kept out of the list of people a ticket can be assigned to.
+        .filter((e) => e.active && e.role !== 'client')
         .map((e) => ({ id: e.id, name: e.name }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [employees]

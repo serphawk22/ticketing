@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
+import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllTickets } from '@/lib/tickets';
 import { getAllProjects } from '@/lib/projects';
 import { getEmployees } from '@/lib/employees';
@@ -9,8 +8,7 @@ import EmployeesView from '@/components/EmployeesView';
 export const dynamic = 'force-dynamic';
 
 export default async function EmployeesPage() {
-  const session = await requireAuth();
-  if (!session) redirect('/login');
+  const session = await requireTeamUser();
 
   const employees = await getEmployees();
   const projects = await getAllProjects();

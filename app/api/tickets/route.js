@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getAllTickets, getTicket } from '@/lib/tickets';
+import { getAllTickets, getTicket, getTicketsForClient } from '@/lib/tickets';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
 
@@ -12,9 +12,16 @@ export async function GET() {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // A client account is scoped to its own requests. The team roles read the
+  // whole board as before.
+  const tickets =
+    session.user.role === 'client'
+      ? await getTicketsForClient(session.user.id)
+      : await getAllTickets();
+
   return NextResponse.json({
     role: session.user.role,
-    tickets: await getAllTickets(),
+    tickets,
   });
 }
 

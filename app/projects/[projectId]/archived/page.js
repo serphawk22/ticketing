@@ -1,5 +1,5 @@
+import requireTeamUser from '@/lib/requireTeamUser';
 import { redirect, notFound } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
 import { getAllProjects, getProject } from '@/lib/projects';
 import { getAllTickets, getArchivedTickets } from '@/lib/tickets';
 import ArchivedView from '@/components/ArchivedView';
@@ -7,8 +7,7 @@ import ArchivedView from '@/components/ArchivedView';
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectArchivedPage({ params }) {
-  const session = await requireAuth();
-  if (!session) redirect('/login');
+  const session = await requireTeamUser();
 
   const { projectId } = await params;
   const project = await getProject(projectId);

@@ -7035,3 +7035,250 @@ input.inline-input.tm-title-edit {
 .raise-list-assignee {
   font-weight: 500;
 }
+
+/* ---------------------------------------------------------------------------
+   Client portal
+
+   A deliberately plain shell. A client sees their own requests and nothing
+   else, so there is no sidebar, no project tree and no shared chrome to
+   navigate away into.
+   --------------------------------------------------------------------------- */
+
+.client-portal {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.client-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.client-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.client-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.client-who {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+
+.client-main {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 24px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+  align-items: start;
+}
+
+.client-raise,
+.client-requests {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.client-raise h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.client-requests h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.client-sub {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+
+.client-form textarea,
+.client-reply textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.client-form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.client-form-row .form-group {
+  margin-bottom: 0;
+}
+
+.client-notice {
+  margin-top: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #006644;
+  background: #e3fcef;
+  border-radius: 4px;
+}
+
+.client-requests-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.client-count {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.client-empty {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.client-empty p {
+  margin: 0;
+}
+
+.client-empty-sub {
+  margin-top: 4px !important;
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+
+.client-ticket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.client-ticket {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.client-ticket-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.client-ticket-id {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.client-ticket-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.client-ticket-desc {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-subtle);
+  white-space: pre-wrap;
+}
+
+.client-ticket-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-disabled);
+}
+
+.client-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.client-comment {
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border-radius: 4px;
+}
+
+.client-comment-own {
+  background: var(--bg-selected);
+}
+
+.client-comment-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-disabled);
+}
+
+.client-comment p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.client-reply {
+  margin-top: 12px;
+}
+
+.client-reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.client-reply-btn {
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .client-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Client requests in the admin sidebar: a priority dot, the request title, and
+   the assign button that sits on the row rather than behind a hover. */
+.menu-item-empty {
+  color: var(--text-disabled);
+  cursor: default;
+}

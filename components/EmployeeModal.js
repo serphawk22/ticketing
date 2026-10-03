@@ -5,6 +5,10 @@ import { useEffect, useState } from 'react';
 const ROLES = [
   { value: 'developer', label: 'Developer' },
   { value: 'admin', label: 'Admin' },
+  // Clients sign in to their own portal to raise requests. They are listed here
+  // so an admin has one directory to manage accounts from, but they are not
+  // assignable work.
+  { value: 'client', label: 'Client' },
 ];
 
 export default function EmployeeModal({ employee, onClose, onSave }) {
@@ -13,6 +17,9 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
   const [email, setEmail] = useState(employee?.email || '');
   const [role, setRole] = useState(employee?.role || 'developer');
   const [department, setDepartment] = useState(employee?.department || '');
+  // A new employee is always created active; editing lets an admin correct the
+  // status from here as well as from the row menu.
+  const [active, setActive] = useState(employee ? Boolean(employee.active) : true);
   const [title, setTitle] = useState(employee?.title || '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -36,12 +43,14 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
         {
           method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, role, department, title }),
+          body: JSON.stringify({ name, email, role, department, title, active }),
         }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save employee.');
-      onSave(data.employee);
+      // The invite result rides along so the caller can warn when the email
+      // did not go out, rather than the add looking like a clean success.
+      onSave(data.employee, data.invite);
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
@@ -151,6 +160,20 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
                 ))}
               </select>
             </div>
+
+            {isEdit && (
+              <div className="form-group form-group-narrow">
+                <label htmlFor="employee-active">Status</label>
+                <select
+                  id="employee-active"
+                  value={active ? 'active' : 'inactive'}
+                  onChange={(e) => setActive(e.target.value === 'active')}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {error && <div className="error-text">{error}</div>}

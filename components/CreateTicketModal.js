@@ -29,7 +29,9 @@ export default function CreateTicketModal({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const assignable = employees.filter((e) => e.active);
+  // Same rule as the ticket detail sidebar: clients request work, they do not
+  // receive it.
+  const assignable = employees.filter((e) => e.active && e.role !== 'client');
 
   useEffect(() => {
     function onKey(e) {

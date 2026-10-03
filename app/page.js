@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
+import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllTickets } from '@/lib/tickets';
 import { getAllProjects } from '@/lib/projects';
 import { getEmployees, getEmployeeByUserId } from '@/lib/employees';
@@ -10,8 +9,7 @@ import DevDashboard from '@/components/DevDashboard';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const session = await requireAuth();
-  if (!session) redirect('/login');
+  const session = await requireTeamUser();
 
   const isAdmin = session.user.role === 'admin';
 

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import AnchoredMenu from '@/components/AnchoredMenu';
 import EmployeeModal from '@/components/EmployeeModal';
+import { useToasts, Toaster } from '@/components/Toaster';
 import ConfirmModal from '@/components/ConfirmModal';
 import Avatar from '@/components/Avatar';
 import { formatFullDateTime } from '@/components/meta';
@@ -63,29 +65,20 @@ export default function EmployeesView({
   const [openMenu, setOpenMenu] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [resending, setResending] = useState(null);
   const [error, setError] = useState('');
-  const menuWrapRef = useRef(null);
+  // The open row's "..." button, kept per row so the portaled menu has an
+  // element to measure against.
+  const rowAnchors = useRef({});
   const router = useRouter();
+  const { toasts, push, dismiss, pause, resume } = useToasts();
 
   const isAdmin = currentUser.role === 'admin';
 
-  useEffect(() => {
-    if (!openMenu) return;
-    function onDocClick(e) {
-      if (menuWrapRef.current && !menuWrapRef.current.contains(e.target)) {
-        setOpenMenu(null);
-      }
-    }
-    function onKey(e) {
-      if (e.key === 'Escape') setOpenMenu(null);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [openMenu]);
+  const openEmployee = useMemo(
+    () => employees.find((e) => e.id === openMenu) || null,
+    [employees, openMenu]
+  );
 
   async function refresh() {
     const [employeesRes, outboxRes] = await Promise.all([
@@ -98,9 +91,10 @@ export default function EmployeesView({
     if (outboxRes.ok) setOutbox(outboxData.outbox);
   }
 
-  async function handleSave() {
+  async function handleSave(employee, invite) {
     setEditing(null);
     await refresh();
+    announceSave(employee, invite);
   }
 
   async function toggleActive(employee) {
@@ -121,17 +115,70 @@ export default function EmployeesView({
   }
 
   async function handleDelete() {
+    const target = deleting;
     setError('');
     try {
-      const res = await fetch(`/api/employees/${deleting.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/employees/${target.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        // Their tickets are unassigned rather than left pointing at a deleted
+        // user, so say how many were touched instead of doing it silently.
+        body: JSON.stringify({ reassign: 'unassign' }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to remove employee.');
+
       setDeleting(null);
       await refresh();
+
+      const unassigned = Number(data.unassigned || 0);
+      push({
+        message: unassigned
+          ? `Removed ${target.name}. ${unassigned} ${
+              unassigned === 1 ? 'ticket is' : 'tickets are'
+            } now unassigned.`
+          : `Removed ${target.name}.`,
+      });
     } catch (e) {
       setDeleting(null);
       setError(e.message);
+      push({ message: e.message, tone: 'error' });
     }
+  }
+
+  async function handleResend() {
+    const target = resending;
+    setError('');
+    try {
+      const res = await fetch(`/api/employees/${target.id}/resend`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not resend the invite.');
+
+      setResending(null);
+      await refresh();
+      push({ message: `Invite resent to ${target.email} with a new temporary password.` });
+    } catch (e) {
+      setResending(null);
+      setError(e.message);
+      push({ message: e.message, tone: 'error' });
+    }
+  }
+
+  /**
+   * An invite that could not be delivered is not a silent no-op: the employee
+   * exists but has never been told, so warn and point at the resend action.
+   */
+  function announceSave(employee, invite) {
+    if (invite?.sent) {
+      push({
+        message: `${employee.name} was added and emailed a temporary password.`,
+      });
+      return;
+    }
+    push({
+      message: `${employee.name} was added, but the invite email failed to send. Use "Resend invite" to try again.`,
+      tone: 'error',
+    });
   }
 
   const departments = useMemo(() => {
@@ -341,7 +388,7 @@ export default function EmployeesView({
               </div>
             </div>
 
-            <div className="table-scroll" ref={menuWrapRef}>
+            <div className="table-scroll">
               {visibleEmployees.length === 0 ? (
                 <div className="projects-empty">
                   <span>
@@ -407,75 +454,92 @@ export default function EmployeesView({
                         </td>
                         {isAdmin && (
                           <td className="actions-col">
-                            <div className="row-menu-wrap">
-                              <button
-                                className="icon-btn row-menu-btn"
-                                onClick={() =>
-                                  setOpenMenu((id) => (id === e.id ? null : e.id))
-                                }
-                                aria-haspopup="true"
-                                aria-expanded={openMenu === e.id}
-                                aria-label={`Actions for ${e.name}`}
-                                title="More actions"
+                            <button
+                              type="button"
+                              className="icon-btn row-menu-btn"
+                              onClick={() => setOpenMenu((id) => (id === e.id ? null : e.id))}
+                              aria-haspopup="true"
+                              aria-expanded={openMenu === e.id}
+                              aria-label={`Actions for ${e.name}`}
+                              title="More actions"
+                              ref={(el) => {
+                                if (el) rowAnchors.current[e.id] = el;
+                                else delete rowAnchors.current[e.id];
+                              }}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                width="16"
+                                height="16"
+                                fill="currentColor"
+                                aria-hidden="true"
                               >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  width="16"
-                                  height="16"
-                                  fill="currentColor"
-                                  aria-hidden="true"
-                                >
-                                  <circle cx="5" cy="12" r="2" />
-                                  <circle cx="12" cy="12" r="2" />
-                                  <circle cx="19" cy="12" r="2" />
-                                </svg>
-                              </button>
-
-                              {openMenu === e.id && (
-                                <div className="menu-popup row-menu" role="menu">
-                                  <button
-                                    className="menu-item"
-                                    role="menuitem"
-                                    onClick={() => {
-                                      setOpenMenu(null);
-                                      setEditing(e);
-                                    }}
-                                  >
-                                    Edit details
-                                  </button>
-                                  <button
-                                    className="menu-item"
-                                    role="menuitem"
-                                    onClick={() => toggleActive(e)}
-                                  >
-                                    {e.active ? 'Deactivate' : 'Reactivate'}
-                                  </button>
-                                  <div className="menu-sep" />
-                                  <button
-                                    className="menu-item menu-item-danger"
-                                    role="menuitem"
-                                    disabled={e.assigned_count > 0}
-                                    title={
-                                      e.assigned_count > 0
-                                        ? 'Reassign their tickets before removing'
-                                        : 'Remove from directory'
-                                    }
-                                    onClick={() => {
-                                      setOpenMenu(null);
-                                      setDeleting(e);
-                                    }}
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                                <circle cx="5" cy="12" r="2" />
+                                <circle cx="12" cy="12" r="2" />
+                                <circle cx="19" cy="12" r="2" />
+                              </svg>
+                            </button>
                           </td>
                         )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              )}
+
+              {/* Rendered through the shared portal primitive: the menu is
+                  positioned against the row button and flips upward near the
+                  bottom of the window, which an absolutely positioned dropdown
+                  inside this scrolling table could not do. */}
+              {openMenu != null && openEmployee && (
+                <AnchoredMenu
+                  open={openMenu != null}
+                  onClose={() => setOpenMenu(null)}
+                  getAnchor={() => rowAnchors.current[openMenu]}
+                >
+                  <button
+                    type="button"
+                    className="menu-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      setEditing(openEmployee);
+                    }}
+                  >
+                    Edit details
+                  </button>
+                  <button
+                    type="button"
+                    className="menu-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setResending(openEmployee);
+                      setOpenMenu(null);
+                    }}
+                  >
+                    Resend invite
+                  </button>
+                  <button
+                    type="button"
+                    className="menu-item"
+                    role="menuitem"
+                    onClick={() => toggleActive(openEmployee)}
+                  >
+                    {openEmployee.active ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                  <div className="menu-sep" />
+                  <button
+                    type="button"
+                    className="menu-item menu-item-danger"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      setDeleting(openEmployee);
+                    }}
+                  >
+                    Remove employee
+                  </button>
+                </AnchoredMenu>
               )}
 
               {inactiveCount > 0 && (
@@ -550,12 +614,32 @@ export default function EmployeesView({
       {deleting && (
         <ConfirmModal
           title="Remove employee"
-          message={`${deleting.name} will be removed from the directory. This cannot be undone.`}
+          message={
+            deleting.assigned_count > 0
+              ? `Remove ${deleting.name} from the directory? They will lose access to this workspace. ${
+                  deleting.assigned_count
+                } ${
+                  deleting.assigned_count === 1 ? 'ticket' : 'tickets'
+                } assigned to them will become unassigned. This cannot be undone.`
+              : `Remove ${deleting.name} from the directory? They will lose access to this workspace. This cannot be undone.`
+          }
           confirmLabel="Remove"
           onCancel={() => setDeleting(null)}
           onConfirm={handleDelete}
         />
       )}
+
+      {resending && (
+        <ConfirmModal
+          title="Resend invite"
+          message={`Email ${resending.name} a new invite? A fresh temporary password will be generated and any previous one will stop working.`}
+          confirmLabel="Resend invite"
+          onCancel={() => setResending(null)}
+          onConfirm={handleResend}
+        />
+      )}
+
+      <Toaster toasts={toasts} onDismiss={dismiss} onPause={pause} onResume={resume} />
     </AppShell>
   );
 }

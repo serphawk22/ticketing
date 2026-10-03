@@ -14,7 +14,9 @@ export async function POST(request) {
   }
 
   const user = await db
-    .prepare('SELECT id, name, email, password, role FROM users WHERE email = ?')
+    .prepare(
+      'SELECT id, name, email, password, role, must_change_password FROM users WHERE email = ?'
+    )
     .get(email.trim().toLowerCase());
 
   if (!user || !bcrypt.compareSync(password, user.password)) {
@@ -27,6 +29,14 @@ export async function POST(request) {
   await createSession(user.id);
 
   return NextResponse.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      // An admin-created account signs in with a temporary password; the app
+      // uses this to send them straight to the reset screen.
+      mustChangePassword: Boolean(user.must_change_password),
+    },
   });
 }

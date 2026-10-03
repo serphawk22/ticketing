@@ -1,9 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-export default function LoginPage() {
+/**
+ * The client door.
+ *
+ * Same credentials as the team login, but this page only admits client
+ * accounts. A developer who wanders in is told where to go rather than being
+ * dropped into a portal they cannot use, and an admin or developer who needs
+ * the team app gets a link back to it.
+ */
+export default function ClientLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,17 +37,16 @@ export default function LoginPage() {
         return;
       }
 
-      // An admin-created account is still on its temporary password; send it
-      // to the reset screen rather than into the app it cannot use yet.
-      if (data.user?.mustChangePassword) {
-        router.push('/change-password');
-      } else if (data.user?.role === 'client') {
-        // A client belongs in their own portal, not the team board. Signing in
-        // here still works for them, it just lands in the right place.
-        router.push('/client');
-      } else {
-        router.push('/');
+      if (data.user?.role !== 'client') {
+        setError(
+          'This account is not a client account. Use the team sign-in instead.'
+        );
+        return;
       }
+
+      // A new client account still holds a temporary password, so it goes to the
+      // reset screen first and the portal afterwards.
+      router.push(data.user?.mustChangePassword ? '/change-password' : '/client');
       router.refresh();
     } catch {
       setError('Something went wrong. Please try again.');
@@ -54,15 +62,15 @@ export default function LoginPage() {
           <div className="logo-tile" aria-hidden="true">
             T
           </div>
-          <h1>Ticket Manager</h1>
+          <h1>Client portal</h1>
         </div>
-        <p className="sub">Sign in to continue</p>
+        <p className="sub">Raise a request and follow its progress</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="client-email">Email</label>
             <input
-              id="email"
+              id="client-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -73,9 +81,9 @@ export default function LoginPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="client-password">Password</label>
             <input
-              id="password"
+              id="client-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -94,11 +102,9 @@ export default function LoginPage() {
         {error && <div className="error-text">{error}</div>}
 
         <p className="auth-demo">
-          Demo accounts
+          Are you part of the team?
           <br />
-          admin: <code>admin@example.com</code> / <code>admin123</code>
-          <br />
-          developer: <code>dev@example.com</code> / <code>dev123</code>
+          <Link href="/login">Go to the team sign-in</Link>
         </p>
       </div>
     </div>
