@@ -339,9 +339,13 @@ export default function Board({
             {!isAdmin && (
               <span
                 className="drag-hint"
-                title="Creating issues and reassigning tickets are limited to admins"
+                title="Reassigning tickets is limited to admins"
               >
-                Creating and reassigning is admin-only
+                Raise your own from{' '}
+                <Link href="/raise" className="drag-hint-link">
+                  Raise a ticket
+                </Link>
+                · reassigning is admin-only
               </span>
             )}
 

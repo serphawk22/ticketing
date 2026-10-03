@@ -22,9 +22,7 @@ export async function POST(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
-    return NextResponse.json({ error: 'Only admins can create tickets.' }, { status: 403 });
-  }
+  const isAdmin = session.user.role === 'admin';
 
   const {
     title,
@@ -38,6 +36,14 @@ export async function POST(request) {
     labels = '',
     category = '',
   } = await request.json();
+
+  // Anyone signed in may raise a ticket -- that is the whole point of the
+  // raise-a-ticket panel. What a requester may not do is route the work:
+  // assigning it to a person or nesting it in the tree is a decision the team
+  // makes, so those two fields are dropped rather than trusted and the ticket
+  // arrives for triage.
+  const assignee = isAdmin ? employee_id : null;
+  const parent = isAdmin ? parent_id : null;
 
   if (!title?.trim() || !description?.trim()) {
     return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
@@ -59,7 +65,7 @@ export async function POST(request) {
   }
   const due = due_date ? String(due_date).trim() : null;
 
-  if (employee_id && !await employeeExists(employee_id)) {
+  if (assignee && !await employeeExists(assignee)) {
     return NextResponse.json(
       { error: 'Employee not found or deactivated.' },
       { status: 400 }
@@ -68,7 +74,7 @@ export async function POST(request) {
 
   // Creating a child is a normal create that happens to name a parent. The
   // parent has to exist; a new ticket cannot yet be an ancestor of anything.
-  if (parent_id && !(await getTicket(parent_id))) {
+  if (parent && !(await getTicket(parent))) {
     return NextResponse.json({ error: 'Parent ticket not found.' }, { status: 400 });
   }
 
@@ -84,8 +90,8 @@ export async function POST(request) {
       type,
       session.user.id,
       project_id || null,
-      employee_id || null,
-      parent_id || null,
+      assignee || null,
+      parent || null,
       due,
       String(labels || '').trim(),
       String(category || '').trim()
@@ -94,8 +100,8 @@ export async function POST(request) {
   const ticket = await getTicket(info.lastInsertRowid);
 
   let notification = null;
-  if (employee_id) {
-    const employee = await getEmployee(employee_id);
+  if (assignee) {
+    const employee = await getEmployee(assignee);
     notification = await notifyAssignment({
       ticket,
       employee,

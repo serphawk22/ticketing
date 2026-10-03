@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
+import PageHeader from './PageHeader';
 import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
@@ -611,22 +611,12 @@ export default function CalendarView({
           </div>
         )}
 
-        <div className="board-toolbar">
-          <div className="toolbar-title">
-            <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Projects</Link>
-              <span className="breadcrumb-sep" aria-hidden="true">/</span>
-              <span>{project.name}</span>
-            </nav>
-            <div className="toolbar-title-row">
-              <span className="project-icon project-icon-sm" style={{ background: project.color }} aria-hidden="true">
-                {project.name.charAt(0).toUpperCase()}
-              </span>
-              <h1>{project.name}</h1>
-            </div>
-            {project.description && <p className="board-subtitle">{project.description}</p>}
-          </div>
-        </div>
+        <PageHeader
+          breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: project.name }]}
+          title={project.name}
+          project={project}
+          subtitle={project.description}
+        />
 
         <ProjectTabs projectId={project.id} active="calendar" />
 

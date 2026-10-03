@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
+import PageHeader from './PageHeader';
 import ProjectTabs from './ProjectTabs';
 import Avatar from './Avatar';
 import CreateTicketModal from './CreateTicketModal';
@@ -268,29 +269,14 @@ export default function ProjectSummary({
           </div>
         )}
 
-        <div className="board-toolbar summary-toolbar">
-          <div className="toolbar-title">
-            <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Projects</Link>
-              <span className="breadcrumb-sep" aria-hidden="true">/</span>
-              <span>{data.project.name}</span>
-            </nav>
-            <div className="toolbar-title-row">
-              <span
-                className="project-icon project-icon-sm"
-                style={{ background: data.project.color }}
-                aria-hidden="true"
-              >
-                {data.project.name.charAt(0).toUpperCase()}
-              </span>
-              <h1>{data.project.name}</h1>
-            </div>
-            {data.project.description && (
-              <p className="board-subtitle">{data.project.description}</p>
-            )}
-          </div>
-
-          <div className="toolbar-actions">
+        <PageHeader
+          className="summary-toolbar"
+          breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: data.project.name }]}
+          title={data.project.name}
+          project={data.project}
+          subtitle={data.project.description}
+          actions={
+            <>
             <button className="icon-btn" type="button" title="Share project" aria-label="Share project">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="18" cy="5" r="3" />
@@ -321,8 +307,9 @@ export default function ProjectSummary({
                 <circle cx="19" cy="12" r="1.8" />
               </svg>
             </button>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <ProjectTabs projectId={projectId} active="summary" />
 

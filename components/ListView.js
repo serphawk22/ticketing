@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
+import EmptyState from './EmptyState';
 import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
@@ -12,6 +12,7 @@ import useTicketModal from './useTicketModal';
 import ConfirmModal from './ConfirmModal';
 import { HierarchyIcon } from './ticket/icons';
 import ListOverflowMenu from './list/ListOverflowMenu';
+import PageHeader from './PageHeader';
 import ListColumnsMenu from './list/ListColumnsMenu';
 import ChartViewModal from './list/ChartViewModal';
 import FormatRulesModal from './list/FormatRulesModal';
@@ -183,29 +184,31 @@ function writeCollapsed(projectId, ids) {
   }
 }
 
-function EmptyState({ hasAny, filtered, onReset }) {  return (
-    <div className="list-empty">
-      <svg viewBox="0 0 64 48" width="64" height="48" aria-hidden="true">
-        <rect x="6" y="10" width="52" height="30" rx="4" fill="#F4F5F7" />
-        <rect x="12" y="17" width="24" height="4" rx="2" fill="#DFE1E6" />
-        <rect x="12" y="25" width="34" height="4" rx="2" fill="#EBECF0" />
-        <circle cx="46" cy="34" r="11" fill="#E9F2FF" />
-        <path d="M46 28v12M40 34h12" stroke="#0C66E4" strokeWidth="2.5" strokeLinecap="round" />
-      </svg>
-      <p className="list-empty-title">
-        {hasAny ? 'No work matches these filters' : 'No work items yet'}
-      </p>
-      <p className="list-empty-text">
-        {hasAny
+function ListEmptyState({ hasAny, filtered, onReset }) {
+  return (
+    <EmptyState
+      icon={
+        <svg viewBox="0 0 64 48" width="64" height="48" aria-hidden="true">
+          <rect x="6" y="10" width="52" height="30" rx="4" fill="#F4F5F7" />
+          <rect x="12" y="17" width="24" height="4" rx="2" fill="#DFE1E6" />
+          <rect x="12" y="25" width="34" height="4" rx="2" fill="#EBECF0" />
+          <circle cx="46" cy="34" r="11" fill="#E9F2FF" />
+          <path d="M46 28v12M40 34h12" stroke="#0C66E4" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      }
+      title={hasAny ? 'No work matches these filters' : 'No work items yet'}
+      text={
+        hasAny
           ? 'Try clearing the search box or the active filters.'
-          : 'Create a ticket to start tracking work in this project.'}
-      </p>
+          : 'Create a ticket to start tracking work in this project.'
+      }
+    >
       {filtered && (
         <button type="button" className="btn-secondary" onClick={onReset}>
           Clear filters
         </button>
       )}
-    </div>
+    </EmptyState>
   );
 }
 
@@ -976,7 +979,10 @@ export default function ListView({
                 {node.childCount}
               </span>
             )}
-            {hasChildren && (
+            {/* The parent mark belongs to the top of a hierarchy. A nested
+                parent is already sitting under one, and repeating the icon
+                down the chain says nothing the indentation has not. */}
+            {hasChildren && depth === 0 && (
               <span className="list-hierarchy-icon" title="Has child work items" aria-label="Parent ticket">
                 <HierarchyIcon size={12} />
               </span>
@@ -1148,28 +1154,17 @@ export default function ListView({
           </div>
         )}
 
-        <div className="board-toolbar">
-          <div className="toolbar-title">
-            <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Projects</Link>
-              <span className="breadcrumb-sep" aria-hidden="true">/</span>
-              <span>{project?.name || 'All work items'}</span>
-            </nav>
-            <div className="toolbar-title-row">
-              <span
-                className="project-icon project-icon-sm"
-                style={{ background: project?.color || 'var(--primary)' }}
-                aria-hidden="true"
-              >
-                {(project?.name || 'All').charAt(0).toUpperCase()}
-              </span>
-              <h1>{project?.name || 'All work items'}</h1>
-            </div>
-            <p className="board-subtitle">
-              {project?.description || 'Every work item across every project in this workspace.'}
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          breadcrumb={[
+            { label: 'Projects', href: '/projects' },
+            { label: project?.name || 'All work items' },
+          ]}
+          title={project?.name || 'All work items'}
+          project={project || { name: 'All work items' }}
+          subtitle={
+            project?.description || 'Every work item across every project in this workspace.'
+          }
+        />
 
         {/* The project tab strip has no meaning without a single project, so
             the cross-project list shows the heading on its own. */}
@@ -1439,7 +1434,7 @@ export default function ListView({
             </table>
 
             {total === 0 && (
-              <EmptyState hasAny={tickets.length > 0} filtered={hasActiveFilters} onReset={clearFilters} />
+              <ListEmptyState hasAny={tickets.length > 0} filtered={hasActiveFilters} onReset={clearFilters} />
             )}
           </div>
 

@@ -15,7 +15,11 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={inter.variable}>
+    // Browser extensions stamp their own data-* attributes onto <html> before
+    // React hydrates, which React reports as a mismatch it cannot patch. The
+    // element carries nothing of ours that depends on the client, so the
+    // difference is safe to ignore.
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

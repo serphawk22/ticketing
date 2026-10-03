@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Avatar from './Avatar';
 import WorkspaceModal from './WorkspaceModal';
 import ProjectModal from './ProjectModal';
+import ConfirmModal from './ConfirmModal';
+import AnchoredMenu from './AnchoredMenu';
 
 /* ---------------- Icons ---------------- */
 
@@ -29,6 +31,16 @@ function PlusIcon() {
   return (
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
     </svg>
   );
 }
@@ -163,6 +175,17 @@ export default function AppShell({
   // are created from inside a work space rather than from a section-wide
   // button, so a project always lands in an explicit home.
   const [creatingProjectIn, setCreatingProjectIn] = useState(null);
+  // The row whose actions menu is open, and the thing its Delete action is
+  // asking about. One key for both menus because only one can be open at a
+  // time, and it keeps the buttons from fighting over their own dropdowns.
+  const [rowMenu, setRowMenu] = useState(null);
+  // The open row's "..." button, kept per row so the portaled menu has an
+  // element to measure against.
+  const rowAnchors = useRef({});
+  const [deleting, setDeleting] = useState(null);
+  const [editingWorkspace, setEditingWorkspace] = useState(null);
+  const [editingProject, setEditingProject] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
   const menuRef = useRef(null);
   const router = useRouter();
 
@@ -239,6 +262,49 @@ export default function AppShell({
     onProjectChange?.(id);
   }
 
+  function toggleRowMenu(key) {
+    setRowMenu((current) => (current === key ? null : key));
+  }
+
+  /**
+   * Deleting a workspace keeps its projects and a deleting project keeps its
+   * tickets, so neither needs a second confirmation about what else goes with
+   * it. What does have to be repainted is the sidebar: the workspace list comes
+   * from the server and the project list is the sidebar's own copy.
+   */
+  async function handleDelete() {
+    const target = deleting;
+    setDeleteError('');
+    try {
+      const res = await fetch(`/api/${target.kind}s/${target.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed.');
+      setDeleting(null);
+      await Promise.all([loadWorkspaces(), loadSidebarProjects()]);
+      // The view the reader is on may have been the thing that was deleted.
+      if (projectId != null && String(projectId) === String(target.id)) {
+        router.push('/projects');
+      } else {
+        router.refresh();
+      }
+    } catch (e) {
+      setDeleting(null);
+      setDeleteError(e.message);
+    }
+  }
+
+  async function handleWorkspaceSave() {
+    setEditingWorkspace(null);
+    await loadWorkspaces();
+    router.refresh();
+  }
+
+  async function handleProjectSave() {
+    setEditingProject(null);
+    await loadSidebarProjects();
+    router.refresh();
+  }
+
   const groupedIds = new Set(
     workspaces.map((w) => String(w.id))
   );
@@ -257,25 +323,69 @@ export default function AppShell({
   );
 
   function renderProjectItem(p) {
+    const menuKey = `project:${p.id}`;
     return (
-      <button
-        key={p.id}
-        className={`nav-item${
-          projectId != null && String(projectId) === String(p.id) ? ' active' : ''
-        }`}
-        onClick={() => selectProject(p.id)}
-        title={p.name}
-      >
-        <span
-          className="project-dot"
-          style={{ background: p.color }}
-          aria-hidden="true"
-        />
-        <span className="nav-text">{p.name}</span>
-        <span className="nav-count">
-          {projectCounts?.[p.id] ?? p.open_count ?? 0}
-        </span>
-      </button>
+      <div className="nav-item-wrap" key={p.id}>
+        <button
+          className={`nav-item${
+            projectId != null && String(projectId) === String(p.id) ? ' active' : ''
+          }`}
+          onClick={() => selectProject(p.id)}
+          title={p.name}
+        >
+          <span
+            className="project-dot"
+            style={{ background: p.color }}
+            aria-hidden="true"
+          />
+          <span className="nav-text">{p.name}</span>
+          <span className="nav-count">
+            {projectCounts?.[p.id] ?? p.open_count ?? 0}
+          </span>
+        </button>
+        {isAdmin && (
+          <div className="nav-row-actions">
+            <button
+              ref={(el) => {
+                if (el) rowAnchors.current[menuKey] = el;
+              }}
+              className="nav-row-more"
+              onClick={() => toggleRowMenu(menuKey)}
+              aria-label={`Actions for ${p.name}`}
+              aria-expanded={rowMenu === menuKey}
+              title={`Actions for ${p.name}`}
+            >
+              <MoreIcon />
+            </button>
+            <AnchoredMenu
+            open={rowMenu === menuKey}
+            onClose={() => setRowMenu(null)}
+            getAnchor={() => rowAnchors.current[menuKey]}
+          >
+            <button
+              className="menu-item"
+              role="menuitem"
+              onClick={() => {
+                setRowMenu(null);
+                setEditingProject(p);
+              }}
+            >
+              <span className="menu-item-text">Edit project</span>
+            </button>
+            <button
+              className="menu-item menu-item-danger"
+              role="menuitem"
+              onClick={() => {
+                setRowMenu(null);
+                setDeleting({ kind: 'project', ...p });
+              }}
+            >
+              <span className="menu-item-text">Delete project</span>
+            </button>
+          </AnchoredMenu>
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -437,6 +547,16 @@ export default function AppShell({
                 <span className="nav-text">My tickets</span>
                 <span className="nav-count">{myIssuesCount}</span>
               </button>
+              <button
+                className={`nav-item${view === 'raise' ? ' active' : ''}`}
+                onClick={() => {
+                  setSidebarOpen(false);
+                  router.push('/raise');
+                }}
+              >
+                <PlusIcon />
+                <span className="nav-text">Raise a ticket</span>
+              </button>
             </nav>
 
             <div className="nav-label">People</div>
@@ -486,7 +606,10 @@ export default function AppShell({
                 );
                 return (
                   <div className="nav-workspace" key={w.id}>
-                    <div className="nav-workspace-head" title={w.name}>
+                    <div
+                      className={`nav-workspace-head${isAdmin ? ' has-actions' : ''}`}
+                      title={w.name}
+                    >
                       <span
                         className="workspace-dot"
                         style={{ background: w.color }}
@@ -503,6 +626,48 @@ export default function AppShell({
                         >
                           <PlusIcon />
                         </button>
+                      )}
+                      {isAdmin && (
+                        <div className="nav-row-actions">
+                          <button
+                            ref={(el) => {
+                              if (el) rowAnchors.current[`workspace:${w.id}`] = el;
+                            }}
+                            className="nav-row-more"
+                            onClick={() => toggleRowMenu(`workspace:${w.id}`)}
+                            aria-label={`Actions for ${w.name}`}
+                            aria-expanded={rowMenu === `workspace:${w.id}`}
+                            title={`Actions for ${w.name}`}
+                          >
+                            <MoreIcon />
+                          </button>
+                          <AnchoredMenu
+                            open={rowMenu === `workspace:${w.id}`}
+                            onClose={() => setRowMenu(null)}
+                            getAnchor={() => rowAnchors.current[`workspace:${w.id}`]}
+                          >
+                            <button
+                              className="menu-item"
+                              role="menuitem"
+                              onClick={() => {
+                                setRowMenu(null);
+                                setEditingWorkspace(w);
+                              }}
+                            >
+                              <span className="menu-item-text">Edit workspace</span>
+                            </button>
+                            <button
+                              className="menu-item menu-item-danger"
+                              role="menuitem"
+                              onClick={() => {
+                                setRowMenu(null);
+                                setDeleting({ kind: 'workspace', ...w });
+                              }}
+                            >
+                              <span className="menu-item-text">Delete workspace</span>
+                            </button>
+                          </AnchoredMenu>
+                        </div>
                       )}
                     </div>
                     {members.map(renderProjectItem)}
@@ -552,6 +717,62 @@ export default function AppShell({
               router.refresh();
             }}
           />
+        )}
+
+        {editingWorkspace && (
+          <WorkspaceModal
+            workspace={editingWorkspace}
+            onClose={() => setEditingWorkspace(null)}
+            onSave={handleWorkspaceSave}
+          />
+        )}
+
+        {editingProject && (
+          <ProjectModal
+            project={editingProject}
+            workspaces={workspaces}
+            onClose={() => setEditingProject(null)}
+            onSave={handleProjectSave}
+          />
+        )}
+
+        {deleting && (
+          <ConfirmModal
+            title={`Delete ${deleting.kind}`}
+            message={
+              deleting.kind === 'workspace'
+                ? deleting.project_count > 0
+                  ? `${deleting.name} has ${deleting.project_count} ${
+                      deleting.project_count === 1 ? 'project' : 'projects'
+                    }. ${
+                      deleting.project_count === 1
+                        ? 'It will be'
+                        : 'They will be'
+                    } kept and listed without a work space.`
+                  : `${deleting.name} has no projects. This cannot be undone.`
+                : deleting.ticket_count > 0
+                  ? `${deleting.name} has ${deleting.ticket_count} ${
+                      deleting.ticket_count === 1 ? 'ticket' : 'tickets'
+                    }. ${
+                      deleting.ticket_count === 1
+                        ? 'It will be'
+                        : 'They will be'
+                    } kept but become unassigned from any project.`
+                  : `${deleting.name} has no tickets. This cannot be undone.`
+            }
+            confirmLabel={`Delete ${deleting.kind}`}
+            onCancel={() => setDeleting(null)}
+            onConfirm={handleDelete}
+          />
+        )}
+
+        {deleteError && (
+          <div className="error-banner">
+            <strong>Error:</strong> {deleteError}
+            <button type="button" onClick={() => setDeleteError('')}>
+              Dismiss
+            </button>
+          </div>
         )}
 
         {children}

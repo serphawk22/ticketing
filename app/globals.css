@@ -756,6 +756,7 @@ textarea {
 }
 
 .nav-workspace-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1113,6 +1114,16 @@ textarea {
 .drag-hint {
   font-size: var(--fs-12);
   color: var(--text-subtle);
+}
+
+.drag-hint-link {
+  color: var(--text-subtle);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.drag-hint-link:hover {
+  color: var(--text);
 }
 
 .error-banner {
@@ -2403,18 +2414,6 @@ textarea {
   margin-bottom: 16px;
 }
 
-/* Only Summary and Board are built, so the rest stay visible but inert rather
-   than linking to routes that do not exist. */
-.tab.is-disabled {
-  color: var(--text-disabled);
-  cursor: default;
-}
-
-.tab.is-disabled:hover {
-  background: none;
-  color: var(--text-disabled);
-}
-
 .project-icon-sm {
   width: 24px;
   height: 24px;
@@ -3621,14 +3620,21 @@ textarea {
   cursor: default;
 }
 
-/* Empty state */
-.list-empty {
+/* Empty state. The block is capped and centred rather than stretched across
+   the page, so the copy stays readable and grouped on a wide monitor instead
+   of floating in the middle of the viewport. */
+.empty-state {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.empty-state-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 4px;
-  padding: 48px 16px;
+  max-width: 440px;
   text-align: center;
 }
 
@@ -6822,4 +6828,210 @@ input.inline-input.tm-title-edit {
 
 .user-picker-chev-bottom {
   background: linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.95));
+}
+
+/* ------------------------------------------------------------------ *
+ * Sidebar row actions
+ * The project and work space rows are links, so their "..." button sits
+ * beside the row rather than inside it and only appears on hover, the way
+ * a list row's own actions do.
+ * ------------------------------------------------------------------ */
+
+.nav-item-wrap {
+  position: relative;
+}
+
+.nav-item-wrap > .nav-item {
+  padding-right: 26px;
+}
+
+/* The row's own actions are taken out of flow, so the row reserves room for
+   them instead of letting the name run underneath. */
+.nav-workspace-head.has-actions {
+  padding-right: 30px;
+}
+
+.nav-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+
+.nav-row-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.nav-item-wrap:hover .nav-row-more,
+.nav-workspace-head:hover .nav-row-more,
+.nav-row-more:focus-visible,
+.nav-row-more[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.nav-row-more:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Rendered to the body and pinned to its trigger by AnchoredMenu, so the
+   sidebar's own scroll container cannot clip it. The surface is stated here
+   rather than inherited: a popup that ends up transparent shows the rows
+   behind it straight through the menu items. */
+.anchored-menu {
+  position: fixed;
+  z-index: 90;
+  min-width: 176px;
+  white-space: nowrap;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 12px rgba(9, 30, 66, 0.15), 0 0 1px rgba(9, 30, 66, 0.31);
+}
+
+/* ------------------------------------------------------------------ *
+ * Raise a ticket panel
+ * A self-service request form beside the list of what this person has
+ * already asked for, so a request that is never assigned is still
+ * findable.
+ * ------------------------------------------------------------------ */
+
+.raise-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .raise-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.raise-form-card {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated, #fff);
+  box-shadow: var(--shadow-card, none);
+}
+
+.raise-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.raise-actions .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.raise-actions .field-hint {
+  max-width: 46ch;
+}
+
+.raise-recent h2 {
+  margin: 0 0 10px;
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+.raise-flash {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #abf5d1;
+  border-radius: var(--radius);
+  background: #e3fcef;
+  color: #216e4e;
+  font-size: var(--fs-12);
+}
+
+.raise-empty {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--fs-13);
+}
+
+.raise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.raise-list-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.raise-list-link:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.raise-list-type {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.raise-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.raise-list-title {
+  font-size: var(--fs-13);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raise-list-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--fs-11);
+  color: var(--text-subtle);
+}
+
+.raise-list-key {
+  font-weight: 600;
+}
+
+.raise-list-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.raise-list-assignee {
+  font-weight: 500;
 }

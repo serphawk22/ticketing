@@ -4,13 +4,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import Avatar from './Avatar';
+import EmptyState from './EmptyState';
+import PageHeader from './PageHeader';
 import ProjectTabs from './ProjectTabs';
 import TicketDetailModal from './ticket/TicketDetailModal';
 import useTicketModal from './useTicketModal';
 import { useToasts, Toaster } from './Toaster';
+import { ArchiveIcon } from './ticket/icons';
 import {
-  PRIORITY_META,
   STATUS_META,
+  TYPE_META,
   TypeIcon,
   formatListDateTime,
   ticketKey,
@@ -94,27 +97,52 @@ export default function ArchivedView({ initialTickets, project, projects, projec
       projectId={project.id}
       onProjectChange={handleProjectChange}
     >
-      <main className="page">
+      <div className="board">
+        <PageHeader
+          breadcrumb={[
+            { label: 'Projects', href: '/projects' },
+            { label: project.name },
+            { label: 'Archived' },
+          ]}
+          title="Archived work items"
+          icon={
+            <span
+              className="project-icon project-icon-sm"
+              style={{ background: project.color || 'var(--primary)' }}
+              aria-hidden="true"
+            >
+              <ArchiveIcon size={14} />
+            </span>
+          }
+          subtitle={
+            tickets.length === 0
+              ? 'Nothing archived in this project.'
+              : `${tickets.length} archived ${tickets.length === 1 ? 'work item' : 'work items'}.`
+          }
+        />
+
         <ProjectTabs projectId={project.id} active="archived" />
 
-        <header className="list-head">
-          <div>
-            <h1 className="page-title">Archived work items</h1>
-            <p className="page-sub">
-              {tickets.length === 0
-                ? 'Nothing archived in this project.'
-                : `${tickets.length} archived ${tickets.length === 1 ? 'work item' : 'work items'}.`}
-            </p>
-          </div>
-        </header>
-
         {tickets.length === 0 ? (
-          <div className="list-empty">
-            <p className="list-empty-title">No archived work items</p>
-            <p className="list-empty-text">
-              Archived work items appear here and can be restored at any time.
-            </p>
-          </div>
+          <EmptyState
+            icon={
+              <svg viewBox="0 0 64 48" width="64" height="48" aria-hidden="true">
+                <rect x="10" y="11" width="32" height="10" rx="3" fill="#DFE1E6" />
+                <path
+                  d="M14 21v15a3 3 0 003 3h18a3 3 0 003-3V21"
+                  stroke="#DFE1E6"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+                <rect x="22" y="28" width="10" height="3" rx="1.5" fill="#EBECF0" />
+                <circle cx="46" cy="32" r="11" fill="#E9F2FF" />
+                <path d="M46 27.5v9M42.5 32h7" stroke="#0C66E4" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            }
+            title="No archived work items"
+            text="Archived work items appear here and can be restored at any time."
+          />
         ) : (
           <>
             <div className="list-toolbar">
@@ -149,7 +177,7 @@ export default function ArchivedView({ initialTickets, project, projects, projec
                       </button>
                     </td>
                     <td className="list-cell">
-                      <span className="list-cell-type" title={(PRIORITY_META[t.priority] || {}).label}>
+                      <span className="list-cell-type" title={(TYPE_META[t.type] || {}).label}>
                         <TypeIcon type={t.type} size={14} />
                       </span>
                       <button
@@ -206,7 +234,7 @@ export default function ArchivedView({ initialTickets, project, projects, projec
             </table>
           </>
         )}
-      </main>
+      </div>
 
       <TicketDetailModal
         ticket={modal.selected}
