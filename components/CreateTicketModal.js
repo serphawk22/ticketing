@@ -12,6 +12,7 @@ export default function CreateTicketModal({
   defaultEmployeeId = null,
   parent = null,
   defaultDueDate = null,
+  defaultStartDate = null,
   onClose,
   onCreate,
 }) {
@@ -61,8 +62,9 @@ export default function CreateTicketModal({
           // Set when the modal was opened from a row's quick-add, so the new
           // ticket lands in the tree instead of at the top level.
           parent_id: parent ? parent.id : null,
-          // Set when the modal was opened from a calendar cell, so the ticket
-          // lands on the day that was clicked.
+          // Set when the modal was opened from a calendar cell or a timeline
+          // drag, so the ticket lands on the day or range that was drawn.
+          start_date: defaultStartDate || null,
           due_date: defaultDueDate || null,
         }),
       });
@@ -118,9 +120,23 @@ export default function CreateTicketModal({
               {parent.title ? ` — ${parent.title}` : ''}
             </p>
           )}
-          {defaultDueDate && (
+          {(defaultStartDate || defaultDueDate) && (
             <p className="form-parent">
-              Due <strong>{defaultDueDate}</strong>
+              {defaultStartDate && defaultDueDate ? (
+                <>
+                  Scheduled <strong>{defaultStartDate}</strong>
+                  {' – '}
+                  <strong>{defaultDueDate}</strong>
+                </>
+              ) : defaultDueDate ? (
+                <>
+                  Due <strong>{defaultDueDate}</strong>
+                </>
+              ) : (
+                <>
+                  Starts <strong>{defaultStartDate}</strong>
+                </>
+              )}
             </p>
           )}
           <div className="form-group">

@@ -7,7 +7,7 @@ const TABS = [
   { key: 'board', label: 'Board' },
   { key: 'list', label: 'List' },
   { key: 'calendar', label: 'Calendar' },
-  { key: 'timeline', label: 'Timeline', soon: true },
+  { key: 'timeline', label: 'Timeline' },
   { key: 'reports', label: 'Reports', soon: true },
   { key: 'docs', label: 'Docs', soon: true },
   { key: 'attachments', label: 'Attachments', soon: true },

@@ -7296,3 +7296,459 @@ input.inline-input.tm-title-edit {
   color: var(--text-disabled);
   cursor: default;
 }
+
+/* ==========================================================================
+   Project timeline
+   A Jira-style schedule: work hierarchy on the left, bars on a scrolling
+   scale on the right. Parent bars roll up their children and show how much
+   of that work is done. Dependency arrows follow "blocks" links.
+   ========================================================================== */
+
+.tl-view {
+  min-height: 0;
+}
+
+.tl-note {
+  margin: 0 0 8px;
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+
+.tl-nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tl-zoom {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tl-zoom button {
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tl-zoom button + button {
+  border-left: 1px solid var(--border);
+}
+
+.tl-zoom button[aria-pressed='true'] {
+  background: var(--bg-selected);
+  color: var(--text-link);
+  font-weight: 600;
+}
+
+.tl-scroll {
+  height: calc(100vh - var(--topnav-h) - 248px);
+  min-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.tl-canvas {
+  display: flex;
+  min-height: 100%;
+}
+
+.tl-side {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  flex: 0 0 320px;
+  width: 320px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  box-shadow: 8px 0 16px -12px rgba(9, 30, 66, 0.45);
+}
+
+.tl-side-head,
+.tl-chart-head {
+  position: sticky;
+  top: 0;
+  height: 48px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  z-index: 5;
+}
+
+.tl-side-head {
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+}
+
+.tl-side-head strong {
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tl-head-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.tl-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.tl-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.tl-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tl-side-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tl-side-row.is-hover,
+.tl-chart-row.is-hover {
+  background: var(--bg-hover);
+}
+
+.tl-side-row.is-selected,
+.tl-chart-row.is-selected {
+  background: var(--bg-selected);
+}
+
+.tl-chart-row.is-link-target {
+  background: var(--bg-selected);
+}
+
+.tl-chev,
+.tl-chev-spacer {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.tl-chev {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.tl-side-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tl-key {
+  flex: none;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+.tl-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-count {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--text-subtle);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.tl-create {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tl-create:hover {
+  background: var(--bg-hover);
+  color: var(--text-link);
+}
+
+.tl-chart {
+  position: relative;
+  flex: none;
+}
+
+.tl-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 2px;
+  margin-left: -1px;
+  background: #0c66e4;
+  pointer-events: none;
+}
+
+.tl-today::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0c66e4;
+}
+
+.tl-band {
+  display: flex;
+  height: 24px;
+}
+
+.tl-band-cell,
+.tl-day {
+  flex: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.tl-band-cell {
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+
+.tl-band-sub {
+  font-weight: 500;
+}
+
+.tl-day {
+  width: var(--day);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.tl-day.is-weekend {
+  color: var(--text-disabled);
+}
+
+.tl-band-cell.is-today,
+.tl-day.is-today {
+  color: #0c66e4;
+  font-weight: 700;
+}
+
+.tl-chart-body {
+  position: relative;
+  background-image: linear-gradient(to bottom, transparent 39px, var(--border) 40px);
+  background-size: 100% 40px;
+}
+
+.tl-chart.is-weeks .tl-chart-body {
+  background-image:
+    linear-gradient(to right, rgba(9, 30, 66, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, transparent 39px, var(--border) 40px);
+  background-size: var(--day) 100%, 100% 40px;
+}
+
+.tl-weekend,
+.tl-month-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.tl-weekend {
+  background: rgba(9, 30, 66, 0.035);
+}
+
+.tl-month-line {
+  width: 1px;
+  background: var(--border);
+}
+
+.tl-chart-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 1;
+}
+
+.tl-chart-row.is-schedulable {
+  cursor: ew-resize;
+}
+
+.tl-deps {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tl-bar {
+  position: absolute;
+  z-index: 3;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--bar);
+  cursor: grab;
+}
+
+.tl-bar.is-parent {
+  height: 26px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bar) 28%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bar) 55%, white);
+}
+
+.tl-bar.is-draft {
+  opacity: 0.8;
+  outline: 1px dashed #0c66e4;
+}
+
+.tl-bar.is-done {
+  opacity: 0.92;
+}
+
+.tl-bar:focus-visible {
+  outline: 2px solid #0c66e4;
+  outline-offset: 2px;
+}
+
+.tl-bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+  background: var(--bar);
+  pointer-events: none;
+}
+
+.tl-check {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.tl-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  opacity: 0;
+}
+
+.tl-bar:hover .tl-resize,
+.tl-bar:focus-visible .tl-resize {
+  opacity: 1;
+}
+
+.tl-resize-start { left: 0; }
+.tl-resize-end { right: 0; }
+
+.tl-resize::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.tl-resize-start::after { left: 2px; }
+.tl-resize-end::after { right: 2px; }
+
+.tl-depend {
+  position: absolute;
+  top: 50%;
+  right: -8px;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border: 2px solid #0c66e4;
+  border-radius: 50%;
+  background: #fff;
+  cursor: crosshair;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tl-bar:hover .tl-depend,
+.tl-bar:focus-visible .tl-depend {
+  opacity: 1;
+  pointer-events: auto;
+}
