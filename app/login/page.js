@@ -72,21 +72,57 @@ export default function LoginPage() {
     }
   }
 
+  function backToSignIn() {
+    setMode('signin');
+    setResetSent(false);
+    setResetEmail('');
+    setError('');
+  }
+
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-brand">
-          <div className="logo-tile" aria-hidden="true">
-            T
+    <main className="auth-container login-container">
+      <section className="login-shell" aria-label="Ticket Manager sign in">
+        <aside className="login-intro">
+          <div className="login-intro-brand">
+            <div className="logo-tile" aria-hidden="true">
+              T
+            </div>
+            <span>Ticket Manager</span>
           </div>
-          <h1>Ticket Manager</h1>
-        </div>
 
-        {mode === 'forgot' ? (
-          <>
-            <p className="sub">Reset your password</p>
+          <div className="login-intro-copy">
+            <p className="login-kicker">Team workspace</p>
+            <h1>Keep every piece of work moving forward.</h1>
+            <p>
+              Bring requests, priorities, and delivery into one shared view for
+              your team.
+            </p>
+          </div>
 
-            {resetSent ? (
+          <div className="login-intro-stat" aria-hidden="true">
+            <span className="login-stat-mark">+</span>
+            <span>Clear work. Calm delivery.</span>
+          </div>
+        </aside>
+
+        <div className="auth-card login-card">
+          <div className="auth-brand">
+            <div className="logo-tile" aria-hidden="true">
+              T
+            </div>
+            <span>Ticket Manager</span>
+          </div>
+          <div className="login-card-heading">
+            <h2>{mode === 'forgot' ? 'Reset your password' : 'Welcome back'}</h2>
+            <p>
+              {mode === 'forgot'
+                ? 'Enter your work email and we will send a temporary password.'
+                : "Sign in to manage your team's work."}
+            </p>
+          </div>
+
+          {mode === 'forgot' ? (
+            resetSent ? (
               <div className="auth-ok">
                 If an account exists for that email, a reset email with a
                 temporary password is on its way. Sign in with it and you will
@@ -107,37 +143,17 @@ export default function LoginPage() {
                   />
                 </div>
 
-                <div className="form-group">
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={loading}
-                  >
+                <div className="form-group login-submit">
+                  <button type="submit" className="btn-primary" disabled={loading}>
                     {loading ? 'Sending…' : 'Send reset email'}
                   </button>
                 </div>
               </form>
-            )}
-
-            <button
-              type="button"
-              className="link-button auth-back"
-              onClick={() => {
-                setMode('signin');
-                setResetSent(false);
-                setResetEmail('');
-              }}
-            >
-              &larr; Back to sign in
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="sub">Sign in to continue</p>
-
+            )
+          ) : (
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="email">Email</label>
+                <label htmlFor="email">Work email</label>
                 <input
                   id="email"
                   type="email"
@@ -174,25 +190,29 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <div className="form-group">
+              <div className="form-group login-submit">
                 <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? 'Signing in…' : 'Sign in'}
+                  {loading ? 'Signing in…' : 'Sign in to workspace'}
                 </button>
               </div>
             </form>
-          </>
-        )}
+          )}
 
-        {error && <div className="error-text">{error}</div>}
+          {mode === 'forgot' && (
+            <button type="button" className="link-button auth-back" onClick={backToSignIn}>
+              &larr; Back to sign in
+            </button>
+          )}
 
-        <p className="auth-demo">
-          Demo accounts
-          <br />
-          admin: <code>admin@example.com</code> / <code>admin123</code>
-          <br />
-          developer: <code>dev@example.com</code> / <code>dev123</code>
-        </p>
-      </div>
-    </div>
+          {error && <div className="error-text login-error">{error}</div>}
+
+          <div className="auth-demo">
+            <strong>Demo access</strong>
+            <span>Admin: <code>admin@example.com</code> / <code>admin123</code></span>
+            <span>Developer: <code>dev@example.com</code> / <code>dev123</code></span>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

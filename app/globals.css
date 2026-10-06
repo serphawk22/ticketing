@@ -1557,13 +1557,20 @@ textarea {
 
 /* ---------------- Board ---------------- */
 
+/* The board canvas fills the viewport below the top nav. The column row sizes
+   itself from its content, so every column stays the same height no matter
+   how many tickets each one holds. */
+.board.board-kanban {
+  height: calc(100vh - var(--topnav-h));
+}
+
 .board-columns {
   display: grid;
   grid-template-columns: repeat(4, minmax(240px, 1fr));
   gap: 8px;
-  align-items: start;
-  flex: 1;
-  min-height: 0;
+  align-items: stretch;
+  flex: none;
+  margin-top: 8px;
   overflow-x: auto;
   padding-bottom: 4px;
 }
@@ -1615,10 +1622,20 @@ textarea {
   height: 24px;
 }
 
+/* Roughly two cards fit at a time; anything more scrolls inside the column.
+   Cards keep their natural height (see .column-body > * below). */
 .column-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: none;
+  height: 240px;
+  overflow-y: auto;
+}
+
+/* Cards keep their natural height; only the list scrolls. */
+.column-body > * {
+  flex-shrink: 0;
 }
 
 .column-empty {
@@ -3502,6 +3519,12 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* The Due date cell is a button so clicking it opens the picker, but it must
+   read exactly like the muted date text it replaced. */
+.list-cell-date .idf-trigger {
+  color: inherit;
+}
+
 /* Status lozenge with an inline editor */
 .list-status-wrap {
   position: relative;
@@ -3822,6 +3845,223 @@ textarea {
   background: var(--primary);
   color: #fff;
   font-weight: 700;
+}
+
+/* Team sign-in uses a dedicated layout; client portal sign-in retains the
+   simpler shared auth card above. */
+.login-container {
+  padding: 32px;
+  background:
+    radial-gradient(circle at 10% 10%, #deebff 0, transparent 30%),
+    radial-gradient(circle at 94% 88%, #e9f2ff 0, transparent 28%),
+    #f7f8f9;
+}
+
+.login-shell {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.95fr) minmax(380px, 0.75fr);
+  width: min(100%, 1050px);
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid #c8d8f0;
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 20px 50px rgba(9, 30, 66, 0.16);
+}
+
+.login-intro {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 44px 48px;
+  color: #fff;
+  background:
+    linear-gradient(145deg, rgba(56, 139, 255, 0.2), transparent 52%),
+    #0b3d91;
+}
+
+.login-intro-brand,
+.login-card .auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.login-intro-brand .logo-tile {
+  background: #fff;
+  color: var(--primary);
+}
+
+.login-intro-copy {
+  max-width: 410px;
+  margin: auto 0;
+}
+
+.login-kicker {
+  margin: 0 0 14px;
+  color: #bcd7ff;
+  font-size: var(--fs-12);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-intro h1 {
+  max-width: 400px;
+  margin: 0;
+  font-size: clamp(32px, 3vw, 46px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.login-intro-copy > p:last-child {
+  max-width: 350px;
+  margin: 20px 0 0;
+  color: #d9e8ff;
+}
+
+.login-intro-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(9, 30, 66, 0.22);
+  color: #d9e8ff;
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+
+.login-stat-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #57d9a3;
+  color: #09326f;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.login-card {
+  align-self: center;
+  width: min(100%, 440px);
+  max-width: none;
+  margin: 0 auto;
+  padding: 44px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.login-card .auth-brand {
+  margin-bottom: 38px;
+  color: var(--text);
+}
+
+.login-card .auth-brand .logo-tile {
+  width: 30px;
+  height: 30px;
+}
+
+.login-card-heading {
+  margin-bottom: 28px;
+}
+
+.login-card-heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.login-card-heading p {
+  margin: 8px 0 0;
+  color: var(--text-subtle);
+}
+
+.login-card .form-group {
+  margin-bottom: 18px;
+}
+
+.login-card .form-group label {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-card input {
+  height: 40px;
+}
+
+.login-card .login-submit {
+  margin-top: 26px;
+  margin-bottom: 0;
+}
+
+.login-card .btn-primary {
+  height: 42px;
+  margin-top: 0;
+  font-weight: 600;
+}
+
+.login-card .btn-primary:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.login-error {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid #f5c6c2;
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+}
+
+.login-card .auth-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 28px;
+  padding: 14px;
+  border-color: #d5dfed;
+  background: #f7faff;
+  line-height: 1.5;
+}
+
+.login-card .auth-demo strong {
+  color: var(--text);
+  font-size: var(--fs-12);
+}
+
+@media (max-width: 760px) {
+  .login-container {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .login-shell {
+    display: block;
+    min-height: 0;
+    border-radius: 12px;
+  }
+
+  .login-intro {
+    display: none;
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 32px 28px;
+  }
 }
 
 /* ---------------- Responsive ---------------- */
@@ -4854,10 +5094,16 @@ textarea.inline-input { resize: vertical; }
   display: inline-block;
 }
 
-.tm-date-wrap { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.tm-date-wrap { display: flex; align-items: center; gap: 6px; color: var(--text); position: relative; }
 .tm-date-icon { color: var(--text-subtle); }
 .tm-date-input { width: auto; }
+.tm-date-hidden { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
 .tm-date-text { font-size: var(--fs-12); }
+
+/* The shared click-to-date control. Positioned so the hidden date input stays
+   anchored to its own button even when the control is not inside a positioned
+   wrapper (the list cell), and inline-flex so the button keeps its own box. */
+.inline-date { position: relative; display: inline-flex; align-items: center; }
 
 .tm-placeholder { color: var(--text-disabled); font-size: var(--fs-12); }
 .tm-subtext { color: var(--text-subtle); font-size: var(--fs-11); }
