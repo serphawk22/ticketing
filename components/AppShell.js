@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { BarChartIcon, ClipboardIcon } from './AppShellIcons';
 import Avatar from './Avatar';
 import WorkspaceModal from './WorkspaceModal';
 import ProjectModal from './ProjectModal';
@@ -123,6 +124,7 @@ function InboxIcon() {
     </svg>
   );
 }
+
 
 function PeopleIcon() {
   return (
@@ -594,6 +596,30 @@ export default function AppShell({
                 <PlusIcon />
                 <span className="nav-text">Raise a ticket</span>
               </button>
+              {/* A Link rather than a button that pushes the router: this is a
+                  page of its own and belongs in the browser's history like the
+                  rest of the sidebar. */}
+              <Link
+                href="/task-sheet"
+                className={`nav-item${view === 'task-sheet' ? ' active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <ClipboardIcon />
+                <span className="nav-text">Task Sheet</span>
+              </Link>
+              {/* The task + happy sheet history is a page of its own too, but
+                  only the people running the shop get to read everyone's day, so
+                  it only exists in an admin's sidebar. */}
+              {isAdmin && (
+                <Link
+                  href="/task-sheet/history"
+                  className={`nav-item${view === 'task-sheet-history' ? ' active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <BarChartIcon />
+                  <span className="nav-text">Sheet History</span>
+                </Link>
+              )}
             </nav>
 
             <div className="nav-label">People</div>

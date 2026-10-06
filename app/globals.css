@@ -7752,3 +7752,526 @@ input.inline-input.tm-title-edit {
   opacity: 1;
   pointer-events: auto;
 }
+
+/* ---------------- Task Sheet ---------------- */
+
+/* The daily sheet is one card, not a grid of tables, so the frame wraps a
+   padded card instead of a scroll region. */
+.ts-card {
+  padding: 28px 24px 24px;
+}
+
+.ts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.ts-field {
+  min-width: 0;
+}
+
+.ts-field-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .ts-grid {
+    grid-template-columns: 1fr;
+  }
+  .ts-card {
+    padding: 20px 16px;
+  }
+}
+
+/* Combo fields without a <label for>: the dropdown is a button, so there is no
+   control to point at. .ts-legend carries the same look as .form-group label
+   so a form reads as one style whether its field is an input or a dropdown. */
+.ts-legend {
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+
+/* The dropdown in a form rather than a cell: full width, the same box a
+   <select> would draw, and the list is a fixed handful of client names so
+   filtering would only hide options for nothing.
+   --fs-13 does not exist, so the button variant's fallback (inherit, 16px) is
+   deliberately pulled down here to the size the rest of the form uses. */
+.ts-field .idf-trigger-button {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 10px;
+  border-color: var(--border-input);
+  background: var(--bg);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.ts-field .idf-trigger-button:hover {
+  border-color: var(--text-subtle);
+}
+
+/* The field is in an error state, applied to whatever control it holds. */
+.ts-field.has-error .idf-trigger-button,
+.ts-field.has-error input,
+.ts-field.has-error textarea,
+.ts-field.has-error .chip,
+.ts-field.has-error .ts-state {
+  border-color: var(--danger);
+}
+
+.ts-field .error-text {
+  margin-top: -2px;
+  display: block;
+}
+
+/* ---------------- Hours and state chips ---------------- */
+
+.ts-form .chip-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  height: var(--control-h);
+  padding: 0 16px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--t-fast), border-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.chip:hover {
+  border-color: var(--text-subtle);
+  background: var(--bg-hover);
+}
+
+.chip.is-selected {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.ts-hours-input {
+  max-width: 120px;
+  margin-top: 4px;
+}
+
+/* Task state is the one two-answer question, so its options are radio cards
+   that explain themselves rather than pills that have to be read twice. */
+.ts-states {
+  display: flex;
+  gap: 12px;
+}
+
+.ts-state {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast),
+    background-color var(--t-fast);
+}
+
+.ts-state:hover {
+  border-color: var(--text-subtle);
+  background: var(--bg-hover);
+}
+
+.ts-state.is-selected {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: var(--bg-selected);
+}
+
+.ts-state-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 2px solid var(--border-input);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.ts-state.is-selected .ts-state-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.ts-state-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ts-state-text strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ts-state-text span {
+  font-size: var(--fs-12);
+  color: var(--text-subtle);
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .ts-states {
+    flex-direction: column;
+  }
+}
+
+.ts-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.ts-actions .field-hint {
+  margin: 0;
+}
+
+/* ---------------- Feedback blocks ---------------- */
+
+.ts-banner,
+.ts-error-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ts-banner {
+  border-left: 3px solid var(--danger);
+  background: #ffebe6;
+  color: var(--danger);
+}
+
+.ts-error-summary {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  background: var(--bg-surface);
+  color: var(--text-subtle);
+}
+
+.ts-error-summary strong {
+  color: var(--danger);
+}
+
+/* The typed work item matched an existing ticket: a small inline chip states
+   which one, so the link is visible before the row is saved. */
+.ts-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-selected);
+  color: var(--text-link);
+  font-size: var(--fs-12);
+  line-height: 1.3;
+}
+
+.ts-link-chip.is-resolving {
+  background: var(--bg-subtle);
+  color: var(--text-subtle);
+}
+
+/* ---------------- Confirmation ---------------- */
+
+.ts-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 8px 4px;
+}
+
+.ts-confirmation-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-subtle);
+  font-size: 20px;
+}
+
+.ts-confirmation-mark.is-done {
+  background: #d4f7dc;
+  color: #1f8a3d;
+}
+
+.ts-confirmation h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.ts-confirmation-line {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ts-confirmation-task {
+  color: var(--text-subtle);
+}
+
+.ts-confirmation .btn-secondary {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .ts-confirmation {
+    flex-wrap: wrap;
+  }
+  .ts-confirmation .btn-secondary {
+    margin-left: 0;
+  }
+}
+
+/* ---------------- History ---------------- */
+
+.ts-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.ts-filters select,
+.ts-filters input {
+  width: auto;
+  height: var(--control-h);
+}
+
+.ts-filters input[type='date'] {
+  width: 145px;
+}
+
+.ts-filter-date {
+  display: inline-flex;
+}
+
+.ts-date-sep {
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+}
+
+/* The lozenge marks the end of work: green when the day's task is done, gray
+   when it is still open, matching the emphasis the board gives done work. */
+.ts-state-lozenge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ts-state-lozenge.is-done {
+  background: #d4f7dc;
+  color: #1f8a3d;
+}
+
+.ts-state-lozenge.is-open {
+  background: var(--bg-subtle);
+  color: var(--text-subtle);
+}
+
+.ts-ticket-link {
+  color: var(--text-link);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ts-ticket-link:hover {
+  text-decoration: underline;
+}
+
+.ts-muted {
+  color: var(--text-subtle);
+}
+
+/* A narrow secondary line under the primary cell text, for the "filed by"
+   note and the description under a title. */
+.list-cell-note {
+  display: block;
+  max-width: 320px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hours are numbers, so they align under one another instead of ragged. */
+.list-th-num,
+.list-cell-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.list-table td.list-cell-num {
+  font-size: 14px;
+}
+
+/* ---------------- Task Sheet, shared link ---------------- */
+
+/* The same auth entrance as the sign-in, widened because the sheet is a
+   two-column grid rather than a one-column login, and top-aligned so the card
+   does not float in the middle of a day's answers. */
+.ts-public {
+  display: block;
+  padding: 48px 24px 32px;
+}
+
+.ts-public-card {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* The logo is a link here (back to sign-in) instead of a plain mark; drop the
+   underline the anchor default brings. */
+.ts-public .logo-tile {
+  text-decoration: none;
+}
+
+.ts-public-card .sub {
+  margin-bottom: 24px;
+}
+
+.ts-public-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  line-height: 1.4;
+}
+
+/* ---------------- Happy Sheet ---------------- */
+
+/* The in-app happy sheet is a second card under the task sheet, so it starts
+   with a heading that mirrors the PageHeader above the page. */
+.ts-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ts-section-heading > svg {
+  flex: none;
+  color: var(--text-link);
+}
+
+.ts-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ts-section-sub {
+  margin: 2px 0 0;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  line-height: 1.4;
+}
+
+/* The public (shared-link) card gets no PageHeader, so its heading is a
+   "Sheet" brand line in the same tone as the task card above it. */
+.ts-public-happy-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.ts-public-happy-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--bg-selected);
+  color: var(--text-link);
+}
+
+.ts-public-h1 {
+  margin: 4px 0 2px;
+  font-size: var(--fs-24);
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.ts-public-sub {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Two sheets on one shared page: stack the cards with room to breathe. */
+.ts-public-card + .ts-public-card {
+  margin-top: 24px;
+}
+
+.ts-public-foot-alone {
+  margin-top: 10px;
+}
+
+/* Long answers wrap inside their cell instead of blowing the table wide; the
+   second answer is secondary text, so it reads quieter than the first. */
+.hs-answer {
+  max-width: 360px;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.hs-answer.is-muted {
+  color: var(--text-subtle);
+}
