@@ -3850,6 +3850,15 @@ textarea {
 /* Team sign-in uses a dedicated layout; client portal sign-in retains the
    simpler shared auth card above. */
 .login-container {
+  --login-glow-x: 50%;
+  --login-glow-y: 50%;
+  --login-parallax-x: 0;
+  --login-parallax-y: 0;
+  --login-cursor-x: -40px;
+  --login-cursor-y: -40px;
+  --login-cursor-opacity: 0;
+  position: relative;
+  overflow: hidden;
   padding: 32px;
   background:
     radial-gradient(circle at 10% 10%, #deebff 0, transparent 30%),
@@ -3858,6 +3867,8 @@ textarea {
 }
 
 .login-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(340px, 0.95fr) minmax(380px, 0.75fr);
   width: min(100%, 1050px);
@@ -3867,6 +3878,70 @@ textarea {
   border-radius: 16px;
   background: var(--bg);
   box-shadow: 0 20px 50px rgba(9, 30, 66, 0.16);
+}
+
+.login-glow,
+.login-orb,
+.login-cursor {
+  position: absolute;
+  pointer-events: none;
+}
+
+.login-glow {
+  inset: 0;
+  background: radial-gradient(
+    circle 280px at var(--login-glow-x) var(--login-glow-y),
+    rgba(56, 139, 255, 0.22),
+    rgba(222, 235, 255, 0.08) 35%,
+    transparent 70%
+  );
+  transition: opacity 0.3s ease;
+}
+
+.login-orb {
+  width: 230px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(12, 102, 228, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  filter: blur(1px);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.login-orb-one {
+  top: 7%;
+  right: 5%;
+  transform: translate(
+    calc(var(--login-parallax-x) * 16px),
+    calc(var(--login-parallax-y) * 12px)
+  );
+}
+
+.login-orb-two {
+  bottom: -90px;
+  left: 4%;
+  width: 310px;
+  border-color: rgba(56, 139, 255, 0.12);
+  background: rgba(222, 235, 255, 0.36);
+  transform: translate(
+    calc(var(--login-parallax-x) * -22px),
+    calc(var(--login-parallax-y) * -16px)
+  );
+}
+
+.login-cursor {
+  position: fixed;
+  z-index: 3;
+  top: var(--login-cursor-y);
+  left: var(--login-cursor-x);
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(12, 102, 228, 0.5);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(56, 139, 255, 0.1);
+  opacity: var(--login-cursor-opacity);
+  transform: translate(-50%, -50%);
+  transition: opacity 0.2s ease;
 }
 
 .login-intro {
@@ -4061,6 +4136,14 @@ textarea {
   .login-card {
     width: 100%;
     padding: 32px 28px;
+  }
+}
+
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .login-glow,
+  .login-orb,
+  .login-cursor {
+    display: none;
   }
 }
 
