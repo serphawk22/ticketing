@@ -9,7 +9,7 @@ import EmployeeModal from '@/components/EmployeeModal';
 import { useToasts, Toaster } from '@/components/Toaster';
 import ConfirmModal from '@/components/ConfirmModal';
 import Avatar from '@/components/Avatar';
-import { formatFullDateTime } from '@/components/meta';
+import { formatFullDateTime, STATUS_ORDER, STATUS_META } from '@/components/meta';
 
 const TABS = [
   { id: 'directory', label: 'Directory' },
@@ -51,9 +51,12 @@ export default function EmployeesView({
   myIssuesCount,
   smtpConfigured,
   projects = [],
+  initialTickets = [],
 }) {
   const [employees, setEmployees] = useState(initialEmployees);
   const [outbox, setOutbox] = useState(initialOutbox);
+  const [tickets, setTickets] = useState(initialTickets);
+  const [statsEmployee, setStatsEmployee] = useState(null);
   const [tab, setTab] = useState('directory');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -80,15 +83,43 @@ export default function EmployeesView({
     [employees, openMenu]
   );
 
+  useEffect(() => {
+    if (!statsEmployee) return;
+    function onKey(e) {
+      if (e.key === 'Escape') setStatsEmployee(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [statsEmployee]);
+
+  // A per-status tally of the tickets pointing at this employee. Keyed by the
+  // same status order the board renders, so the four numbers read as the four
+  // board columns and their labels stay in sync with STATUS_META.
+  const statsCounts = useMemo(() => {
+    const counts = { _total: 0 };
+    for (const s of STATUS_ORDER) counts[s] = 0;
+    if (!statsEmployee) return counts;
+    const id = Number(statsEmployee.id);
+    for (const t of tickets) {
+      if (Number(t.employee_id) !== id) continue;
+      if (counts[t.status] != null) counts[t.status] += 1;
+    }
+    counts._total = STATUS_ORDER.reduce((n, s) => n + counts[s], 0);
+    return counts;
+  }, [tickets, statsEmployee]);
+
   async function refresh() {
-    const [employeesRes, outboxRes] = await Promise.all([
+    const [employeesRes, outboxRes, ticketsRes] = await Promise.all([
       fetch('/api/employees'),
       fetch('/api/outbox'),
+      fetch('/api/tickets'),
     ]);
     const employeesData = await employeesRes.json();
     const outboxData = await outboxRes.json();
+    const ticketsData = await ticketsRes.json();
     if (employeesRes.ok) setEmployees(employeesData.employees);
     if (outboxRes.ok) setOutbox(outboxData.outbox);
+    if (ticketsRes.ok) setTickets(ticketsData.tickets);
   }
 
   async function handleSave(employee, invite) {
@@ -429,13 +460,21 @@ export default function EmployeesView({
                     {visibleEmployees.map((e) => (
                       <tr key={e.id} className={e.active ? '' : 'row-inactive'}>
                         <td>
-                          <div className="cell-person">
-                            <Avatar name={e.name} assigned size={32} />
-                            <div className="cell-person-text">
-                              <span className="cell-person-name">{e.name}</span>
-                              <span className="cell-person-meta">{e.email}</span>
+                          <button
+                            type="button"
+                            className="cell-person-btn"
+                            onClick={() => setStatsEmployee(e)}
+                            title={`Show ticket counts for ${e.name}`}
+                            aria-label={`Show ticket counts for ${e.name}`}
+                          >
+                            <div className="cell-person">
+                              <Avatar name={e.name} assigned size={32} />
+                              <div className="cell-person-text">
+                                <span className="cell-person-name">{e.name}</span>
+                                <span className="cell-person-meta">{e.email}</span>
+                              </div>
                             </div>
-                          </div>
+                          </button>
                         </td>
                         <td>{e.department || '—'}</td>
                         <td>
@@ -637,6 +676,54 @@ export default function EmployeesView({
           onCancel={() => setResending(null)}
           onConfirm={handleResend}
         />
+      )}
+
+      {statsEmployee && (
+        <div className="modal-overlay" onMouseDown={() => setStatsEmployee(null)}>
+          <div
+            className="modal modal-narrow"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Tickets for ${statsEmployee.name}`}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <header>
+              <Avatar name={statsEmployee.name} assigned size={28} />
+              <div className="account-text">
+                <span className="account-name">{statsEmployee.name}</span>
+                <span className="account-email">
+                  {statsEmployee.email} · {statsCounts._total} assigned
+                </span>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setStatsEmployee(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="ticket-stats-body">
+              <div className="metric-strip">
+                {STATUS_ORDER.map((s) => (
+                  <div className="metric-card" key={s}>
+                    <span className="metric-value">{statsCounts[s]}</span>
+                    <span className="metric-label status-stat-label">
+                      <span
+                        className="status-stat-dot"
+                        style={{ background: STATUS_META[s].color }}
+                        aria-hidden="true"
+                      />
+                      {STATUS_META[s].label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <Toaster toasts={toasts} onDismiss={dismiss} onPause={pause} onResume={resume} />

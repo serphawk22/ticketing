@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [mode, setMode] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -47,6 +50,28 @@ export default function LoginPage() {
     }
   }
 
+  async function handleForgot(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      // The server answers the same way no matter what, so the page never
+      // reveals whether an account exists; it just turns the form into the
+      // "check your inbox" message.
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      setResetSent(true);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="auth-container">
       <div className="auth-card">
@@ -56,40 +81,107 @@ export default function LoginPage() {
           </div>
           <h1>Ticket Manager</h1>
         </div>
-        <p className="sub">Sign in to continue</p>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoFocus
-            />
-          </div>
+        {mode === 'forgot' ? (
+          <>
+            <p className="sub">Reset your password</p>
 
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-          </div>
+            {resetSent ? (
+              <div className="auth-ok">
+                If an account exists for that email, a reset email with a
+                temporary password is on its way. Sign in with it and you will
+                be asked to set your own password straight away.
+              </div>
+            ) : (
+              <form onSubmit={handleForgot}>
+                <div className="form-group">
+                  <label htmlFor="reset-email">Email</label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    autoFocus
+                  />
+                </div>
 
-          <div className="form-group">
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
+                <div className="form-group">
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={loading}
+                  >
+                    {loading ? 'Sending…' : 'Send reset email'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <button
+              type="button"
+              className="link-button auth-back"
+              onClick={() => {
+                setMode('signin');
+                setResetSent(false);
+                setResetEmail('');
+              }}
+            >
+              &larr; Back to sign in
             </button>
-          </div>
-        </form>
+          </>
+        ) : (
+          <>
+            <p className="sub">Sign in to continue</p>
+
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="auth-forgot">
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => {
+                    setMode('forgot');
+                    setResetEmail(email);
+                  }}
+                >
+                  Forgot your password?
+                </button>
+              </div>
+
+              <div className="form-group">
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
 
         {error && <div className="error-text">{error}</div>}
 

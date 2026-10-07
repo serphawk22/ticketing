@@ -1320,6 +1320,26 @@ textarea {
   text-decoration: underline;
 }
 
+.cell-person-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+}
+
+.cell-person-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .cell-person-meta {
   font-size: var(--fs-12);
   line-height: 16px;
@@ -1923,7 +1943,38 @@ textarea {
 }
 
 @media (max-width: 1100px) {
-  .dash-sections {
+.dash-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.dash-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 2px 10px;
+}
+
+.dash-group-title {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dash-group-hint {
+  font-size: var(--fs-12);
+  color: var(--text-subtle);
+}
+
+.dash-group-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.dash-sections {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2615,6 +2666,27 @@ textarea {
 .metric-hint {
   font-size: var(--fs-12);
   color: var(--text-subtle);
+}
+
+.ticket-stats-body {
+  padding: 20px;
+}
+
+.ticket-stats-body .metric-strip {
+  margin-bottom: 0;
+}
+
+.status-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-stat-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 /* Card grid */
@@ -3701,6 +3773,29 @@ textarea {
   width: 100%;
   height: 36px;
   margin-top: 4px;
+}
+
+.auth-forgot {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 10px;
+  font-size: var(--fs-12);
+}
+
+.auth-back {
+  display: block;
+  margin-top: 16px;
+  font-size: var(--fs-13);
+}
+
+.auth-ok {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--text);
+  font-size: var(--fs-13);
+  line-height: 20px;
 }
 
 .auth-demo {

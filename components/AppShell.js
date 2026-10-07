@@ -109,14 +109,6 @@ function PersonIcon() {
   );
 }
 
-function FolderIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-    </svg>
-  );
-}
-
 function InboxIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
@@ -586,16 +578,6 @@ export default function AppShell({
                 <span className="nav-text">My tickets</span>
                 <span className="nav-count">{myIssuesCount}</span>
               </button>
-              <button
-                className={`nav-item${view === 'raise' ? ' active' : ''}`}
-                onClick={() => {
-                  setSidebarOpen(false);
-                  router.push('/raise');
-                }}
-              >
-                <PlusIcon />
-                <span className="nav-text">Raise a ticket</span>
-              </button>
               {/* A Link rather than a button that pushes the router: this is a
                   page of its own and belongs in the browser's history like the
                   rest of the sidebar. */}
@@ -674,16 +656,6 @@ export default function AppShell({
               </span>
             </div>
             <nav className="nav">
-              <Link
-                href="/projects"
-                className={`nav-item${view === 'projects' ? ' active' : ''}`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <FolderIcon />
-                <span className="nav-text">All projects</span>
-                <span className="nav-count">{sidebarProjects.length}</span>
-              </Link>
-
               {workspaces.map((w) => {
                 const members = sidebarProjects.filter(
                   (p) => String(p.workspace_id) === String(w.id)
