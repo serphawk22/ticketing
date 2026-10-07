@@ -16,8 +16,9 @@ import {
 } from '../meta';
 import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonOutlineIcon } from './icons';
 import { ChipInput, FieldRow, InlineText, Menu, MenuItem, MenuLabel } from './parts';
+import InlineDateField from '../InlineDateField';
 import UserPicker from '../UserPicker';
-import { CategoryField, PriorityField, ReporterField, StatusField } from '../TicketFields';
+import { CategoryField, PriorityField, ReporterField, ResolutionField, StatusField } from '../TicketFields';
 
 function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
   const assignable = useMemo(
@@ -89,12 +90,26 @@ function TypeField({ type, onSave, canEdit }) {
   );
 }
 
-function DateField({ label, value, onSave, canEdit }) {
+function DateField({ label, value, onSave, canEdit, clickToEdit = false }) {
   return (
     <FieldRow label={label}>
       <span className="tm-date-wrap">
         <CalendarIcon size={14} className="tm-date-icon" />
-        {canEdit ? (
+        {canEdit && clickToEdit ? (
+          <InlineDateField
+            value={value}
+            onSave={onSave}
+            label={label}
+            buttonClassName="tm-value-btn"
+            renderValue={(v) =>
+              v ? (
+                <span className="tm-date-text">{formatShortDate(`${v} 12:00:00`)}</span>
+              ) : (
+                <span className="tm-placeholder">None</span>
+              )
+            }
+          />
+        ) : canEdit ? (
           <input
             type="date"
             className="tm-date-input"
@@ -352,6 +367,7 @@ export default function DetailsSidebar({
               value={ticket.due_date}
               onSave={(v) => onPatch({ due_date: v })}
               canEdit
+              clickToEdit
             />
             <TimeField
               estimateSeconds={ticket.estimate_seconds}
@@ -365,6 +381,15 @@ export default function DetailsSidebar({
                 <CategoryField
                   value={ticket.category}
                   onSelect={(v) => onPatch({ category: v })}
+                  readOnly={!isAdmin}
+                />
+              </div>
+            </FieldRow>
+            <FieldRow label="Resolution">
+              <div className="tm-person">
+                <ResolutionField
+                  value={ticket.resolution}
+                  onSelect={(v) => onPatch({ resolution: v })}
                   readOnly={!isAdmin}
                 />
               </div>

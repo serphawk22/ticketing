@@ -22,7 +22,8 @@ import FeedbackModal from './list/FeedbackModal';
 import TicketRowMenu from './list/TicketRowMenu';
 import RowMenuDialog from './list/RowMenuDialog';
 import UserPicker from './UserPicker';
-import { CategoryField, PriorityField, ReporterField, StatusField } from './TicketFields';
+import { CategoryField, PriorityField, ReporterField, ResolutionField, StatusField } from './TicketFields';
+import InlineDateField from './InlineDateField';
 import { useToasts, Toaster } from './Toaster';
 import { isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
@@ -424,7 +425,7 @@ export default function ListView({
         case 'category':
           return (t.category || '￿').toLowerCase();
         case 'resolution':
-          return isDone(t) ? 1 : 0;
+          return (t.resolution || '￿').toLowerCase();
         case 'created':
           return String(t.created_at || '');
         case 'updated':
@@ -1063,11 +1064,13 @@ export default function ListView({
           </td>
         )}
 
-        {/* Resolution is computed from the status, not stored, so it has no
-            dropdown to offer: an editable one would let the two disagree. */}
         {visibleColumns.some((c) => c.key === 'resolution') && (
-          <td className="list-cell list-cell-muted">
-            {done ? STATUS_META[t.status].label : 'Unresolved'}
+          <td className={`list-cell${t.resolution ? '' : ' list-cell-muted'}`}>
+            <ResolutionField
+              value={t.resolution}
+              onSelect={(v) => patchTicket(t.id, { resolution: v })}
+              readOnly={!isAdmin}
+            />
           </td>
         )}
 
@@ -1085,7 +1088,12 @@ export default function ListView({
 
         {visibleColumns.some((c) => c.key === 'due') && (
           <td className="list-cell list-cell-muted list-cell-date">
-            {t.due_date ? formatListDate(t.due_date) : 'None'}
+            <InlineDateField
+              value={t.due_date}
+              onSave={(v) => patchTicket(t.id, { due_date: v })}
+              label="Due date"
+              renderValue={(v) => (v ? formatListDate(v) : 'None')}
+            />
           </td>
         )}
 

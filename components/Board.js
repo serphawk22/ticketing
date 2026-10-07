@@ -276,7 +276,7 @@ export default function Board({
       onProjectChange={handleProjectChange}
       onCreate={isAdmin ? () => setShowModal(true) : null}
     >
-      <div className="board">
+      <div className="board board-kanban">
         {error && (
           <div className="error-banner">
             <strong>Error:</strong> {error}

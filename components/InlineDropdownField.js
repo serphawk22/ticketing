@@ -39,6 +39,11 @@ import { ChevronDown } from './ticket/icons';
  *   onSelect        (value) => void — the caller's update mutation
  *   searchable      false for a short fixed list, which keeps the caret in the
  *                   box anyway so Enter and Escape behave identically
+ *   allowCustom     true when the field has to hold values that are not in
+ *                   options (Category, Resolution). The list stays a set of
+ *                   suggestions: typing and pressing Enter saves exactly what
+ *                   was typed, matching an option's label when one is hit or
+ *                   saving the raw text otherwise, instead of forcing a choice.
  *   readOnly        shows the value with no edit affordance
  *   variant         'cell' for a table cell, 'button' for the modal's larger
  *                   status button
@@ -48,6 +53,7 @@ export default function InlineDropdownField({
   options = [],
   onSelect,
   searchable = true,
+  allowCustom = false,
   readOnly = false,
   label = 'Value',
   emptyText = 'No matching options',
@@ -181,6 +187,29 @@ export default function InlineDropdownField({
     close({ focusTrigger: true });
   }
 
+  // For a field that accepts custom text, Enter commits what is in the box
+  // rather than forcing a suggestion back on the user. An exact match against
+  // an option's label commits that option (so typing "None" clears and "Bug"
+  // picks the category); anything else is saved verbatim. An unchanged box --
+  // the value was opened and Enter pressed without typing -- just closes, and
+  // arrow/hover navigation onto a concrete option still commits that option.
+  function commitDraft() {
+    const draft = (query === '' ? currentLabel : query).trim();
+    const currentValue = String(value ?? '').trim();
+    if (active > 0) {
+      commit(visible[active]);
+      return;
+    }
+    const option = options.find((o) => String(o.label).trim() === draft);
+    const next = option ? option.value : draft;
+    if (next === currentValue) {
+      close({ focusTrigger: true });
+      return;
+    }
+    onSelect?.(next);
+    close({ focusTrigger: true });
+  }
+
   function onKeyDown(e) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -192,7 +221,8 @@ export default function InlineDropdownField({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      commit(visible[active]);
+      if (allowCustom) commitDraft();
+      else commit(visible[active]);
       return;
     }
     if (e.key === 'Escape') {
@@ -269,7 +299,12 @@ export default function InlineDropdownField({
             <span className="idf-chev idf-chev-top" aria-hidden="true" />
           )}
           <div className="idf-scroll" ref={listRef} id={listId} role="listbox">
-            {visible.length === 0 && <p className="idf-empty">{emptyText}</p>}
+            {visible.length === 0 &&
+              (allowCustom ? (
+                <p className="idf-empty">{emptyText} · press Enter to add</p>
+              ) : (
+                <p className="idf-empty">{emptyText}</p>
+              ))}
             {visible.map((option, i) => {
               const isCurrent = option.value === value;
               return (

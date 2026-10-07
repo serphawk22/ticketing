@@ -2,7 +2,7 @@
 
 import Avatar from './Avatar';
 import InlineDropdownField from './InlineDropdownField';
-import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, STATUS_META, STATUS_ORDER } from './meta';
+import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, RESOLUTION_ORDER, STATUS_META, STATUS_ORDER } from './meta';
 
 /**
  * The editable fields of a work item, each one a thin wrapper that says what
@@ -10,9 +10,9 @@ import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityI
  * list table and the detail sidebar get identical behaviour from the same code:
  * click to edit, type to filter, Enter or click to commit, Escape to cancel.
  *
- * A field that resolves is not here on purpose. Resolution is computed from the
- * status rather than stored, so offering a dropdown for it would let the two
- * disagree; it stays plain text and follows the status.
+ * Category and Resolution are free-form: their lists are suggestions, and a
+ * value that is typed rather than picked is stored exactly as typed, so neither
+ * needs an entry in the list to be a legitimate value.
  */
 
 const NONE = { value: '', label: 'None' };
@@ -118,7 +118,27 @@ export function CategoryField({ value, onSelect, readOnly = false, className = '
       readOnly={readOnly}
       label="Category"
       className={className}
+      allowCustom
       options={[NONE, ...CATEGORY_ORDER.map((c) => ({ value: c, label: c }))]}
+      renderValue={() => (
+        <span className={current ? 'idf-label' : 'idf-label is-empty'}>{current || 'None'}</span>
+      )}
+    />
+  );
+}
+
+export function ResolutionField({ value, onSelect, readOnly = false, className = '' }) {
+  const current = value || '';
+
+  return (
+    <InlineDropdownField
+      value={current}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Resolution"
+      className={className}
+      allowCustom
+      options={[NONE, ...RESOLUTION_ORDER.map((r) => ({ value: r, label: r }))]}
       renderValue={() => (
         <span className={current ? 'idf-label' : 'idf-label is-empty'}>{current || 'None'}</span>
       )}
