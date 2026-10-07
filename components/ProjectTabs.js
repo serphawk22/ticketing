@@ -8,7 +8,7 @@ const TABS = [
   { key: 'list', label: 'List' },
   { key: 'calendar', label: 'Calendar' },
   { key: 'timeline', label: 'Timeline' },
-  { key: 'reports', label: 'Reports', soon: true },
+  { key: 'reports', label: 'Reports' },
   { key: 'docs', label: 'Docs', soon: true },
   { key: 'attachments', label: 'Attachments', soon: true },
   { key: 'archived', label: 'Archived' },
