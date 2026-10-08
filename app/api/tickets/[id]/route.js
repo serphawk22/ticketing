@@ -11,7 +11,7 @@ import { deleteAttachment } from '@/lib/storage';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER } from '@/lib/ticketMeta';
 
-const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'team'];
+const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
 
 function badValue(field, value) {
   return NextResponse.json({ error: `Invalid ${FIELD_META[field].label.toLowerCase()}.` }, { status: 400 });

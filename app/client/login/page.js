@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -14,10 +14,19 @@ import { useRouter } from 'next/navigation';
  */
 export default function ClientLoginPage() {
   const router = useRouter();
+  const containerRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleMouseMove = useCallback((e) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+    el.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -56,15 +65,50 @@ export default function ClientLoginPage() {
   }
 
   return (
-    <div className="auth-container">
+    <main
+      ref={containerRef}
+      className="auth-container auth-login"
+      onMouseMove={handleMouseMove}
+    >
+      <div className="auth-backdrop" aria-hidden="true">
+        <span className="auth-blob auth-blob-a" />
+        <span className="auth-blob auth-blob-b" />
+        <span className="auth-blob auth-blob-c" />
+      </div>
+
       <div className="auth-card">
         <div className="auth-brand">
           <div className="logo-tile" aria-hidden="true">
             T
           </div>
-          <h1>Client portal</h1>
+          <span className="auth-brand-name">Ticket Manager</span>
         </div>
-        <p className="sub">Raise a request and follow its progress</p>
+
+        <div className="auth-heading">
+          <h1>Client portal</h1>
+          <p className="sub">Raise a request and follow its progress</p>
+        </div>
+
+        {error && (
+          <div className="auth-alert" role="alert">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -75,6 +119,7 @@ export default function ClientLoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
+              autoComplete="email"
               required
               autoFocus
             />
@@ -88,6 +133,7 @@ export default function ClientLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete="current-password"
               required
             />
           </div>
@@ -99,14 +145,12 @@ export default function ClientLoginPage() {
           </div>
         </form>
 
-        {error && <div className="error-text">{error}</div>}
-
         <p className="auth-demo">
           Are you part of the team?
           <br />
           <Link href="/login">Go to the team sign-in</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

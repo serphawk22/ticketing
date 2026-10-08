@@ -16,6 +16,7 @@ import {
 } from '../meta';
 import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonOutlineIcon } from './icons';
 import { ChipInput, FieldRow, InlineText, Menu, MenuItem, MenuLabel } from './parts';
+import InlineDateField from '../InlineDateField';
 import UserPicker from '../UserPicker';
 import { CategoryField, PriorityField, ReporterField, StatusField } from '../TicketFields';
 
@@ -89,7 +90,31 @@ function TypeField({ type, onSave, canEdit }) {
   );
 }
 
-function DateField({ label, value, onSave, canEdit }) {
+function DateField({ label, value, onSave, canEdit, clickToEdit = false }) {
+  // The due date opens on click: the value sits there until it is clicked, the
+  // click hands over to the picker with the saved date already in it, and the
+  // change lands on Enter, Save or blur. The start date keeps its own
+  // always-open input.
+  if (clickToEdit) {
+    return (
+      <FieldRow label={label}>
+        <span className="tm-date-wrap">
+          <CalendarIcon size={14} className="tm-date-icon" />
+          <InlineDateField
+            value={value}
+            onSave={onSave}
+            readOnly={!canEdit}
+            label={label}
+            variant="sidebar"
+            className="tm-date-value"
+            format={(v) => formatShortDate(`${v} 12:00:00`)}
+            emptyText={`Add ${label.toLowerCase()}`}
+          />
+        </span>
+      </FieldRow>
+    );
+  }
+
   return (
     <FieldRow label={label}>
       <span className="tm-date-wrap">
@@ -352,6 +377,7 @@ export default function DetailsSidebar({
               value={ticket.due_date}
               onSave={(v) => onPatch({ due_date: v })}
               canEdit
+              clickToEdit
             />
             <TimeField
               estimateSeconds={ticket.estimate_seconds}

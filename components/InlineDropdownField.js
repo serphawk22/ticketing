@@ -48,6 +48,7 @@ export default function InlineDropdownField({
   options = [],
   onSelect,
   searchable = true,
+  allowCustom = false,
   readOnly = false,
   label = 'Value',
   emptyText = 'No matching options',
@@ -58,6 +59,7 @@ export default function InlineDropdownField({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [draft, setDraft] = useState('');
   const [active, setActive] = useState(0);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const [scroll, setScroll] = useState({ top: false, bottom: false });
@@ -181,6 +183,18 @@ export default function InlineDropdownField({
     close({ focusTrigger: true });
   }
 
+  // allowCustom fields (Category) take free text: Enter commits whatever is in
+  // the box verbatim instead of the highlighted option, so a custom value is
+  // saved exactly as typed rather than swallowed by a dropdown match. Opening
+  // and pressing Enter with no change just cancels, matching Escape.
+  function commitTyped() {
+    const text = String(draft ?? '').trim();
+    if (draft !== currentLabel && text !== String(value ?? '')) {
+      onSelect?.(text);
+    }
+    close({ focusTrigger: true });
+  }
+
   function onKeyDown(e) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -192,6 +206,10 @@ export default function InlineDropdownField({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (allowCustom) {
+        commitTyped();
+        return;
+      }
       commit(visible[active]);
       return;
     }
@@ -216,6 +234,7 @@ export default function InlineDropdownField({
         className={shellClass}
         onClick={() => {
           if (readOnly) return;
+          setDraft(currentLabel);
           setOpen(true);
         }}
         aria-disabled={readOnly || undefined}
@@ -242,8 +261,9 @@ export default function InlineDropdownField({
         <input
           ref={inputRef}
           className="idf-input"
-          defaultValue={currentLabel}
+          value={draft}
           onChange={(e) => {
+            setDraft(e.target.value);
             if (!searchable) return;
             setQuery(e.target.value);
             setActive(0);
