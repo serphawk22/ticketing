@@ -8208,6 +8208,15 @@ input.inline-input.tm-title-edit {
   color: var(--text-subtle);
 }
 
+/* The blocker is the reason the row is not done, so it reads as a warning
+   rather than dropping back into the grey secondary text. Compound selectors
+   so the later .list-cell-note/.ts-confirmation-line rules cannot win the
+   cascade on equal specificity. */
+.ts-confirmation-line.ts-confirmation-blocker,
+.list-cell-note.ts-blocker-note {
+  color: var(--danger);
+}
+
 .ts-confirmation .btn-secondary {
   margin-left: auto;
 }

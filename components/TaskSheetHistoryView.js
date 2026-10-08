@@ -98,6 +98,7 @@ export default function TaskSheetHistoryView({
       'Task title',
       'Task description',
       'Task state',
+      'Blocker',
       'Work item',
     ];
     const lines = [
@@ -107,7 +108,7 @@ export default function TaskSheetHistoryView({
         const key = r.linked_ticket_id
           ? `#${(r.linked_key || 'TM').toUpperCase()}-${r.linked_ticket_id}`
           : '';
-        return [date, time, r.name, r.project, r.hours_worked, r.task_title, r.task_description, STATE_META[r.task_state]?.label || r.task_state, key]
+        return [date, time, r.name, r.project, r.hours_worked, r.task_title, r.task_description, STATE_META[r.task_state]?.label || r.task_state, r.blocker || '', key]
           .map(csvCell)
           .join(',');
       }),
@@ -303,6 +304,11 @@ export default function TaskSheetHistoryView({
                           <td className="list-cell">
                             <span className="list-title">{row.task_title}</span>
                             <span className="list-cell-note">{row.task_description}</span>
+                            {row.blocker && (
+                              <span className="list-cell-note ts-blocker-note" title={row.blocker}>
+                                Blocked by: {row.blocker}
+                              </span>
+                            )}
                           </td>
                           <td className="list-cell">
                             <span

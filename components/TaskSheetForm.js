@@ -54,6 +54,9 @@ export default function TaskSheetForm({
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskState, setTaskState] = useState('');
+  // Only asked for when the state is Not Completed: a completed task has
+  // nothing holding it up, so the field appears the moment it is relevant.
+  const [blocker, setBlocker] = useState('');
 
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
@@ -138,6 +141,9 @@ export default function TaskSheetForm({
     if (!taskTitle.trim()) next.taskTitle = 'Please enter a task title or number.';
     if (!taskDescription.trim()) next.taskDescription = 'Please describe the task.';
     if (!taskState) next.taskState = 'Please choose a task state.';
+    if (taskState === 'not_completed' && !blocker.trim()) {
+      next.blocker = 'Please describe what is blocking this task.';
+    }
     return next;
   }
 
@@ -173,6 +179,7 @@ export default function TaskSheetForm({
           taskTitle: taskTitle.trim(),
           taskDescription: taskDescription.trim(),
           taskState,
+          blocker: taskState === 'not_completed' ? blocker.trim() : null,
           linkedTicketId: linked ? linked.id : null,
         }),
       });
@@ -186,6 +193,7 @@ export default function TaskSheetForm({
         hoursWorked: resolvedHours(),
         taskTitle: taskTitle.trim(),
         taskState,
+        blocker: taskState === 'not_completed' ? blocker.trim() : null,
         linked,
       });
       onSubmitted?.(name);
@@ -204,6 +212,7 @@ export default function TaskSheetForm({
     setTaskTitle('');
     setTaskDescription('');
     setTaskState('');
+    setBlocker('');
     setErrors({});
     setLinked(null);
     setConfirmation(null);
@@ -370,6 +379,26 @@ export default function TaskSheetForm({
           </div>
           {errors.taskState ? <span className="error-text">{errors.taskState}</span> : null}
         </div>
+
+        {taskState === 'not_completed' && (
+          <div
+            className={`form-group ts-field ts-field-wide${
+              errors.blocker ? ' has-error' : ''
+            }`}
+            id="ts-blocker"
+          >
+            <label htmlFor="ts-blocker-input">What is blocking this task?</label>
+            <textarea
+              id="ts-blocker-input"
+              rows={3}
+              value={blocker}
+              placeholder="Waiting on a dependency, a review, access, a decision…"
+              onChange={(e) => setBlocker(e.target.value)}
+              aria-invalid={errors.blocker ? 'true' : undefined}
+            />
+            {errors.blocker ? <span className="error-text">{errors.blocker}</span> : null}
+          </div>
+        )}
       </div>
 
       <div className="ts-actions">
@@ -420,6 +449,11 @@ function TaskSheetConfirmation({ summary, onReset }) {
           {summary.linked ? `${summary.linked.key} — ` : ''}
           {summary.taskTitle}
         </p>
+        {summary.blocker && (
+          <p className="ts-confirmation-line ts-confirmation-blocker">
+            <strong>Blocked by:</strong> {summary.blocker}
+          </p>
+        )}
         <p className="field-hint">
           Saved as row #{summary.submission.id} at{' '}
           {formatSubmitted(summary.submission.created_at)}.
