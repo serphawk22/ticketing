@@ -2,7 +2,6 @@ import { getSession } from '@/lib/auth';
 import { getAllProjects } from '@/lib/projects';
 import { getAllTickets } from '@/lib/tickets';
 import { getActiveEmployees } from '@/lib/employees';
-import { TASK_SHEET_PROJECTS } from '@/lib/taskSheet';
 import TaskSheetView from '@/components/TaskSheetView';
 import PublicTaskSheetView from '@/components/PublicTaskSheetView';
 
@@ -31,17 +30,24 @@ export default async function TaskSheetPage() {
       ? { name: session.user.name }
       : {};
 
+  // The sheet files work against the same projects the board does, so the
+  // dropdown is read from the database rather than a hardcoded list that
+  // drifts away from it. Public visitors get it too: the link is meant to
+  // reach someone who has no account here yet.
+  const projects = await getAllProjects();
+  const projectNames = projects.map((p) => p.name);
+
   if (!isTeamUser) {
     return (
       <PublicTaskSheetView
         people={people}
-        projectNames={TASK_SHEET_PROJECTS}
+        projectNames={projectNames}
         defaults={defaults}
       />
     );
   }
 
-  const [projects, tickets] = await Promise.all([getAllProjects(), getAllTickets()]);
+  const tickets = await getAllTickets();
 
   const projectCounts = {};
   for (const t of tickets) {
@@ -61,7 +67,7 @@ export default async function TaskSheetPage() {
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       people={people}
-      projectNames={TASK_SHEET_PROJECTS}
+      projectNames={projectNames}
       defaults={defaults}
     />
   );
