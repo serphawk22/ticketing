@@ -133,6 +133,23 @@ export function isOverdue(ticket, today = new Date()) {
   return start < end;
 }
 
+/**
+ * Whole days left until a ticket's due date, so the list can colour the due
+ * date by how urgent it is: negative means overdue, 0 means due today, and
+ * anything positive still has time. No due date or a finished ticket is simply
+ * no colour at all.
+ */
+export function dueDays(ticket, today = new Date()) {
+  const due = String(ticket.due_date || '').trim();
+  if (!due || isDone(ticket)) return null;
+  const start = new Date(`${due}T00:00:00Z`).getTime();
+  if (!Number.isFinite(start)) return null;
+  const end = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  ).getTime();
+  return Math.round((start - end) / 86400000);
+}
+
 /** Effects that apply to a row, in rule order. Later rules win on conflict. */
 export function matchRules(ticket, rules) {
   const hit = [];

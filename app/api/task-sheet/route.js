@@ -27,6 +27,7 @@ export async function POST(request) {
   const taskTitle = String(body.taskTitle ?? '').trim();
   const taskDescription = String(body.taskDescription ?? '').trim();
   const taskState = String(body.taskState ?? '').trim();
+  const blocker = String(body.blocker ?? '').trim();
   const hoursWorked = Number(body.hoursWorked);
 
   if (!name) return NextResponse.json({ error: 'Please select your name.' }, { status: 400 });
@@ -47,6 +48,16 @@ export async function POST(request) {
   }
   if (!TASK_STATES.includes(taskState)) {
     return NextResponse.json({ error: 'Please choose a task state.' }, { status: 400 });
+  }
+  // A completed row has nothing blocked, so the answer is only recorded for
+  // work that was left open, and there it is required: "not completed" without
+  // a reason tells the reader nothing they could act on.
+  const blockerText = taskState === 'not_completed' ? blocker : null;
+  if (taskState === 'not_completed' && !blocker) {
+    return NextResponse.json(
+      { error: 'Please describe what is blocking this task.' },
+      { status: 400 }
+    );
   }
 
   // The ticket link is a convenience, so an id that does not resolve is dropped
@@ -69,6 +80,7 @@ export async function POST(request) {
     taskTitle,
     taskDescription,
     taskState,
+    blocker: blockerText,
     linkedTicketId,
   });
 

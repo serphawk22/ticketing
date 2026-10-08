@@ -29,7 +29,11 @@ export async function POST(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const isAdmin = session.user.role === 'admin';
+  // Routing the work -- naming an assignee or nesting it in the tree -- is a
+  // team decision, so both team roles may take it. A requester still may not:
+  // their values are dropped rather than trusted, and the ticket arrives for
+  // triage.
+  const canRoute = session.user.role === 'admin' || session.user.role === 'developer';
 
   const {
     title,
@@ -46,12 +50,10 @@ export async function POST(request) {
   } = await request.json();
 
   // Anyone signed in may raise a ticket -- that is the whole point of the
-  // raise-a-ticket panel. What a requester may not do is route the work:
-  // assigning it to a person or nesting it in the tree is a decision the team
-  // makes, so those two fields are dropped rather than trusted and the ticket
-  // arrives for triage.
-  const assignee = isAdmin ? employee_id : null;
-  const parent = isAdmin ? parent_id : null;
+  // raise-a-ticket panel. Only the team roles above may route it, so a
+  // requester's values are dropped rather than trusted.
+  const assignee = canRoute ? employee_id : null;
+  const parent = canRoute ? parent_id : null;
 
   if (!title?.trim() || !description?.trim()) {
     return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
@@ -108,7 +110,7 @@ export async function POST(request) {
       type,
       session.user.id,
       project_id || null,
-      // assignee/parent are the admin-gated forms of employee_id/parent_id,
+      // assignee/parent are the gated forms of employee_id/parent_id,
       // so a requester cannot self-assign or nest work by naming it directly.
       assignee || null,
       parent || null,

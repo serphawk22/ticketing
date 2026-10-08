@@ -25,7 +25,7 @@ import UserPicker from './UserPicker';
 import { CategoryField, PriorityField, ReporterField, ResolutionField, StatusField } from './TicketFields';
 import InlineDateField from './InlineDateField';
 import { useToasts, Toaster } from './Toaster';
-import { isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
+import { dueDays, isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -264,6 +264,10 @@ export default function ListView({
   const rootRef = useRef(null);
   const projectId = project?.id ?? null;
   const isAdmin = currentUser.role === 'admin';
+  // Creating is a team action, not an admin one: a developer files work the
+  // same way an admin does, including picking who it goes to. (The list routes
+  // only ever hand this view a team role, so a client cannot land here.)
+  const canCreate = isAdmin || currentUser.role === 'developer';
   // Moving a ticket is open to any signed-in user, matching the board.
   const canUpdate = true;
 
@@ -922,6 +926,11 @@ export default function ListView({
     const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
     const isSelected = selected.has(t.id);
 
+    // Due date urgency for the Due date column: negative days is overdue, 0 is
+    // today, positive still has time. Overdue work also greys the whole row.
+    const dueIn = dueDays(t);
+    const isOverdueRow = dueIn != null && dueIn < 0;
+
     // Conditional formatting is evaluated per render, so a saved rule shows up
     // on the row without any extra state to keep in sync. The background goes
     // through a custom property because each cell paints its own surface, which
@@ -932,7 +941,7 @@ export default function ListView({
     return (
       <tr
         key={t.id}
-        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}${style['--fmt-bg'] ? ' is-formatted' : ''}`}
+        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}${style['--fmt-bg'] ? ' is-formatted' : ''}${isOverdueRow ? ' is-overdue' : ''}`}
         aria-selected={isSelected}
         style={Object.keys(style).length ? style : undefined}
       >
@@ -966,7 +975,7 @@ export default function ListView({
           <span className="list-work" style={{ paddingLeft: `${depth * 20}px` }}>
             {/* A reserved gutter, so the "+" revealed on hover never overlaps
                 or nudges the row content (or the Assignee column). */}
-            {isAdmin && (
+            {canCreate && (
               <span className="list-add-child-slot">
                 <button
                   type="button"
@@ -1095,6 +1104,18 @@ export default function ListView({
               format={formatListDate}
               emptyText="None"
             />
+          <td
+            className={`list-cell list-cell-muted list-cell-date${
+              dueIn == null
+                ? ''
+                : dueIn < 0
+                  ? ' is-due-overdue'
+                  : dueIn === 0
+                    ? ' is-due-today'
+                    : ' is-due-future'
+            }`}
+          >
+            {t.due_date ? formatListDate(t.due_date) : 'None'}
           </td>
         )}
 
@@ -1131,7 +1152,7 @@ export default function ListView({
       onFilterChange={() => {}}
       projectId={projectId == null ? null : String(projectId)}
       onProjectChange={(id) => router.push(`/projects/${id}/list`)}
-      onCreate={isAdmin ? () => setShowCreate(true) : undefined}
+      onCreate={canCreate ? () => setShowCreate(true) : undefined}
     >
       <div className="board" ref={rootRef}>
         {error && (
@@ -1435,7 +1456,7 @@ export default function ListView({
           </div>
 
           <div className="list-footer">
-            {isAdmin ? (
+            {canCreate ? (
               <button type="button" className="btn-ghost list-create" onClick={() => setShowCreate(true)}>
                 <PlusIcon />
                 Create

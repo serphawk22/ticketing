@@ -27,6 +27,7 @@ export default function CreateTicketModal({
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
   );
+  const [dueDate, setDueDate] = useState(defaultDueDate || '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,7 +66,7 @@ export default function CreateTicketModal({
           // Set when the modal was opened from a calendar cell or a timeline
           // drag, so the ticket lands on the day or range that was drawn.
           start_date: defaultStartDate || null,
-          due_date: defaultDueDate || null,
+          due_date: dueDate || null,
         }),
       });
       const data = await res.json();
@@ -120,17 +121,17 @@ export default function CreateTicketModal({
               {parent.title ? ` — ${parent.title}` : ''}
             </p>
           )}
-          {(defaultStartDate || defaultDueDate) && (
+          {(defaultStartDate || dueDate) && (
             <p className="form-parent">
-              {defaultStartDate && defaultDueDate ? (
+              {defaultStartDate && dueDate ? (
                 <>
                   Scheduled <strong>{defaultStartDate}</strong>
                   {' – '}
-                  <strong>{defaultDueDate}</strong>
+                  <strong>{dueDate}</strong>
                 </>
-              ) : defaultDueDate ? (
+              ) : dueDate ? (
                 <>
-                  Due <strong>{defaultDueDate}</strong>
+                  Due <strong>{dueDate}</strong>
                 </>
               ) : (
                 <>
@@ -242,6 +243,16 @@ export default function CreateTicketModal({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="ticket-due-date">Due date</label>
+              <input
+                id="ticket-due-date"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </div>
           </div>
 

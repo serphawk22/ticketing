@@ -8,6 +8,7 @@ import {
   PRIORITY_META,
   PriorityIcon,
   STATUS_META,
+  STATUS_ORDER,
   ticketKey,
 } from './meta';
 
@@ -44,6 +45,40 @@ export default function TodayByDeveloper({
   onAddTicket,
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [selectedRow, setSelectedRow] = useState(null);
+
+  // The ticket item shared by the inline rows and the per-person modal: one
+  // turn of the same controls, so both places read the same way.
+  function renderTicketItem(t, onOpen = onOpenTicket) {
+    const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
+    const priority = PRIORITY_META[t.priority];
+    return (
+      <li key={t.id}>
+        <button
+          type="button"
+          className="today-sum-item"
+          onClick={() => onOpen?.(t.id)}
+          aria-label={`Open ${ticketKey(t)}: ${t.title}`}
+          disabled={!onOpen}
+        >
+          <span className="priority-icon" title={`${priority.label} priority`}>
+            <PriorityIcon color={priority.color} arrow={priority.arrow} />
+          </span>
+          <span className="today-sum-key">{ticketKey(t)}</span>
+          <span className="today-sum-text">{t.title}</span>
+          {t.project_name && (
+            <span className="today-sum-project">{t.project_name}</span>
+          )}
+          <span
+            className="list-lozenge"
+            style={{ background: lozenge.bg, color: lozenge.text }}
+          >
+            {STATUS_META[t.status]?.label || t.status}
+          </span>
+        </button>
+      </li>
+    );
+  }
 
   const rows = useMemo(() => {
     const dueToday = tickets.filter((t) => t.due_date === today);
@@ -124,7 +159,15 @@ export default function TodayByDeveloper({
                 <div className="today-sum-who">
                   <Avatar name={name} size={28} />
                   <div className="today-sum-id">
-                    <span className="today-sum-name">{name}</span>
+                    <button
+                      type="button"
+                      className="today-sum-name-btn"
+                      onClick={() => setSelectedRow(row)}
+                      title={`Show ${name}'s tasks by status`}
+                      aria-label={`Show ${name}'s tasks by status`}
+                    >
+                      <span className="today-sum-name">{name}</span>
+                    </button>
                     {row.employee?.title && (
                       <span className="today-sum-role">{row.employee.title}</span>
                     )}
@@ -166,44 +209,7 @@ export default function TodayByDeveloper({
 
                 {row.total > 0 && (
                   <ul className="today-sum-list">
-                    {[...row.open, ...row.done].map((t) => {
-                      const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
-                      const priority = PRIORITY_META[t.priority];
-                      return (
-                        <li key={t.id}>
-                          <button
-                            type="button"
-                            className="today-sum-item"
-                            onClick={() => onOpenTicket?.(t.id)}
-                            aria-label={`Open ${ticketKey(t)}: ${t.title}`}
-                            disabled={!onOpenTicket}
-                          >
-                            <span
-                              className="priority-icon"
-                              title={`${priority.label} priority`}
-                            >
-                              <PriorityIcon
-                                color={priority.color}
-                                arrow={priority.arrow}
-                              />
-                            </span>
-                            <span className="today-sum-key">{ticketKey(t)}</span>
-                            <span className="today-sum-text">{t.title}</span>
-                            {t.project_name && (
-                              <span className="today-sum-project">
-                                {t.project_name}
-                              </span>
-                            )}
-                            <span
-                              className="list-lozenge"
-                              style={{ background: lozenge.bg, color: lozenge.text }}
-                            >
-                              {STATUS_META[t.status]?.label || t.status}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
+                    {[...row.open, ...row.done].map(renderTicketItem)}
                   </ul>
                 )}
               </div>
@@ -211,6 +217,110 @@ export default function TodayByDeveloper({
           })}
         </div>
       )}
+
+      {selectedRow && (
+        <EmployeeBreakdownModal
+          row={selectedRow}
+          onClose={() => setSelectedRow(null)}
+          onOpenTicket={onOpenTicket}
+          renderTicketItem={renderTicketItem}
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * The per-person read of Today's work: click a name in the summary and get the
+ * four status buckets with their counts, plus the tickets behind them.
+ */
+function EmployeeBreakdownModal({ row, onClose, onOpenTicket, renderTicketItem }) {
+  const name = row.employee?.name || 'Unassigned';
+
+  const counts = {};
+  for (const s of STATUS_ORDER) counts[s] = 0;
+  for (const t of row.list) {
+    if (counts[t.status] != null) counts[t.status] += 1;
+  }
+
+  const grouped = STATUS_ORDER.map((s) => ({
+    status: s,
+    items: row.list.filter((t) => t.status === s),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Tickets for ${name}`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <header>
+          <Avatar name={name} size={28} />
+          <div className="account-text">
+            <span className="account-name">{name}</span>
+            <span className="account-email">
+              {row.employee?.title || 'Team member'} · {row.total} due today
+            </span>
+          </div>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="ticket-stats-body">
+          <div className="metric-strip">
+            {STATUS_ORDER.map((s) => (
+              <div className="metric-card" key={s}>
+                <span className="metric-value">{counts[s]}</span>
+                <span className="metric-label status-stat-label">
+                  <span
+                    className="status-stat-dot"
+                    style={{ background: STATUS_META[s].color }}
+                    aria-hidden="true"
+                  />
+                  {STATUS_META[s].label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {row.total === 0 ? (
+            <p className="today-breakdown-empty">No tasks due today.</p>
+          ) : (
+            <ul className="today-breakdown">
+              {grouped.map((g) => (
+                <li key={g.status}>
+                  <div className="today-breakdown-head">
+                    <span
+                      className="status-stat-dot"
+                      style={{ background: STATUS_META[g.status].color }}
+                      aria-hidden="true"
+                    />
+                    {STATUS_META[g.status].label}
+                    <span className="today-breakdown-count">{g.items.length}</span>
+                  </div>
+                  <ul className="today-sum-list">
+                    {g.items.map((t) =>
+                      renderTicketItem(t, (id) => {
+                        onClose();
+                        onOpenTicket?.(id);
+                      })
+                    )}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
