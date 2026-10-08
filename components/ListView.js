@@ -10,6 +10,8 @@ import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
 import useTicketModal from './useTicketModal';
 import ConfirmModal from './ConfirmModal';
+import ArchiveDialog from './ArchiveDialog';
+import { mergeArchiveChange } from './archiveChange';
 import { HierarchyIcon } from './ticket/icons';
 import ListOverflowMenu from './list/ListOverflowMenu';
 import PageHeader from './PageHeader';
@@ -246,6 +248,7 @@ export default function ListView({
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [archivePrompt, setArchivePrompt] = useState(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [chartOpen, setChartOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -803,6 +806,63 @@ export default function ListView({
     }
   }
 
+  async function commitArchive(list, includeChildren) {
+    const removed = [];
+    try {
+      for (const ticket of list) {
+        const res = await fetch(`/api/tickets/${ticket.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archived: true, includeChildren }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not archive the work item.');
+        removed.push(...(data.affected || [data.ticket]));
+      }
+      const ids = new Set(removed.map((ticket) => ticket.id));
+      setTickets((current) => current.filter((ticket) => !ids.has(ticket.id)));
+      setSelected(new Set());
+      const extra = Math.max(0, removed.length - list.length);
+      const message = list.length === 1
+        ? extra > 0
+          ? `Archived ${ticketKey(list[0])} and ${extra} child work ${extra === 1 ? 'item' : 'items'}.`
+          : `Archived ${ticketKey(list[0])}.`
+        : `Archived ${list.length} work items.`;
+      push({
+        message,
+        action: { label: 'Undo', onClick: () => commitRestore(removed) },
+      });
+      router.refresh();
+    } catch (error) {
+      push({ message: error.message, tone: 'error' });
+    }
+  }
+
+  async function commitRestore(list) {
+    try {
+      const restored = [];
+      for (const ticket of list) {
+        const res = await fetch(`/api/tickets/${ticket.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archived: false }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not restore the work item.');
+        restored.push(...(data.affected || [data.ticket]));
+      }
+      setTickets((current) => mergeArchiveChange(current, { archived: false, tickets: restored }, 'active'));
+      push({
+        message: restored.length === 1
+          ? `Restored ${ticketKey(restored[0])}.`
+          : `Restored ${restored.length} work items.`,
+      });
+      router.refresh();
+    } catch (error) {
+      push({ message: error.message, tone: 'error' });
+    }
+  }
+
   async function runRowAction(key, ticket) {
     // Everything past this point is a mutation the user has committed to.
     try {
@@ -820,18 +880,12 @@ export default function ListView({
       }
 
       if (key === 'archive') {
-        const archived = ticket;
-        await patchTicket(ticket.id, { archived: true });
-        // Archived work leaves the working list, so it goes with it. The toast
-        // holds the only handle to bring it back.
-        setTickets((ts) => ts.filter((x) => x.id !== ticket.id));
-        push({
-          message: `Archived ${ticketKey(ticket)}.`,
-          action: {
-            label: 'Undo',
-            onClick: () => unarchiveRow(archived),
-          },
-        });
+        const childCount = Number(ticket.active_child_count) || 0;
+        if (childCount > 0) {
+          setArchivePrompt({ tickets: [ticket], childCount });
+          return;
+        }
+        await commitArchive([ticket], false);
         return;
       }
 
@@ -858,30 +912,6 @@ export default function ListView({
       push({ message: e.message, tone: 'error' });
     }
     return undefined;
-  }
-
-  // Restoring an archived row from the toast. patchTicket maps over existing
-  // rows, but the archive flow removed this one, so it is re-inserted here
-  // rather than left to silently not come back.
-  async function unarchiveRow(ticket) {
-    try {
-      const res = await fetch(`/api/tickets/${ticket.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archived: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not restore the work item.');
-      setTickets((ts) => {
-        if (ts.some((x) => x.id === ticket.id)) {
-          return ts.map((x) => (x.id === ticket.id ? { ...x, ...data.ticket } : x));
-        }
-        return [...ts, { ...ticket, ...data.ticket }].sort((a, b) => b.id - a.id);
-      });
-      push({ message: `Restored ${ticketKey(ticket)}.` });
-    } catch (e) {
-      push({ message: e.message, tone: 'error' });
-    }
   }
 
   // Undo for delete. The row is gone, so it is re-inserted at its old position
@@ -1489,6 +1519,15 @@ export default function ListView({
             busy={bulkBusy}
             onApply={bulkApply}
             onDelete={() => setConfirmDelete(true)}
+            onArchive={() => {
+              const chosen = tickets.filter((ticket) => selected.has(ticket.id));
+              const childCount = chosen.reduce(
+                (sum, ticket) => sum + (Number(ticket.active_child_count) || 0),
+                0
+              );
+              if (childCount > 0) setArchivePrompt({ tickets: chosen, childCount });
+              else commitArchive(chosen, false);
+            }}
             onClear={() => {
               setSelected(new Set());
               setBulkMode(false);
@@ -1520,6 +1559,7 @@ export default function ListView({
           onNext={modal.next}
           onPrev={modal.prev}
           onTicketChanged={applyTicketUpdate}
+          onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
         />
       )}
@@ -1575,6 +1615,21 @@ export default function ListView({
           scopeId={projectId ?? 'all'}
           scopeName={project?.name}
           onClose={() => setFeedbackOpen(false)}
+        />
+      )}
+
+      {archivePrompt && (
+        <ArchiveDialog
+          mode="archive"
+          itemKey={archivePrompt.tickets.length === 1 ? ticketKey(archivePrompt.tickets[0]) : ''}
+          count={archivePrompt.tickets.length}
+          childCount={archivePrompt.childCount}
+          onCancel={() => setArchivePrompt(null)}
+          onConfirm={async (includeChildren) => {
+            const list = archivePrompt.tickets;
+            setArchivePrompt(null);
+            await commitArchive(list, includeChildren);
+          }}
         />
       )}
 

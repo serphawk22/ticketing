@@ -2,6 +2,7 @@ import requireTeamUser from '@/lib/requireTeamUser';
 import { redirect, notFound } from 'next/navigation';
 import { getAllProjects, getProject } from '@/lib/projects';
 import { getAllTickets, getArchivedTickets } from '@/lib/tickets';
+import { getEmployees } from '@/lib/employees';
 import ArchivedView from '@/components/ArchivedView';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +14,16 @@ export default async function ProjectArchivedPage({ params }) {
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [projects, allTickets] = await Promise.all([getAllProjects(), getAllTickets()]);
+  const [projects, allTickets, employees] = await Promise.all([
+    getAllProjects(),
+    getAllTickets(),
+    getEmployees(),
+  ]);
   const archived = (await getArchivedTickets()).filter((t) => t.project_id === project.id);
+  const userId = session.user.id;
+  const myIssuesCount = allTickets.filter(
+    (ticket) => ticket.created_by === userId || ticket.assigned_to === userId
+  ).length;
 
   // Counts come from the active set, so the sidebar keeps matching the working
   // views rather than the archived table's contents.
@@ -30,6 +39,8 @@ export default async function ProjectArchivedPage({ params }) {
       project={project}
       projects={projects}
       projectCounts={projectCounts}
+      myIssuesCount={myIssuesCount}
+      employees={employees}
       currentUser={session.user}
     />
   );

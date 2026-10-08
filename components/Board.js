@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TicketCard from './TicketCard';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import CreateTicketModal from './CreateTicketModal';
 import ProjectModal from './ProjectModal';
@@ -552,6 +553,7 @@ export default function Board({
           onNext={modal.next}
           onPrev={modal.prev}
           onTicketChanged={applyTicketUpdate}
+          onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openModal}
         />
       )}

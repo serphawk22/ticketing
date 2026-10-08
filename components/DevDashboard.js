@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AppShell from './AppShell';
 import TicketCard from './TicketCard';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import { DONE_STATUSES, PRIORITY_META, PRIORITY_ORDER, ticketKey } from './meta';
 
@@ -541,6 +542,7 @@ export default function DevDashboard({
           onNext={modal.next}
           onPrev={modal.prev}
           onTicketChanged={applyTicketUpdate}
+          onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
         />
       )}

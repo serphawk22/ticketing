@@ -16,8 +16,11 @@ import {
   PlusIcon,
   RestoreIcon,
   ShareIcon,
+  ArchiveIcon,
+  UnarchiveIcon,
 } from './icons';
 import { InlineText, Menu, MenuItem, MenuLabel } from './parts';
+import ArchiveDialog from '../ArchiveDialog';
 import DescriptionEditor from './DescriptionEditor';
 import ActivityFeed from './ActivityFeed';
 import DetailsSidebar from './DetailsSidebar';
@@ -54,6 +57,7 @@ export default function TicketDetailModal({
   onPrev,
   onNext,
   onTicketChanged,
+  onArchiveChange,
   onOpenTicket,
 }) {
   const [detail, setDetail] = useState(emptyDetail);
@@ -74,6 +78,7 @@ export default function TicketDetailModal({
   const [webLinksOpen, setWebLinksOpen] = useState(true);
   const [slackOpen, setSlackOpen] = useState(true);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [archivePrompt, setArchivePrompt] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const scrollMain = useRef(null);
@@ -152,6 +157,33 @@ export default function TicketDetailModal({
       }
     },
     [id, onTicketChanged, load]
+  );
+
+  const setArchived = useCallback(
+    async (archived, includeChildren) => {
+      if (!id) return;
+      setBusy(true);
+      setError('');
+      try {
+        const data = await call(`/api/tickets/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archived, includeChildren }),
+        });
+        setDetail((current) => ({ ...current, ticket: data.ticket }));
+        onArchiveChange?.({
+          archived: Boolean(Number(data.ticket?.archived)),
+          tickets: data.affected || [data.ticket],
+        });
+        await load();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setBusy(false);
+        setArchivePrompt(null);
+      }
+    },
+    [id, load, onArchiveChange]
   );
 
   const addComment = useCallback(async () => {
@@ -497,6 +529,7 @@ export default function TicketDetailModal({
   if (!ticket) return null;
 
   return (
+    <>
     <div className="tm-overlay" onMouseDown={onClose} data-testid="tm-overlay">
       <div
         className={`tm-modal${expanded ? ' is-expanded' : ''}`}
@@ -605,6 +638,23 @@ export default function TicketDetailModal({
                 <MenuItem
                   onClick={() => {
                     setMoreOpen(false);
+                    const archived = Number(t.archived) === 1;
+                    const children = detail.childItems || [];
+                    const fromChildren = children.filter((child) =>
+                      archived ? Number(child.archived) : !Number(child.archived)
+                    ).length;
+                    const fromTicket = Number(archived ? t.archived_child_count : t.active_child_count) || 0;
+                    const relevant = Math.max(fromChildren, fromTicket);
+                    if (relevant > 0) setArchivePrompt({ archived: !archived, count: relevant });
+                    else setArchived(!archived, false);
+                  }}
+                  icon={Number(t.archived) === 1 ? <UnarchiveIcon size={14} /> : <ArchiveIcon size={14} />}
+                >
+                  {Number(t.archived) === 1 ? 'Restore' : 'Archive'}
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    setMoreOpen(false);
                     setLinkOpen(true);
                     setLinkType('relates_to');
                     setLinkedOpen(true);
@@ -663,6 +713,27 @@ export default function TicketDetailModal({
             </span>
           </div>
         </header>
+
+        {Number(t.archived) === 1 && (
+          <div className="tm-archived-banner" role="status">
+            <ArchiveIcon size={16} />
+            <p>
+              <strong>This work item is archived.</strong>
+              {t.archived_by_name ? ` Archived by ${t.archived_by_name}.` : ''} It is hidden from the board, list, calendar, and reports.
+            </p>
+            <button type="button" className="btn-secondary" disabled={busy} onClick={() => {
+              const children = detail.childItems || [];
+              const count = Math.max(
+                children.filter((child) => Number(child.archived)).length,
+                Number(t.archived_child_count) || 0
+              );
+              if (count > 0) setArchivePrompt({ archived: false, count });
+              else setArchived(false, false);
+            }}>
+              Restore
+            </button>
+          </div>
+        )}
 
         <div className="tm-body">
           <div className="tm-main" ref={scrollMain} data-testid="tm-main">
@@ -890,5 +961,15 @@ export default function TicketDetailModal({
         </div>
       </div>
     </div>
+    {archivePrompt && (
+      <ArchiveDialog
+        mode={archivePrompt.archived ? 'archive' : 'restore'}
+        itemKey={key}
+        childCount={archivePrompt.count}
+        onCancel={() => setArchivePrompt(null)}
+        onConfirm={(includeChildren) => setArchived(archivePrompt.archived, includeChildren)}
+      />
+    )}
+    </>
   );
 }
