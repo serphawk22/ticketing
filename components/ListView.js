@@ -263,6 +263,10 @@ export default function ListView({
   const rootRef = useRef(null);
   const projectId = project?.id ?? null;
   const isAdmin = currentUser.role === 'admin';
+  // Creating is a team action, not an admin one: a developer files work the
+  // same way an admin does, including picking who it goes to. (The list routes
+  // only ever hand this view a team role, so a client cannot land here.)
+  const canCreate = isAdmin || currentUser.role === 'developer';
   // Moving a ticket is open to any signed-in user, matching the board.
   const canUpdate = true;
 
@@ -970,7 +974,7 @@ export default function ListView({
           <span className="list-work" style={{ paddingLeft: `${depth * 20}px` }}>
             {/* A reserved gutter, so the "+" revealed on hover never overlaps
                 or nudges the row content (or the Assignee column). */}
-            {isAdmin && (
+            {canCreate && (
               <span className="list-add-child-slot">
                 <button
                   type="button"
@@ -1137,7 +1141,7 @@ export default function ListView({
       onFilterChange={() => {}}
       projectId={projectId == null ? null : String(projectId)}
       onProjectChange={(id) => router.push(`/projects/${id}/list`)}
-      onCreate={isAdmin ? () => setShowCreate(true) : undefined}
+      onCreate={canCreate ? () => setShowCreate(true) : undefined}
     >
       <div className="board" ref={rootRef}>
         {error && (
@@ -1441,7 +1445,7 @@ export default function ListView({
           </div>
 
           <div className="list-footer">
-            {isAdmin ? (
+            {canCreate ? (
               <button type="button" className="btn-ghost list-create" onClick={() => setShowCreate(true)}>
                 <PlusIcon />
                 Create
