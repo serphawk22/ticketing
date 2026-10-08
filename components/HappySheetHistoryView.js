@@ -4,22 +4,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import EmptyState from '@/components/EmptyState';
 import { SmileIcon } from '@/components/AppShellIcons';
+import downloadHappySheetPng from '@/components/happySheetPng';
 
 /**
  * The admin's view of the team's happy sheet.
  *
- * This is the deliberately simpler cousin of the task sheet history: a month
- * picker instead of a wall of date controls, because reading a mood over a
- * calendar is a "which month" question rather than a "which week" one, plus
- * the same name filter, a date sort, and a download that carries exactly what
- * the current filters just showed. The mood does not need hours or projects
- * next to it, so it does not get them.
+ * This is the deliberately simpler cousin of the task sheet history: a single
+ * day picker instead of a wall of date controls, plus the same name filter, a
+ * date sort, and a download that carries exactly what the current filters just
+ * showed. The mood does not need hours or projects next to it, so it does not
+ * get them.
  */
 export default function HappySheetHistoryView({ initial, facets }) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
   const [name, setName] = useState('');
-  const [month, setMonth] = useState('');
+  const [day, setDay] = useState('');
   const [sort, setSort] = useState('desc');
   const [error, setError] = useState('');
   const pending = useRef(null);
@@ -35,7 +35,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
     pending.current = setTimeout(async () => {
       const params = new URLSearchParams();
       if (name) params.set('name', name);
-      if (month) params.set('month', month);
+      if (day) params.set('day', day);
       try {
         const res = await fetch(`/api/happy-sheet?${params.toString()}`);
         const data = await res.json();
@@ -50,7 +50,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
       }
     }, 250);
     return () => clearTimeout(pending.current);
-  }, [name, month]);
+  }, [name, day]);
 
   function formatCell(created_at) {
     const text = String(created_at ?? '');
@@ -59,9 +59,16 @@ export default function HappySheetHistoryView({ initial, facets }) {
       : text;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return { date: text, time: '' };
+    // Locale and time zone are pinned: left to the environment the Node server
+    // and the browser disagree on both, which React reports as a hydration
+    // mismatch and recovers from by re-rendering the whole page on the client.
     return {
-      date: d.toLocaleDateString(),
-      time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: d.toLocaleDateString('en-US', { timeZone: 'UTC' }),
+      time: d.toLocaleTimeString('en-US', {
+        timeZone: 'UTC',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
     };
   }
 
@@ -94,15 +101,24 @@ export default function HappySheetHistoryView({ initial, facets }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `happy-sheet-${month || new Date().toISOString().slice(0, 7)}.csv`;
+    a.download = `happy-sheet-${day || new Date().toISOString().slice(0, 7)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   }
 
-  const hasFilters = Boolean(name || month);
+  const hasFilters = Boolean(name || day);
   const empty = (rows || []).length === 0;
+
+  function downloadImage() {
+    try {
+      downloadHappySheetPng(filtered, { day });
+      setError('');
+    } catch {
+      setError('Could not create the image.');
+    }
+  }
 
   return (
     <>
@@ -125,12 +141,12 @@ export default function HappySheetHistoryView({ initial, facets }) {
           ))}
         </select>
         <label className="ts-filter-date">
-          <span className="visually-hidden">Month</span>
+          <span className="visually-hidden">Day</span>
           <input
-            type="month"
-            value={month}
-            aria-label="Month"
-            onChange={(e) => setMonth(e.target.value)}
+            type="date"
+            value={day}
+            aria-label="Day"
+            onChange={(e) => setDay(e.target.value)}
           />
         </label>
         <select
@@ -150,13 +166,21 @@ export default function HappySheetHistoryView({ initial, facets }) {
         >
           Download CSV
         </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={downloadImage}
+          disabled={empty}
+        >
+          Download image
+        </button>
         {hasFilters && (
           <button
             type="button"
             className="btn btn-ghost"
             onClick={() => {
               setName('');
-              setMonth('');
+              setDay('');
             }}
           >
             Clear
@@ -171,7 +195,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
             title={hasFilters ? 'No rows match these filters' : 'No happy sheet rows yet'}
             text={
               hasFilters
-                ? 'Try a different month or name.'
+                ? 'Try a different day or name.'
                 : 'Answers appear here as soon as someone fills in the happy sheet.'
             }
           >

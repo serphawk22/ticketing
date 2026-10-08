@@ -20,7 +20,7 @@ const STATE_META = {
  *
  * Two tabs over one page rather than two pages: the task sheet and the happy
  * sheet are one habit, written in one place, so they are read in one place.
- * The happy tab is a lighter panel (month filter, no hours) and the task tab
+ * The happy tab is a lighter panel (day filter, no hours) and the task tab
  * keeps the hours, projects and work-item links; the download on each tab
  * mirrors whatever its filters are showing at the time.
  */
@@ -71,9 +71,16 @@ export default function TaskSheetHistoryView({
       : text;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return { date: text, time: '' };
+    // Locale and time zone are pinned: left to the environment the Node server
+    // and the browser disagree on both, which React reports as a hydration
+    // mismatch and recovers from by re-rendering the whole page on the client.
     return {
-      date: d.toLocaleDateString(),
-      time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: d.toLocaleDateString('en-US', { timeZone: 'UTC' }),
+      time: d.toLocaleTimeString('en-US', {
+        timeZone: 'UTC',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
     };
   }
 
@@ -135,7 +142,7 @@ export default function TaskSheetHistoryView({
       ? `${taskCount} rows${
           taskCount ? ` · ${Object.keys(byName).length} people · ${Object.keys(byProject).length} projects` : ''
         }`
-      : `${happyCount} answer${happyCount === 1 ? '' : 's'} · the team's happy sheet, by month`;
+      : `${happyCount} answer${happyCount === 1 ? '' : 's'} · the team's happy sheet, by day`;
 
   return (
     <AppShell
@@ -144,6 +151,7 @@ export default function TaskSheetHistoryView({
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       view="task-sheet-history"
+      onProjectChange={(id) => router.push(`/?project=${id}`)}
       onCreate={() => {}}
     >
       <div className="board">

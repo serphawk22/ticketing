@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllProjects } from '@/lib/projects';
 import { getAllTickets } from '@/lib/tickets';
@@ -9,15 +8,16 @@ import TaskSheetHistoryView from '@/components/TaskSheetHistoryView';
 export const dynamic = 'force-dynamic';
 
 /**
- * Every row of the daily timesheet, one page for the people who run the shop.
+ * Every row of the daily timesheet, one page for the whole team.
  *
- * Admin only: a timesheet history answers "who did what, when" across a team,
- * which is a manager's question, not one a row's own author is entitled to
- * answer about everyone else.
+ * Open to admins and developers: a timesheet history answers "who did what,
+ * when" across a team, and the people filing the sheets are the ones who read
+ * it back. Clients are kept out by requireTeamUser.
  */
 export default async function TaskSheetHistoryPage() {
+  // requireTeamUser already keeps clients out; the history is open to admins
+  // and developers alike, so there is no further role check here.
   const session = await requireTeamUser();
-  if (session.user.role !== 'admin') redirect('/');
 
   const [submissions, facets, happySubmissions, happyFacets, projects, tickets] =
     await Promise.all([

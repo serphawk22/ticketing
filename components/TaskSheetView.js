@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import TaskSheetForm from '@/components/TaskSheetForm';
@@ -25,6 +26,7 @@ export default function TaskSheetView({
   projectNames,
   defaults,
 }) {
+  const router = useRouter();
   const [submittedAt, setSubmittedAt] = useState(null);
   const [happyAt, setHappyAt] = useState(null);
 
@@ -35,6 +37,7 @@ export default function TaskSheetView({
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       view="task-sheet"
+      onProjectChange={(id) => router.push(`/?project=${id}`)}
       onCreate={() => {}}
     >
       <div className="board">

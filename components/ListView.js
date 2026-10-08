@@ -24,7 +24,7 @@ import RowMenuDialog from './list/RowMenuDialog';
 import UserPicker from './UserPicker';
 import { CategoryField, PriorityField, ReporterField, StatusField } from './TicketFields';
 import { useToasts, Toaster } from './Toaster';
-import { isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
+import { dueDays, isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -921,6 +921,11 @@ export default function ListView({
     const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
     const isSelected = selected.has(t.id);
 
+    // Due date urgency for the Due date column: negative days is overdue, 0 is
+    // today, positive still has time. Overdue work also greys the whole row.
+    const dueIn = dueDays(t);
+    const isOverdueRow = dueIn != null && dueIn < 0;
+
     // Conditional formatting is evaluated per render, so a saved rule shows up
     // on the row without any extra state to keep in sync. The background goes
     // through a custom property because each cell paints its own surface, which
@@ -931,7 +936,7 @@ export default function ListView({
     return (
       <tr
         key={t.id}
-        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}${style['--fmt-bg'] ? ' is-formatted' : ''}`}
+        className={`list-row${isSelected ? ' is-selected' : ''}${depth > 0 ? ' is-child' : ''}${style['--fmt-bg'] ? ' is-formatted' : ''}${isOverdueRow ? ' is-overdue' : ''}`}
         aria-selected={isSelected}
         style={Object.keys(style).length ? style : undefined}
       >
@@ -1084,7 +1089,17 @@ export default function ListView({
         )}
 
         {visibleColumns.some((c) => c.key === 'due') && (
-          <td className="list-cell list-cell-muted list-cell-date">
+          <td
+            className={`list-cell list-cell-muted list-cell-date${
+              dueIn == null
+                ? ''
+                : dueIn < 0
+                  ? ' is-due-overdue'
+                  : dueIn === 0
+                    ? ' is-due-today'
+                    : ' is-due-future'
+            }`}
+          >
             {t.due_date ? formatListDate(t.due_date) : 'None'}
           </td>
         )}

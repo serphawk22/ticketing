@@ -207,6 +207,10 @@ export default function AppShell({
   }, [mustChangePassword, router]);
 
   const isAdmin = currentUser.role === 'admin';
+  // The sheet history reads everyone's day, so it used to be admin-only. It is
+  // now shown to every developer as well; clients never reach this shell
+  // because requireTeamUser sends them to their portal.
+  const canReadSheets = isAdmin || currentUser.role === 'developer';
 
   // The sidebar is the one place that groups projects by work space, and it
   // renders on every view, so it loads the list itself rather than adding a
@@ -589,10 +593,9 @@ export default function AppShell({
                 <ClipboardIcon />
                 <span className="nav-text">Task Sheet</span>
               </Link>
-              {/* The task + happy sheet history is a page of its own too, but
-                  only the people running the shop get to read everyone's day, so
-                  it only exists in an admin's sidebar. */}
-              {isAdmin && (
+              {/* The task + happy sheet history is a page of its own too, open
+                  to every developer so the whole team can read the day's work. */}
+              {canReadSheets && (
                 <Link
                   href="/task-sheet/history"
                   className={`nav-item${view === 'task-sheet-history' ? ' active' : ''}`}

@@ -1724,6 +1724,22 @@ textarea {
   color: var(--text);
 }
 
+.today-sum-name-btn {
+  display: inline-block;
+  width: fit-content;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-sum-name-btn:hover .today-sum-name {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 .today-sum-role {
   font-size: var(--fs-12);
   color: var(--text-disabled);
@@ -1758,6 +1774,43 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.today-breakdown {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.today-breakdown-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-subtle);
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.today-breakdown-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-breakdown-empty {
+  margin: 16px 0 0;
+  padding: 24px;
+  text-align: center;
+  font-size: var(--fs-13);
+  color: var(--text-subtle);
+  background: var(--bg-subtle);
+  border-radius: var(--radius);
 }
 
 .today-sum-item {
@@ -3500,6 +3553,23 @@ textarea {
 
 .list-cell-date {
   font-variant-numeric: tabular-nums;
+}
+
+/* Due date urgency: grey the whole row once a ticket is past its date, then
+   the due date itself reads red on its final day and green while there is
+   still time. Finished work gets no colour at all. */
+.list-row.is-overdue > .list-cell {
+  opacity: 0.5;
+}
+
+.list-cell-date.is-due-today {
+  color: #ae2e24;
+  font-weight: 600;
+}
+
+.list-cell-date.is-due-future {
+  color: #216e4e;
+  font-weight: 600;
 }
 
 /* Status lozenge with an inline editor */

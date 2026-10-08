@@ -51,6 +51,7 @@ export async function GET(request) {
   const submissions = await listHappySubmissions({
     name: params.get('name') || '',
     month: params.get('month') || '',
+    day: params.get('day') || '',
     from: params.get('from') || '',
     to: params.get('to') || '',
     limit: Number(params.get('limit')) || 500,
