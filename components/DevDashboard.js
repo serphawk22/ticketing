@@ -138,72 +138,106 @@ export default function DevDashboard({
   }, [tickets]);
 
   /**
-   * Ownership is deliberately loose. An admin creates a task and can pick this
-   * developer either as the employee assignee or as the developer account, and
-   * either route has to land the task on this page.
+   * Two directions of ownership. A ticket is handed to a person either by being
+   * assigned to their account or to their employee record, so "assigned to" is
+   * that pair. The work "assigned by" this person is simply what they raised:
+   * there is no separate assignor column, so created_by is the record of it.
    */
-  const mine = useMemo(
+  const assignedToMe = useMemo(
     () =>
       tickets.filter(
         (t) =>
-          t.created_by === currentUser.id ||
           t.assigned_to === currentUser.id ||
-          (currentEmployeeId != null && t.employee_id === currentEmployeeId)
+          (currentEmployeeId != null && Number(t.employee_id) === Number(currentEmployeeId))
       ),
     [tickets, currentUser.id, currentEmployeeId]
   );
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return mine.filter((t) => {
-      if (projectId !== 'all' && String(t.project_id) !== String(projectId)) return false;
-      if (priority !== 'all' && t.priority !== priority) return false;
-      if (!q) return true;
-      return (
-        ticketKey(t).toLowerCase().includes(q) ||
-        t.title.toLowerCase().includes(q) ||
-        (t.description || '').toLowerCase().includes(q) ||
-        (t.project_name || '').toLowerCase().includes(q)
-      );
-    });
-  }, [mine, projectId, priority, search]);
+  const assignedByMe = useMemo(
+    () => tickets.filter((t) => t.created_by === currentUser.id),
+    [tickets, currentUser.id]
+  );
 
-  const buckets = useMemo(() => {
-    const isDone = (t) => DONE_STATUSES.includes(t.status);
+  // A ticket can be both created and assigned by the same person, so keep the
+  // sidebar count honest by counting each item once.
+  const mineCount = useMemo(
+    () => new Set([...assignedToMe, ...assignedByMe].map((t) => t.id)).size,
+    [assignedToMe, assignedByMe]
+  );
 
-    // Overdue work floats to the top of To do, then anything dated, then
-    // undated work, and priority breaks ties inside each group.
-    const byDue = (a, b) => {
-      if (a.due_date && b.due_date) return a.due_date < b.due_date ? -1 : 1;
-      if (a.due_date) return -1;
-      if (b.due_date) return 1;
-      return rank(a.priority) - rank(b.priority);
-    };
+  const applyFilters = useCallback(
+    (list) => {
+      const q = search.trim().toLowerCase();
+      return list.filter((t) => {
+        if (projectId !== 'all' && String(t.project_id) !== String(projectId)) return false;
+        if (priority !== 'all' && t.priority !== priority) return false;
+        if (!q) return true;
+        return (
+          ticketKey(t).toLowerCase().includes(q) ||
+          t.title.toLowerCase().includes(q) ||
+          (t.description || '').toLowerCase().includes(q) ||
+          (t.project_name || '').toLowerCase().includes(q)
+        );
+      });
+    },
+    [projectId, priority, search]
+  );
 
-    const dueToday = [];
-    const todo = [];
-    const completed = [];
+  const makeBuckets = useCallback(
+    (list) => {
+      const isDone = (t) => DONE_STATUSES.includes(t.status);
 
-    for (const t of filtered) {
-      if (isDone(t)) {
-        completed.push(t);
-      } else if (t.due_date === today) {
-        dueToday.push(t);
-      } else {
-        todo.push(t);
+      // Overdue work floats to the top of To do, then anything dated, then
+      // undated work, and priority breaks ties inside each group.
+      const byDue = (a, b) => {
+        if (a.due_date && b.due_date) return a.due_date < b.due_date ? -1 : 1;
+        if (a.due_date) return -1;
+        if (b.due_date) return 1;
+        return rank(a.priority) - rank(b.priority);
+      };
+
+      const dueToday = [];
+      const todo = [];
+      const completed = [];
+
+      for (const t of list) {
+        if (isDone(t)) {
+          completed.push(t);
+        } else if (t.due_date === today) {
+          dueToday.push(t);
+        } else {
+          todo.push(t);
+        }
       }
-    }
 
-    dueToday.sort(byDue);
-    todo.sort(byDue);
-    completed.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+      dueToday.sort(byDue);
+      todo.sort(byDue);
+      completed.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
 
-    return { today: dueToday, todo, completed };
-  }, [filtered, today]);
+      return { today: dueToday, todo, completed };
+    },
+    [today]
+  );
+
+  const toMeBuckets = useMemo(
+    () => makeBuckets(applyFilters(assignedToMe)),
+    [makeBuckets, applyFilters, assignedToMe]
+  );
+  const byMeBuckets = useMemo(
+    () => makeBuckets(applyFilters(assignedByMe)),
+    [makeBuckets, applyFilters, assignedByMe]
+  );
 
   const ordered = useMemo(
-    () => [...buckets.today, ...buckets.todo, ...buckets.completed],
-    [buckets]
+    () => [
+      ...toMeBuckets.today,
+      ...toMeBuckets.todo,
+      ...toMeBuckets.completed,
+      ...byMeBuckets.today,
+      ...byMeBuckets.todo,
+      ...byMeBuckets.completed,
+    ],
+    [toMeBuckets, byMeBuckets]
   );
 
   const modal = useTicketModal({ visible: ordered, lookup: tickets });
@@ -268,7 +302,7 @@ export default function DevDashboard({
     };
   }
 
-  function handleDrop(sectionId, droppedId) {
+  function handleDrop(groupKey, sectionId, droppedId) {
     // The id travels on the drag payload rather than only in state, so the drop
     // cannot land before React has committed the dragstart update.
     const id = droppedId ?? draggingId;
@@ -278,6 +312,7 @@ export default function DevDashboard({
 
     const ticket = tickets.find((t) => t.id === id);
     if (!ticket) return;
+    const buckets = groupKey === 'by' ? byMeBuckets : toMeBuckets;
     if (buckets[sectionId].some((t) => t.id === id)) return;
 
     const fields = fieldsForSection(sectionId, ticket);
@@ -285,8 +320,98 @@ export default function DevDashboard({
     patchTicket(id, fields);
   }
 
-  const openCount = buckets.today.length + buckets.todo.length;
-  const hasMine = mine.length > 0;
+  const openCount = toMeBuckets.today.length + toMeBuckets.todo.length;
+  const hasMine = assignedToMe.length + assignedByMe.length > 0;
+
+  // The three status buckets make up one column set per ownership group, so the
+  // same columns render twice (assigned to me, assigned by me). Tracks each
+  // group's columns separately so a drop highlights only its own target.
+  function renderDashSections(groupKey, buckets) {
+    return (
+      <div className="dash-sections">
+        {SECTIONS.map((section) => {
+          const Icon = SECTION_ICONS[section.id];
+          const list = buckets[section.id];
+          const target = `${groupKey}/${section.id}`;
+          const isTarget = dropTarget === target;
+
+          return (
+            <section
+              key={target}
+              className={`dash-section${isTarget ? ' droppable' : ''}`}
+              aria-label={section.title}
+              onDragOver={(e) => {
+                // A drop is only accepted if dragover was cancelled, and that
+                // must not depend on state having committed since dragstart.
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                if (draggingId != null && dropTarget !== target) {
+                  setDropTarget(target);
+                }
+              }}
+              onDragLeave={(e) => {
+                // Ignore the dragleave that fires when moving between the
+                // section's own children.
+                if (e.currentTarget.contains(e.relatedTarget)) return;
+                setDropTarget((t) => (t === target ? null : t));
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const raw = e.dataTransfer?.getData('text/plain');
+                handleDrop(groupKey, section.id, raw ? Number(raw) : null);
+              }}
+            >
+              <header className="dash-section-head">
+                <span className="dash-section-title">
+                  <Icon />
+                  {section.title}
+                </span>
+                <span className="dash-section-hint">{section.hint}</span>
+                <span className="dash-section-count">{list.length}</span>
+              </header>
+
+              <div className="dash-list">
+                {list.length === 0 ? (
+                  <p className="dash-section-empty">
+                    {section.id === 'today'
+                      ? 'Nothing is due today.'
+                      : section.id === 'todo'
+                        ? 'No open tasks.'
+                        : 'Nothing completed yet.'}
+                  </p>
+                ) : (
+                  list.map((t) => (
+                    <TicketCard
+                      key={t.id}
+                      ticket={t}
+                      canUpdate
+                      employees={employees}
+                      canReassign={false}
+                      onDragStart={(id, e) => {
+                        if (e?.dataTransfer) {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', String(id));
+                        }
+                        setDraggingId(id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingId(null);
+                        setDropTarget(null);
+                      }}
+                      onUpdate={updateStatus}
+                      onOpen={openTicket}
+                      isDragging={draggingId === t.id}
+                      isActive={modal.selected?.id === t.id}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <AppShell
@@ -294,7 +419,7 @@ export default function DevDashboard({
       projects={projects}
       projectCounts={projectCounts}
       employeeCount={employees.filter((e) => e.active).length}
-      myIssuesCount={mine.length}
+      myIssuesCount={mineCount}
       view="dashboard"
       projectId={projectId}
       onProjectChange={setProjectId}
@@ -323,7 +448,9 @@ export default function DevDashboard({
             </div>
             <p className="board-subtitle">
               {hasMine
-                ? `${mine.length} ${mine.length === 1 ? 'task' : 'tasks'} assigned to you · ${openCount} open`
+                ? `${assignedToMe.length} ${
+                    assignedToMe.length === 1 ? 'task' : 'tasks'
+                  } assigned to you · ${openCount} open · ${assignedByMe.length} raised by you`
                 : 'No tasks assigned to you yet'}
             </p>
           </div>
@@ -382,86 +509,24 @@ export default function DevDashboard({
           </div>
         )}
 
-        <div className="dash-sections">
-          {SECTIONS.map((section) => {
-            const Icon = SECTION_ICONS[section.id];
-            const list = buckets[section.id];
-            const isTarget = dropTarget === section.id;
+        <div className="dash-groups">
+          <section className="dash-group" aria-label="Assigned to me">
+            <header className="dash-group-head">
+              <h2 className="dash-group-title">Assigned to me</h2>
+              <span className="dash-group-hint">Work handed to you</span>
+              <span className="dash-group-count">{assignedToMe.length}</span>
+            </header>
+            {renderDashSections('to', toMeBuckets)}
+          </section>
 
-            return (
-              <section
-                key={section.id}
-                className={`dash-section${isTarget ? ' droppable' : ''}`}
-                aria-label={section.title}
-                onDragOver={(e) => {
-                  // A drop is only accepted if dragover was cancelled, and that
-                  // must not depend on state having committed since dragstart.
-                  e.preventDefault();
-                  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-                  if (draggingId != null && dropTarget !== section.id) {
-                    setDropTarget(section.id);
-                  }
-                }}
-                onDragLeave={(e) => {
-                  // Ignore the dragleave that fires when moving between the
-                  // section's own children.
-                  if (e.currentTarget.contains(e.relatedTarget)) return;
-                  setDropTarget((t) => (t === section.id ? null : t));
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const raw = e.dataTransfer?.getData('text/plain');
-                  handleDrop(section.id, raw ? Number(raw) : null);
-                }}
-              >
-                <header className="dash-section-head">
-                  <span className="dash-section-title">
-                    <Icon />
-                    {section.title}
-                  </span>
-                  <span className="dash-section-hint">{section.hint}</span>
-                  <span className="dash-section-count">{list.length}</span>
-                </header>
-
-                <div className="dash-list">
-                  {list.length === 0 ? (
-                    <p className="dash-section-empty">
-                      {section.id === 'today'
-                        ? 'Nothing is due today.'
-                        : section.id === 'todo'
-                          ? 'No open tasks.'
-                          : 'Nothing completed yet.'}
-                    </p>
-                  ) : (
-                    list.map((t) => (
-                      <TicketCard
-                        key={t.id}
-                        ticket={t}
-                        canUpdate
-                        employees={employees}
-                        canReassign={false}
-                        onDragStart={(id, e) => {
-                          if (e?.dataTransfer) {
-                            e.dataTransfer.effectAllowed = 'move';
-                            e.dataTransfer.setData('text/plain', String(id));
-                          }
-                          setDraggingId(id);
-                        }}
-                        onDragEnd={() => {
-                          setDraggingId(null);
-                          setDropTarget(null);
-                        }}
-                        onUpdate={updateStatus}
-                        onOpen={openTicket}
-                        isDragging={draggingId === t.id}
-                        isActive={modal.selected?.id === t.id}
-                      />
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
+          <section className="dash-group" aria-label="Assigned by me">
+            <header className="dash-group-head">
+              <h2 className="dash-group-title">Assigned by me</h2>
+              <span className="dash-group-hint">Tickets you raised</span>
+              <span className="dash-group-count">{assignedByMe.length}</span>
+            </header>
+            {renderDashSections('by', byMeBuckets)}
+          </section>
         </div>
       </div>
 

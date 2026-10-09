@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { BarChartIcon, ClipboardIcon } from './AppShellIcons';
 import Avatar from './Avatar';
 import WorkspaceModal from './WorkspaceModal';
 import ProjectModal from './ProjectModal';
@@ -108,14 +109,6 @@ function PersonIcon() {
   );
 }
 
-function FolderIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-    </svg>
-  );
-}
-
 function InboxIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
@@ -123,6 +116,7 @@ function InboxIcon() {
     </svg>
   );
 }
+
 
 function PeopleIcon() {
   return (
@@ -213,6 +207,10 @@ export default function AppShell({
   }, [mustChangePassword, router]);
 
   const isAdmin = currentUser.role === 'admin';
+  // The sheet history reads everyone's day, so it used to be admin-only. It is
+  // now shown to every developer as well; clients never reach this shell
+  // because requireTeamUser sends them to their portal.
+  const canReadSheets = isAdmin || currentUser.role === 'developer';
 
   // The sidebar is the one place that groups projects by work space, and it
   // renders on every view, so it loads the list itself rather than adding a
@@ -584,16 +582,29 @@ export default function AppShell({
                 <span className="nav-text">My tickets</span>
                 <span className="nav-count">{myIssuesCount}</span>
               </button>
-              <button
-                className={`nav-item${view === 'raise' ? ' active' : ''}`}
-                onClick={() => {
-                  setSidebarOpen(false);
-                  router.push('/raise');
-                }}
+              {/* A Link rather than a button that pushes the router: this is a
+                  page of its own and belongs in the browser's history like the
+                  rest of the sidebar. */}
+              <Link
+                href="/task-sheet"
+                className={`nav-item${view === 'task-sheet' ? ' active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
               >
-                <PlusIcon />
-                <span className="nav-text">Raise a ticket</span>
-              </button>
+                <ClipboardIcon />
+                <span className="nav-text">Task Sheet</span>
+              </Link>
+              {/* The task + happy sheet history is a page of its own too, open
+                  to every developer so the whole team can read the day's work. */}
+              {canReadSheets && (
+                <Link
+                  href="/task-sheet/history"
+                  className={`nav-item${view === 'task-sheet-history' ? ' active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <BarChartIcon />
+                  <span className="nav-text">Sheet History</span>
+                </Link>
+              )}
             </nav>
 
             <div className="nav-label">People</div>
@@ -648,16 +659,6 @@ export default function AppShell({
               </span>
             </div>
             <nav className="nav">
-              <Link
-                href="/projects"
-                className={`nav-item${view === 'projects' ? ' active' : ''}`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <FolderIcon />
-                <span className="nav-text">All projects</span>
-                <span className="nav-count">{sidebarProjects.length}</span>
-              </Link>
-
               {workspaces.map((w) => {
                 const members = sidebarProjects.filter(
                   (p) => String(p.workspace_id) === String(w.id)

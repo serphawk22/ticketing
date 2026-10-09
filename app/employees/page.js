@@ -31,6 +31,7 @@ export default async function EmployeesPage() {
       myIssuesCount={myIssuesCount}
       smtpConfigured={isSmtpConfigured()}
       projects={projects}
+      initialTickets={tickets}
     />
   );
 }
