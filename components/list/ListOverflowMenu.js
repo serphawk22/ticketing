@@ -219,7 +219,7 @@ export default function ListOverflowMenu({
             },
             { key: 'status', label: 'Status', get: (t) => STATUS_META[t.status]?.label || t.status },
             { key: 'category', label: 'Category', get: (t) => t.category || '' },
-            { key: 'resolution', label: 'Resolution', get: (t) => (t.status === 'resolved' || t.status === 'closed' ? 'Done' : 'Unresolved') },
+            { key: 'resolution', label: 'Resolution', get: (t) => t.resolution || '' },
             { key: 'created', label: 'Created', get: (t) => t.created_at || '' },
           ].filter((c) => visibleColumns.some((v) => v.key === c.key));
 
