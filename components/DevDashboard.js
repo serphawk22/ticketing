@@ -138,24 +138,57 @@ export default function DevDashboard({
   }, [tickets]);
 
   /**
-   * Two directions of ownership. A ticket is handed to a person either by being
-   * assigned to their account or to their employee record, so "assigned to" is
-   * that pair. The work "assigned by" this person is simply what they raised:
-   * there is no separate assignor column, so created_by is the record of it.
+   * Two directions of ownership. For a developer both are scoped to that one
+   * person: a ticket is handed to them by being assigned to their account or to
+   * their employee record, and the work they raised is whatever they created.
+   *
+   * An admin supervises the whole admin group, so the same two directions are
+   * widened to every admin account instead of just the signed-in one. The admin
+   * accounts are read off the employee roster, which carries each employee's
+   * role and the linked account id.
    */
+  const isAdmin = currentUser.role === 'admin';
+
+  const adminUserIds = useMemo(() => {
+    if (!isAdmin) return null;
+    const ids = new Set([Number(currentUser.id)]);
+    for (const e of employees) {
+      if (e.role === 'admin' && e.user_id != null) ids.add(Number(e.user_id));
+    }
+    return ids;
+  }, [isAdmin, employees, currentUser.id]);
+
+  const adminEmployeeIds = useMemo(() => {
+    if (!isAdmin) return null;
+    const ids = new Set();
+    for (const e of employees) {
+      if (e.role === 'admin') ids.add(Number(e.id));
+    }
+    if (currentEmployeeId != null) ids.add(Number(currentEmployeeId));
+    return ids;
+  }, [isAdmin, employees, currentEmployeeId]);
+
   const assignedToMe = useMemo(
     () =>
-      tickets.filter(
-        (t) =>
-          t.assigned_to === currentUser.id ||
-          (currentEmployeeId != null && Number(t.employee_id) === Number(currentEmployeeId))
+      tickets.filter((t) =>
+        isAdmin
+          ? (t.assigned_to != null && adminUserIds.has(Number(t.assigned_to))) ||
+            (t.employee_id != null && adminEmployeeIds.has(Number(t.employee_id)))
+          : t.assigned_to === currentUser.id ||
+            (currentEmployeeId != null &&
+              Number(t.employee_id) === Number(currentEmployeeId))
       ),
-    [tickets, currentUser.id, currentEmployeeId]
+    [tickets, isAdmin, adminUserIds, adminEmployeeIds, currentUser.id, currentEmployeeId]
   );
 
   const assignedByMe = useMemo(
-    () => tickets.filter((t) => t.created_by === currentUser.id),
-    [tickets, currentUser.id]
+    () =>
+      tickets.filter((t) =>
+        isAdmin
+          ? t.created_by != null && adminUserIds.has(Number(t.created_by))
+          : t.created_by === currentUser.id
+      ),
+    [tickets, isAdmin, adminUserIds, currentUser.id]
   );
 
   // A ticket can be both created and assigned by the same person, so keep the

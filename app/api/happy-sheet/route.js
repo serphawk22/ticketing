@@ -16,6 +16,8 @@ export async function POST(request) {
   const name = String(body.name ?? '').trim();
   const happyOne = String(body.happyOne ?? '').trim();
   const happyOthers = String(body.happyOthers ?? '').trim();
+  const happyGoals = String(body.happyGoals ?? '').trim();
+  const happyDreams = String(body.happyDreams ?? '').trim();
 
   if (!name) return NextResponse.json({ error: 'Please select your name.' }, { status: 400 });
   if (!happyOne) {
@@ -24,12 +26,13 @@ export async function POST(request) {
       { status: 400 }
     );
   }
-
   const submission = await createHappySubmission({
     submittedBy,
     name,
     happyOne,
     happyOthers,
+    happyGoals,
+    happyDreams,
   });
 
   return NextResponse.json({ submission }, { status: 201 });

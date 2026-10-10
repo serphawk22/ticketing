@@ -1961,6 +1961,7 @@ textarea {
 .dash-list {
   flex: 1;
   min-height: 0;
+  max-height: 330px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2037,9 +2038,6 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .dash-list {
-    overflow-y: visible;
-  }
 }
 
 .column-create {
@@ -4734,19 +4732,21 @@ textarea {
 
 .auth-split-cursor {
   position: fixed;
-  top: var(--mouse-y, -100px);
-  left: var(--mouse-x, -100px);
-  width: 20px;
-  height: 20px;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: rgba(59, 130, 246, 0.35);
-  border: 2px solid rgba(59, 130, 246, 0.6);
+  border: 1.5px solid rgba(129, 140, 248, 0.9);
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.25),
+    0 0 16px 2px rgba(99, 102, 241, 0.4);
   pointer-events: none;
   z-index: 9999;
-  transform: translate(-50%, -50%);
-  transition: top 0.15s ease-out, left 0.15s ease-out, width 0.2s ease, height 0.2s ease, background 0.2s ease;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  transform: translate3d(var(--cursor-x, -100px), var(--cursor-y, -100px), 0)
+    translate(-50%, -50%);
+  will-change: transform;
 }
 
 .auth-split-cursor::after {
@@ -4754,14 +4754,20 @@ textarea {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: #2563eb;
+  background: rgba(165, 180, 252, 0.9);
   transform: translate(-50%, -50%);
 }
 
 @media (hover: none), (pointer: coarse) {
+  .auth-split-cursor {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   .auth-split-cursor {
     display: none;
   }
@@ -4774,7 +4780,7 @@ textarea {
   justify-content: center;
   width: 50%;
   overflow: hidden;
-  background: linear-gradient(150deg, #e8f0fe 0%, #f0f4ff 40%, #e4ecf7 100%);
+  background: linear-gradient(155deg, #1e1b4b 0%, #312e81 48%, #1e3a8a 100%);
 }
 
 .auth-split-visual-bg {
@@ -4788,9 +4794,9 @@ textarea {
   position: absolute;
   inset: 0;
   background: radial-gradient(
-    400px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(59, 130, 246, 0.08) 0%,
-    rgba(59, 130, 246, 0.03) 40%,
+    420px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(129, 140, 248, 0.2) 0%,
+    rgba(129, 140, 248, 0.07) 40%,
     transparent 70%
   );
   opacity: 0;
@@ -4813,7 +4819,7 @@ textarea {
   right: -5%;
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.55) 0%, transparent 70%);
   animation: auth-split-float 8s ease-in-out infinite;
 }
 
@@ -4822,7 +4828,7 @@ textarea {
   left: -10%;
   width: 350px;
   height: 350px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.14) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.45) 0%, transparent 70%);
   animation: auth-split-float 10s ease-in-out infinite reverse;
 }
 
@@ -4831,13 +4837,13 @@ textarea {
   left: 30%;
   width: 250px;
   height: 250px;
-  background: radial-gradient(circle, rgba(147, 197, 253, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, transparent 70%);
   animation: auth-split-float 12s ease-in-out infinite;
 }
 
 .auth-split-ring {
   position: absolute;
-  border: 1px solid rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(129, 140, 248, 0.22);
   border-radius: 50%;
 }
 
@@ -4868,7 +4874,7 @@ textarea {
 .auth-split-dots {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(165, 180, 252, 0.18) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 20%, transparent 70%);
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 20%, transparent 70%);
@@ -4895,9 +4901,9 @@ textarea {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   color: #ffffff;
-  box-shadow: 0 8px 16px -6px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 10px 24px -8px rgba(99, 102, 241, 0.7);
 }
 
 .auth-split-logo-sm {
@@ -4910,14 +4916,14 @@ textarea {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #1e293b;
+  color: #ffffff;
 }
 
 .auth-split-brand-name-sm {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #1e293b;
+  color: #1e1b4b;
 }
 
 .auth-split-tagline {
@@ -4926,14 +4932,14 @@ textarea {
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.03em;
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .auth-split-subtagline {
   margin-bottom: 40px;
   font-size: 16px;
   line-height: 1.6;
-  color: #64748b;
+  color: rgba(224, 231, 255, 0.78);
 }
 
 .auth-split-features {
@@ -4948,7 +4954,7 @@ textarea {
   gap: 12px;
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
+  color: rgba(226, 232, 240, 0.92);
 }
 
 .auth-split-feature-icon {
@@ -4958,8 +4964,8 @@ textarea {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+  background: rgba(129, 140, 248, 0.2);
+  color: #c7d2fe;
 }
 
 .auth-split-form {
@@ -4968,12 +4974,20 @@ textarea {
   justify-content: center;
   width: 50%;
   padding: 48px;
-  background: #ffffff;
+  background: linear-gradient(160deg, #f8fafc 0%, #e9edff 100%);
 }
 
 .auth-split-form-inner {
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
+  box-sizing: border-box;
+  padding: 36px 32px;
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow:
+    0 28px 60px -30px rgba(30, 27, 75, 0.4),
+    0 6px 18px -10px rgba(30, 27, 75, 0.18);
 }
 
 .auth-split-form-brand {
@@ -4993,13 +5007,13 @@ textarea {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: #0f172a;
+  color: #1e1b4b;
 }
 
 .auth-split-heading p {
   font-size: 15px;
   line-height: 1.5;
-  color: #64748b;
+  color: #4b5563;
 }
 
 .auth-split-form-element {
@@ -5018,7 +5032,7 @@ textarea {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: #334155;
+  color: #312e81;
 }
 
 .auth-split-input-wrap {
@@ -5038,14 +5052,14 @@ textarea {
 }
 
 .auth-split-input-wrap:focus-within .auth-split-input-icon {
-  color: #3b82f6;
+  color: #6366f1;
 }
 
 .auth-split-input-wrap input {
   width: 100%;
   height: 48px;
   padding: 0 16px 0 44px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e0e7ff;
   border-radius: 10px;
   background: #f8fafc;
   font-size: 15px;
@@ -5059,15 +5073,15 @@ textarea {
 }
 
 .auth-split-input-wrap input:hover {
-  border-color: #cbd5e1;
-  background: #f1f5f9;
+  border-color: #c7d2fe;
+  background: #f1f5ff;
 }
 
 .auth-split-input-wrap input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #6366f1;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
 }
 
 .auth-split-forgot {
@@ -5078,8 +5092,8 @@ textarea {
 
 .auth-split-link {
   font-size: 13px;
-  font-weight: 500;
-  color: #3b82f6;
+  font-weight: 600;
+  color: #4f46e5;
   background: none;
   border: none;
   padding: 0;
@@ -5088,7 +5102,7 @@ textarea {
 }
 
 .auth-split-link:hover {
-  color: #1d4ed8;
+  color: #4338ca;
   text-decoration: underline;
 }
 
@@ -5097,24 +5111,24 @@ textarea {
   height: 48px;
   border: none;
   border-radius: 10px;
-  background: #2563eb;
+  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 12px 26px -12px rgba(79, 70, 229, 0.75);
 }
 
 .auth-split-btn:hover:not(:disabled) {
-  background: #1d4ed8;
-  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.45);
+  background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%);
+  box-shadow: 0 16px 30px -12px rgba(79, 70, 229, 0.85);
   transform: translateY(-1px);
 }
 
 .auth-split-btn:active:not(:disabled) {
-  background: #1e40af;
+  background: linear-gradient(135deg, #3730a3 0%, #1e40af 100%);
   transform: translateY(0);
 }
 
@@ -5190,13 +5204,13 @@ textarea {
 }
 
 .auth-split-back:hover {
-  color: #3b82f6;
+  color: #6366f1;
 }
 
 .auth-split-demo {
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #e0e7ff;
 }
 
 .auth-split-demo-divider {
@@ -5216,7 +5230,7 @@ textarea {
   content: '';
   flex: 1;
   height: 1px;
-  background: #f1f5f9;
+  background: #e0e7ff;
 }
 
 .auth-split-demo-list {
@@ -5230,7 +5244,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid #e0e7ff;
   border-radius: 8px;
   background: #f8fafc;
 }
@@ -5251,7 +5265,7 @@ textarea {
 
 .auth-split-demo-creds code {
   padding: 2px 6px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e0e7ff;
   border-radius: 4px;
   background: #ffffff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -5322,6 +5336,11 @@ textarea {
     padding: 32px 24px;
   }
 
+  .auth-split-form-inner {
+    padding: 28px 24px;
+    border-radius: 18px;
+  }
+
   .auth-split-form-brand {
     display: flex;
   }
@@ -5343,6 +5362,11 @@ textarea {
 
   .auth-split-form {
     padding: 24px 20px;
+  }
+
+  .auth-split-form-inner {
+    padding: 22px 18px;
+    border-radius: 16px;
   }
 
   .auth-split-heading h1 {
