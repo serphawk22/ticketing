@@ -8136,3 +8136,241 @@ input.inline-input.tm-title-edit {
     gap: 4px;
   }
 }
+
+.att-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+
+.att-view-toggle {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.att-view-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: var(--control-h);
+  color: var(--text-subtle);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.att-view-toggle button + button {
+  border-left: 1px solid var(--border);
+}
+
+.att-view-toggle button.is-active {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.att-empty {
+  margin: 24px 0;
+  color: var(--text-subtle);
+}
+
+.att-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.att-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.att-card:hover {
+  border-color: var(--border-strong, var(--border));
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(9, 30, 66, 0.08));
+}
+
+.att-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.att-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.att-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 36px 12px 12px;
+}
+
+.att-name,
+.att-work,
+.att-preview,
+.att-remove {
+  cursor: pointer;
+}
+
+.att-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+
+.att-card-body .att-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-name:hover {
+  color: var(--link, var(--primary));
+  text-decoration: underline;
+}
+
+.att-work {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: var(--fs-12);
+}
+
+.att-work:hover {
+  color: var(--link, var(--primary));
+  text-decoration: underline;
+}
+
+.att-title {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-meta {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  line-height: 1.4;
+}
+
+.att-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  color: var(--text-subtle);
+}
+
+.att-card-body .att-remove {
+  top: auto;
+  right: 6px;
+  bottom: 8px;
+  background: transparent;
+}
+
+.att-remove:hover {
+  background: var(--bg-hover);
+  color: var(--danger, #c9372c);
+}
+
+.att-table .att-remove {
+  position: static;
+}
+
+.att-glyph {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 56px;
+  height: 68px;
+  padding-bottom: 10px;
+  border-radius: 4px 10px 4px 4px;
+  background: #6b778c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: inset -10px 0 0 rgba(9, 30, 66, 0.18);
+}
+
+.att-glyph-image { background: #1d7afc; }
+.att-glyph-document { background: #e34935; }
+.att-glyph-spreadsheet { background: #22a06b; }
+.att-glyph-presentation { background: #e56910; }
+.att-glyph-video { background: #8270db; }
+.att-glyph-archive { background: #bf7a30; }
+.att-glyph-other { background: #6b778c; }
+
+.att-table .att-glyph {
+  width: 28px;
+  height: 34px;
+  padding-bottom: 5px;
+  font-size: 8px;
+  flex: none;
+}
+
+.att-table .att-name span,
+.att-table .att-work span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .att-view-toggle {
+    margin-left: 0;
+  }
+}

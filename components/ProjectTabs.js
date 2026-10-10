@@ -10,7 +10,7 @@ const TABS = [
   { key: 'timeline', label: 'Timeline' },
   { key: 'reports', label: 'Reports' },
   { key: 'docs', label: 'Docs', soon: true },
-  { key: 'attachments', label: 'Attachments', soon: true },
+  { key: 'attachments', label: 'Attachments' },
   { key: 'archived', label: 'Archived' },
 ];
 

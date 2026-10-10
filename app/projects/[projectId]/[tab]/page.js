@@ -9,7 +9,6 @@ import ComingSoonView from '@/components/ComingSoonView';
 const PLACEHOLDER_TABS = {
   timeline: 'Timeline',
   docs: 'Docs',
-  attachments: 'Attachments',
 };
 
 export const dynamic = 'force-dynamic';
