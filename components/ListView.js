@@ -1096,14 +1096,6 @@ export default function ListView({
         )}
 
         {visibleColumns.some((c) => c.key === 'due') && (
-          <td className="list-cell list-cell-muted list-cell-date">
-            <InlineDateField
-              value={t.due_date}
-              onSave={(v) => patchTicket(t.id, { due_date: v })}
-              label={`Due date of ${ticketKey(t)}`}
-              format={formatListDate}
-              emptyText="None"
-            />
           <td
             className={`list-cell list-cell-muted list-cell-date${
               dueIn == null
@@ -1115,7 +1107,13 @@ export default function ListView({
                     : ' is-due-future'
             }`}
           >
-            {t.due_date ? formatListDate(t.due_date) : 'None'}
+            <InlineDateField
+              value={t.due_date}
+              onSave={(v) => patchTicket(t.id, { due_date: v })}
+              label={`Due date of ${ticketKey(t)}`}
+              format={formatListDate}
+              emptyText="None"
+            />
           </td>
         )}
 
