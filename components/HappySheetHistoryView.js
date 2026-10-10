@@ -85,12 +85,22 @@ export default function HappySheetHistoryView({ initial, facets }) {
       'Name',
       'What made your day happy',
       'Did you make anybody else happy',
+      'Goals & Self-Satisfaction',
+      'Dreams',
     ];
     const lines = [
       header.map(csvCell).join(','),
       ...filtered.map((r) => {
         const { date, time } = formatCell(r.created_at);
-        return [date, time, r.name, r.happy_one, r.happy_others]
+        return [
+          date,
+          time,
+          r.name,
+          r.happy_one,
+          r.happy_others,
+          r.happy_goals,
+          r.happy_dreams,
+        ]
           .map(csvCell)
           .join(',');
       }),
@@ -216,6 +226,8 @@ export default function HappySheetHistoryView({ initial, facets }) {
                 <th className="list-th">Name</th>
                 <th className="list-th">What made your day happy</th>
                 <th className="list-th">Made anybody else happy</th>
+                <th className="list-th">Goals &amp; Self-Satisfaction</th>
+                <th className="list-th">Dreams</th>
               </tr>
             </thead>
             <tbody>
@@ -237,6 +249,8 @@ export default function HappySheetHistoryView({ initial, facets }) {
                     <td className="list-cell hs-answer is-muted">
                       {row.happy_others || <span className="ts-muted">—</span>}
                     </td>
+                    <td className="list-cell hs-answer">{row.happy_goals}</td>
+                    <td className="list-cell hs-answer">{row.happy_dreams}</td>
                   </tr>
                 );
               })}

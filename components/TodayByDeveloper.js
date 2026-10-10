@@ -209,7 +209,7 @@ export default function TodayByDeveloper({
 
                 {row.total > 0 && (
                   <ul className="today-sum-list">
-                    {[...row.open, ...row.done].map(renderTicketItem)}
+                    {[...row.open, ...row.done].map((t) => renderTicketItem(t))}
                   </ul>
                 )}
               </div>

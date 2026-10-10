@@ -8,16 +8,19 @@ import DevDashboard from '@/components/DevDashboard';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }) {
   const session = await requireTeamUser();
+  const { filter } = await searchParams;
 
   const isAdmin = session.user.role === 'admin';
 
-  // A ticket records its assignee as an employee, while a session records the
-  // signed-in account, and the two are separate tables joined only by email.
-  // Resolving the link here is what lets a developer see the tasks an admin
-  // created for them.
-  const employee = isAdmin ? null : await getEmployeeByUserId(session.user.id);
+  // A developer always lands on the "My tickets" dashboard. An admin lands on
+  // the board but reaches the very same two-section dashboard (Assigned to me /
+  // Assigned by me) through the sidebar or the "Your work" top-nav link, both of
+  // which point at /?filter=mine.
+  const showDevDashboard = !isAdmin || filter === 'mine';
+
+  const employee = await getEmployeeByUserId(session.user.id);
 
   const [tickets, projects, employees] = await Promise.all([
     getAllTickets(),
@@ -27,7 +30,7 @@ export default async function HomePage() {
 
   const today = toISO(new Date());
 
-  if (!isAdmin) {
+  if (showDevDashboard) {
     return (
       <DevDashboard
         initialTickets={tickets}

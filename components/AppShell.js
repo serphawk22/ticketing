@@ -285,11 +285,14 @@ export default function AppShell({
 
   function selectFilter(next) {
     setSidebarOpen(false);
-    if (view === 'board') {
-      onFilterChange(next);
+    // "My tickets" is the two-section dashboard (Assigned to me / Assigned by
+    // me) that a developer lands on. It is a page of its own, so it always
+    // navigates rather than filtering whatever view is on screen.
+    if (next === 'mine') {
+      router.push('/?filter=mine');
       return;
     }
-    router.push(next === 'mine' ? '/?filter=mine' : '/');
+    onFilterChange?.(next);
   }
 
   function selectProject(id) {
