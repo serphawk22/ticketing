@@ -8,6 +8,7 @@ import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import {
   STATUS_META,
@@ -1077,6 +1078,7 @@ export default function TimelineView({
           onNext={modal.next}
           onPrev={modal.prev}
           onTicketChanged={applyTicketUpdate}
+          onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
         />
       )}

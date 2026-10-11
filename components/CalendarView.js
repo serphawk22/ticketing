@@ -8,6 +8,7 @@ import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import UnscheduledPanel from './calendar/UnscheduledPanel';
 import {
@@ -894,6 +895,7 @@ export default function CalendarView({
           onNext={modal.next}
           onPrev={modal.prev}
           onTicketChanged={applyTicketUpdate}
+          onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
         />
       )}

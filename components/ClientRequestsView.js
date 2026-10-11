@@ -207,6 +207,7 @@ export default function ClientRequestsView({
           onNext={modal.next}
           onPrev={modal.prev}
           onTicketChanged={() => router.refresh()}
+          onArchiveChange={() => router.refresh()}
         />
       )}
 

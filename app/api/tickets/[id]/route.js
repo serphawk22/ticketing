@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getTicket, deleteTicket, childTicketCount } from '@/lib/tickets';
+import { getTicket, deleteTicket, childTicketCount, descendantTickets } from '@/lib/tickets';
 import { getProject } from '@/lib/projects';
 import { ticketKey } from '@/lib/ticketMeta';
 import { employeeExists, getEmployee } from '@/lib/employees';
@@ -133,13 +133,14 @@ export async function PATCH(request, { params }) {
   }
 
   // Archiving is reversible by design, so anyone who can edit a ticket may do
-  // it, and it only ever flips the flag. archived_at is cleared on restore so
-  // the archived view does not keep showing a stale date.
+  // it, and it only ever flips the flag. archived_at and archived_by are
+  // cleared on restore so the archived view does not keep a stale date or name.
   if (body.archived !== undefined) {
     edits.archived = body.archived ? 1 : 0;
     edits.archived_at = edits.archived
       ? new Date().toISOString().replace('T', ' ').slice(0, 19)
       : null;
+    edits.archived_by = edits.archived ? session.user.id : null;
   }
 
   if (body.slack_channel !== undefined) {
@@ -265,12 +266,20 @@ export async function PATCH(request, { params }) {
   // written but not logged. The archived flag itself is logged under
   // 'archived', which the feed does render.
   logged.delete('archived_at');
+  logged.delete('archived_by');
   logged.delete('slack_channel');
-  if (edits.archived === Number(ticket.archived || 0)) {
-    // Re-archiving something already archived is a no-op, so it does not belong
-    // in the history either.
-    logged.delete('archived');
+  if (edits.archived !== undefined && edits.archived !== Number(ticket.archived || 0)) {
+    // The column is 0/1. The feed reads "Active" and "Archived" instead, the
+    // same way a parent change is logged as a key rather than an id.
+    await logActivityChanges(
+      ticketId,
+      session.user.id,
+      { archived: Number(ticket.archived) ? 'Archived' : 'Active' },
+      { archived: edits.archived ? 'Archived' : 'Active' },
+      ['archived']
+    );
   }
+  logged.delete('archived');
 
   // Moving an unassigned ticket into a status claims it for the actor, matching
   // the behaviour the board and list already had.
@@ -367,7 +376,35 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  return NextResponse.json({ ticket: updated, notifications });
+  // Child work items are a separate choice. The dialog asks, and only a checked
+  // box walks the branch. Descendants already in the target state are left
+  // alone so a second archive does not rewrite their archived date.
+  const affected = [updated];
+  if (body.includeChildren && edits.archived !== undefined) {
+    const want = edits.archived;
+    const descendants = await descendantTickets(ticketId);
+    for (const child of descendants) {
+      if (child.archived === want) continue;
+      await db
+        .prepare(
+          `UPDATE tickets
+           SET archived = ?, archived_at = ?, archived_by = ?, updated_at = datetime('now')
+           WHERE id = ?`
+        )
+        .run([want, edits.archived_at, edits.archived_by, child.id]);
+      await logActivityChanges(
+        child.id,
+        session.user.id,
+        { archived: child.archived ? 'Archived' : 'Active' },
+        { archived: want ? 'Archived' : 'Active' },
+        ['archived']
+      );
+      const row = await getTicket(child.id);
+      if (row) affected.push(row);
+    }
+  }
+
+  return NextResponse.json({ ticket: updated, affected, notifications });
 }
 
 export async function DELETE(request, { params }) {

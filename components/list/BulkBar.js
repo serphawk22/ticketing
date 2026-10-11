@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { STATUS_META, STATUS_ORDER, PRIORITY_META, PRIORITY_ORDER } from '../meta';
+import { ArchiveIcon } from '../ticket/icons';
 
 /**
  * The floating bar that appears over the bottom of the table once work items
@@ -17,6 +18,7 @@ export default function BulkBar({
   busy,
   onApply,
   onDelete,
+  onArchive,
   onClear,
 }) {
   const [status, setStatus] = useState('');
@@ -127,6 +129,13 @@ export default function BulkBar({
       <button type="button" className="btn-primary" onClick={apply} disabled={busy || nothingChosen}>
         {busy ? 'Applying…' : 'Apply'}
       </button>
+
+      {onArchive && (
+        <button type="button" className="btn-ghost" onClick={onArchive} disabled={busy}>
+          <ArchiveIcon size={14} />
+          Archive
+        </button>
+      )}
 
       <button
         type="button"
