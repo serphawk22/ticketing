@@ -5,8 +5,8 @@ import { getTicket } from '@/lib/tickets';
 import { getAttachments } from '@/lib/ticketDetail';
 import {
   attachmentKey,
+  attachmentOpenUrl,
   deleteAttachment,
-  presignedAttachmentUrl,
   putAttachment,
   storageAvailable,
 } from '@/lib/storage';
@@ -37,7 +37,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Attachment not found.' }, { status: 404 });
     }
     try {
-      const url = await presignedAttachmentUrl(attachment.storage_key, 900);
+      const url = await attachmentOpenUrl(attachment);
       return NextResponse.json({ url, filename: attachment.filename });
     } catch (err) {
       return NextResponse.json({ error: err.message }, { status: 502 });
