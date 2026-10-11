@@ -20,6 +20,8 @@ export default function LoginPage() {
     const rect = el.getBoundingClientRect();
     el.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
     el.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    el.style.setProperty('--cursor-x', `${e.clientX}px`);
+    el.style.setProperty('--cursor-y', `${e.clientY}px`);
   }, []);
 
   async function handleSubmit(e) {

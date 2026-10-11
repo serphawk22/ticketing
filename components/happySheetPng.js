@@ -79,16 +79,22 @@ export default function downloadHappySheetPng(rows, { day = '' } = {}) {
   const list = (rows || []).filter(Boolean);
   if (list.length === 0) return;
 
-  const W = 900;
+  const W = 1180;
   const scale = 2;
   const margin = 26;
   const tableW = W - margin * 2;
   const cols = [
-    { key: 'date', label: 'Date', width: 110 },
-    { key: 'time', label: 'Time', width: 66 },
-    { key: 'name', label: 'Name', width: 160 },
-    { key: 'happy_one', label: 'What made your day happy', width: tableW - 110 - 66 - 160 - 190 },
-    { key: 'happy_others', label: 'Made anybody else happy', width: 190 },
+    { key: 'date', label: 'Date', width: 100 },
+    { key: 'time', label: 'Time', width: 60 },
+    { key: 'name', label: 'Name', width: 150 },
+    {
+      key: 'happy_one',
+      label: 'What made your day happy',
+      width: tableW - 100 - 60 - 150 - 170 - 190 - 160,
+    },
+    { key: 'happy_others', label: 'Made anybody else happy', width: 170 },
+    { key: 'happy_goals', label: 'Goals & Self-Satisfaction', width: 190 },
+    { key: 'happy_dreams', label: 'Dreams', width: 160 },
   ];
 
   const bodySize = 13;
@@ -113,6 +119,8 @@ export default function downloadHappySheetPng(rows, { day = '' } = {}) {
       name: r.name,
       happy_one: r.happy_one,
       happy_others: r.happy_others ? r.happy_others : '—',
+      happy_goals: r.happy_goals ? r.happy_goals : '—',
+      happy_dreams: r.happy_dreams ? r.happy_dreams : '—',
     };
     return cols.map((c) => ({
       isName: c.key === 'name',
