@@ -144,8 +144,6 @@ function LogoutIcon() {
 const TOP_NAV = [
   { id: 'work', label: 'Your work', href: '/?filter=mine' },
   { id: 'projects', label: 'Projects', href: '/projects' },
-  { id: 'filters', label: 'Filters', href: '/?filter=all' },
-  { id: 'people', label: 'People', href: '/employees' },
 ];
 
 export default function AppShell({
@@ -276,10 +274,8 @@ export default function AppShell({
   }, [menuOpen]);
 
   function isNavActive(item) {
-    if (item.id === 'people') return view === 'employees';
     if (item.id === 'projects') return view === 'projects';
     if (item.id === 'work') return view === 'dashboard' || (view === 'board' && filter === 'mine');
-    if (item.id === 'filters') return view === 'board' && filter !== 'mine';
     return false;
   }
 
@@ -343,13 +339,6 @@ export default function AppShell({
   const groupedIds = new Set(
     workspaces.map((w) => String(w.id))
   );
-
-  // The developer dashboard already carries its own project and priority
-  // filters, so the separate Filters link would only point back at the page the
-  // reader is already on.
-  const topNav = view === 'dashboard'
-    ? TOP_NAV.filter((item) => item.id !== 'filters')
-    : TOP_NAV;
 
   // Projects created before work spaces existed have no workspace_id, so they
   // stay listed directly under the section rather than disappearing.
@@ -464,7 +453,7 @@ export default function AppShell({
         </Link>
 
         <nav className="topnav-items" aria-label="Primary">
-          {topNav.map((item) => (
+          {TOP_NAV.map((item) => (
             <Link
               key={item.id}
               href={item.href}
@@ -487,7 +476,7 @@ export default function AppShell({
             </button>
             {moreOpen && (
               <div className="menu-popup topnav-more-menu">
-                {topNav.map((item) => (
+                {TOP_NAV.map((item) => (
                   <Link
                     key={item.id}
                     href={item.href}
