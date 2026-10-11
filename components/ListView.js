@@ -1110,6 +1110,7 @@ export default function ListView({
             <InlineDateField
               value={t.due_date}
               onSave={(v) => patchTicket(t.id, { due_date: v })}
+              readOnly={!isAdmin}
               label={`Due date of ${ticketKey(t)}`}
               format={formatListDate}
               emptyText="None"

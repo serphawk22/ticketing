@@ -376,7 +376,7 @@ export default function DetailsSidebar({
               label="Due date"
               value={ticket.due_date}
               onSave={(v) => onPatch({ due_date: v })}
-              canEdit
+              canEdit={isAdmin}
               clickToEdit
             />
             <TimeField
