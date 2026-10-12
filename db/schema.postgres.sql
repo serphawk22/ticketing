@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   name       text        NOT NULL,
   email      text        NOT NULL UNIQUE,
   password   text        NOT NULL,
+  passkey    text,
   role       text        NOT NULL CHECK (role IN ('admin', 'developer', 'client')),
   must_change_password integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
@@ -246,6 +247,20 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'must_change_password'
   ) THEN
     ALTER TABLE users ADD COLUMN must_change_password integer NOT NULL DEFAULT 0;
+  END IF;
+END
+$$;
+
+-- Clients sign in with a single per-client passkey rather than a password, so
+-- the hashed passkey is added to databases that predate it. Nullable: it is
+-- only ever written for client accounts.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'passkey'
+  ) THEN
+    ALTER TABLE users ADD COLUMN passkey text;
   END IF;
 END
 $$;

@@ -7,16 +7,15 @@ import { useRouter } from 'next/navigation';
 /**
  * The client door.
  *
- * Same credentials as the team login, but this page only admits client
- * accounts. A developer who wanders in is told where to go rather than being
- * dropped into a portal they cannot use, and an admin or developer who needs
- * the team app gets a link back to it.
+ * A client signs in with nothing but their passkey -- the one code an admin
+ * mints for them and emails to their address. There is no password to forget
+ * and no reset screen to change it on, so the form is a single field. A team
+ * member who wanders in is pointed at the team sign-in instead.
  */
 export default function ClientLoginPage() {
   const router = useRouter();
   const containerRef = useRef(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [passkey, setPasskey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -34,28 +33,19 @@ export default function ClientLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/client-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ passkey }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Login failed.');
+        setError(data.error || 'Could not sign you in.');
         return;
       }
 
-      if (data.user?.role !== 'client') {
-        setError(
-          'This account is not a client account. Use the team sign-in instead.'
-        );
-        return;
-      }
-
-      // A new client account still holds a temporary password, so it goes to the
-      // reset screen first and the portal afterwards.
-      router.push(data.user?.mustChangePassword ? '/change-password' : '/client');
+      router.push('/client');
       router.refresh();
     } catch {
       setError('Something went wrong. Please try again.');
@@ -86,7 +76,7 @@ export default function ClientLoginPage() {
 
         <div className="auth-heading">
           <h1>Client portal</h1>
-          <p className="sub">Raise a request and follow its progress</p>
+          <p className="sub">Enter the passkey your team emailed you</p>
         </div>
 
         {error && (
@@ -112,30 +102,24 @@ export default function ClientLoginPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="client-email">Email</label>
+            <label htmlFor="client-passkey">Passkey</label>
             <input
-              id="client-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-              required
+              id="client-passkey"
+              inputMode="text"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              value={passkey}
+              onChange={(e) => setPasskey(e.target.value)}
+              placeholder="XXXX-XXXX"
+              autoComplete="one-time-code"
               autoFocus
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="client-password">Password</label>
-            <input
-              id="client-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
               required
             />
+            <p className="client-passkey-hint">
+              One passkey per client. If yours is lost, ask your team to issue a
+              new one.
+            </p>
           </div>
 
           <div className="form-group">

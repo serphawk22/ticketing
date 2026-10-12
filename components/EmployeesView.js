@@ -122,10 +122,10 @@ export default function EmployeesView({
     if (ticketsRes.ok) setTickets(ticketsData.tickets);
   }
 
-  async function handleSave(employee, invite) {
+  async function handleSave(employee, invite, passkey) {
     setEditing(null);
     await refresh();
-    announceSave(employee, invite);
+    announceSave(employee, invite, passkey);
   }
 
   async function toggleActive(employee) {
@@ -187,7 +187,20 @@ export default function EmployeesView({
 
       setResending(null);
       await refresh();
-      push({ message: `Invite resent to ${target.email} with a new temporary password.` });
+      if (target.role === 'client' && data.passkey) {
+        // Delivery failed, so the fresh passkey has to be relayed by hand.
+        push({
+          message: `Mail could not be sent. Give ${target.email} their new passkey: ${data.passkey}`,
+          tone: 'error',
+        });
+      } else {
+        push({
+          message:
+            target.role === 'client'
+              ? `A new passkey was emailed to ${target.email}. The old one no longer works.`
+              : `Invite resent to ${target.email} with a new temporary password.`,
+        });
+      }
     } catch (e) {
       setResending(null);
       setError(e.message);
@@ -197,17 +210,26 @@ export default function EmployeesView({
 
   /**
    * An invite that could not be delivered is not a silent no-op: the employee
-   * exists but has never been told, so warn and point at the resend action.
+   * exists but has never been told, so warn and point at the resend action. A
+   * client's mail is a single passkey rather than a temporary password.
    */
-  function announceSave(employee, invite) {
+  function announceSave(employee, invite, passkey) {
     if (invite?.sent) {
       push({
-        message: `${employee.name} was added and emailed a temporary password.`,
+        message:
+          employee.role === 'client'
+            ? `${employee.name} was added and emailed their passkey.`
+            : `${employee.name} was added and emailed a temporary password.`,
       });
       return;
     }
     push({
-      message: `${employee.name} was added, but the invite email failed to send. Use "Resend invite" to try again.`,
+      message:
+        employee.role === 'client'
+          ? passkey
+            ? `${employee.name} was added. Mail is not configured, so give the client their passkey: ${passkey}`
+            : `${employee.name} was added, but the passkey email failed to send. Use "Resend passkey" to try again.`
+          : `${employee.name} was added, but the invite email failed to send. Use "Resend invite" to try again.`,
       tone: 'error',
     });
   }
@@ -556,7 +578,7 @@ export default function EmployeesView({
                       setOpenMenu(null);
                     }}
                   >
-                    Resend invite
+                    {openEmployee.role === 'client' ? 'Resend passkey' : 'Resend invite'}
                   </button>
                   <button
                     type="button"
@@ -670,9 +692,13 @@ export default function EmployeesView({
 
       {resending && (
         <ConfirmModal
-          title="Resend invite"
-          message={`Email ${resending.name} a new invite? A fresh temporary password will be generated and any previous one will stop working.`}
-          confirmLabel="Resend invite"
+          title={resending.role === 'client' ? 'Resend passkey' : 'Resend invite'}
+          message={
+            resending.role === 'client'
+              ? `Email ${resending.name} a fresh passkey? A new one will be generated and the current one will stop working.`
+              : `Email ${resending.name} a new invite? A fresh temporary password will be generated and any previous one will stop working.`
+          }
+          confirmLabel={resending.role === 'client' ? 'Resend passkey' : 'Resend invite'}
           onCancel={() => setResending(null)}
           onConfirm={handleResend}
         />

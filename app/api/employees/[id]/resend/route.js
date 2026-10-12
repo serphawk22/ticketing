@@ -1,19 +1,23 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getEmployee } from '@/lib/employees';
-import { getUserByEmail, resetUserPassword } from '@/lib/users';
-import { sendEmployeeInvite } from '@/lib/mail';
+import { getUserByEmail, issueClientPasskey, resetUserPassword } from '@/lib/users';
+import { sendClientPasskey, sendEmployeeInvite } from '@/lib/mail';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Reissues an invite.
+ * Reissues the sign-in credential.
  *
- * The original temporary password cannot be repeated: only its bcrypt hash was
- * ever stored, which is the point. So a resend mints a fresh temporary
- * password, re-arms the forced change at first login, and emails it. Any
- * earlier unused password stops working, which is also what an admin retrying
- * a failed send actually wants.
+ * For team members that is an invite: the original temporary password cannot
+ * be repeated -- only its bcrypt hash was ever stored, which is the point -- so
+ * a resend mints a fresh temporary password, re-arms the forced change at
+ * first login, and emails it. Any earlier unused password stops working.
+ *
+ * For a client the credential is their passkey. Same hash-only rule, so a
+ * resend rotates to a brand-new passkey and the old one stops working
+ * immediately -- which is also what an admin retrying a failed send actually
+ * wants.
  */
 export async function POST(request, { params }) {
   const session = await requireAuth();
@@ -21,7 +25,7 @@ export async function POST(request, { params }) {
 
   if (session.user.role !== 'admin') {
     return NextResponse.json(
-      { error: 'Only admins can resend invites.' },
+      { error: 'Only admins can resend credentials.' },
       { status: 403 }
     );
   }
@@ -35,8 +39,46 @@ export async function POST(request, { params }) {
   const account = await getUserByEmail(employee.email);
   if (!account) {
     return NextResponse.json(
-      { error: `${employee.email} has no login to invite yet.` },
+      { error: `${employee.email} has no login yet.` },
       { status: 409 }
+    );
+  }
+
+  const isClient = employee.role === 'client';
+
+  if (isClient) {
+    const passkey = await issueClientPasskey(account.id);
+
+    const mail = await sendClientPasskey({
+      client: employee,
+      passkey,
+      actorName: session.user.name,
+      trigger: 'client-passkey-resend',
+    });
+
+    const sent = mail?.status === 'sent';
+
+    if (!sent) {
+      console.error(
+        `[employees] passkey resend to ${employee.email} failed (${mail?.status || 'unknown'}): ${
+          mail?.error || 'SMTP is not configured'
+        }`
+      );
+    }
+
+    return NextResponse.json(
+      {
+        resent: sent,
+        status: mail?.status || 'unknown',
+        error: sent
+          ? null
+          : mail?.error || 'SMTP is not configured, so no email was sent.',
+        // Echoe back only on failure, so a passkey stuck on a failed send can
+        // still be relayed by hand.
+        passkey: sent ? null : passkey,
+        employee,
+      },
+      { status: sent ? 200 : 502 }
     );
   }
 

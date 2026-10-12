@@ -49,8 +49,10 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save employee.');
       // The invite result rides along so the caller can warn when the email
-      // did not go out, rather than the add looking like a clean success.
-      onSave(data.employee, data.invite);
+      // did not go out, rather than the add looking like a clean success. A
+      // client's passkey is echoed back only when the mail failed -- on a
+      // successful send the plaintext is never handed to the UI.
+      onSave(data.employee, data.invite, data.passkey);
     } catch (err) {
       setError(err.message);
       setSubmitting(false);

@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getEmployees, createEmployee, getEmployeeByEmail } from '@/lib/employees';
-import { createUserWithTempPassword, getUserByEmail } from '@/lib/users';
-import { sendEmployeeInvite } from '@/lib/mail';
+import {
+  createClientAccount,
+  createUserWithTempPassword,
+  getUserByEmail,
+  issueClientPasskey,
+} from '@/lib/users';
+import { sendClientPasskey, sendEmployeeInvite } from '@/lib/mail';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Clients are accounts too: they live in the same directory so one page
@@ -42,7 +47,10 @@ export async function POST(request) {
   }
 
   if (!VALID_ROLES.includes(role)) {
-    return NextResponse.json({ error: 'Role must be admin or developer.' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Role must be admin, developer or client.' },
+      { status: 400 }
+    );
   }
 
   // Both tables are keyed by email, so a clash in either one has to stop the
@@ -64,6 +72,54 @@ export async function POST(request) {
 
   // The account is created first: an employee with no way to sign in would be
   // a directory entry that does nothing.
+  if (role === 'client') {
+    const account = await createClientAccount({ name: cleanName, email: cleanEmail });
+
+    const employee = await createEmployee({
+      name: cleanName,
+      email: cleanEmail,
+      role,
+      department: String(department ?? '').trim(),
+      title: String(title ?? '').trim(),
+    });
+
+    // A client authenticates with one passkey, emailed to the address the admin
+    // just entered -- there is no temporary password to change at first login.
+    const passkey = await issueClientPasskey(account.id);
+    const mail = await sendClientPasskey({
+      client: employee,
+      passkey,
+      actorName: session.user.name,
+    });
+
+    const sent = mail?.status === 'sent';
+
+    if (!sent) {
+      console.error(
+        `[employees] client ${cleanEmail} created but passkey not delivered (${mail?.status || 'unknown'}): ${
+          mail?.error || 'SMTP is not configured'
+        }`
+      );
+    }
+
+    return NextResponse.json(
+      {
+        employee,
+        invite: {
+          sent,
+          status: mail?.status || 'unknown',
+          error: sent ? null : mail?.error || 'SMTP is not configured, so no email was sent.',
+        },
+        // The passkey is a live credential, so it is not echoed back once the
+        // email is away. On a failed delivery the account would otherwise be
+        // unusable -- only a hash is stored -- so the admin who just created it
+        // gets the plaintext to relay by hand instead.
+        passkey: sent ? null : passkey,
+      },
+      { status: 201 }
+    );
+  }
+
   const account = await createUserWithTempPassword({
     name: cleanName,
     email: cleanEmail,
