@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeRedirectPath } from '@/lib/safeRedirect';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,10 +43,20 @@ export default function LoginPage() {
         return;
       }
 
+      // A ticket link arrives here as ?next=/t/<key>. Only a same-origin path
+      // is honoured, so the parameter cannot redirect the browser off-site.
+      const next = safeRedirectPath(
+        new URLSearchParams(window.location.search).get('next')
+      );
+
       if (data.user?.mustChangePassword) {
-        router.push('/change-password');
+        router.push(
+          next ? `/change-password?next=${encodeURIComponent(next)}` : '/change-password'
+        );
       } else if (data.user?.role === 'client') {
         router.push('/client');
+      } else if (next) {
+        router.push(next);
       } else {
         router.push('/');
       }

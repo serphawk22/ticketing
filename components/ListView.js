@@ -787,7 +787,7 @@ export default function ListView({
     }
 
     if (key === 'copylink') {
-      const link = `${window.location.origin}/projects/${ticket.project_id}/list?issue=${ticket.id}`;
+      const link = `${window.location.origin}/t/${encodeURIComponent(ticketKey(ticket))}`;
       return copyText(link, 'Link copied.');
     }
 
