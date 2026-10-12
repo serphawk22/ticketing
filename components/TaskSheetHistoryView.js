@@ -85,6 +85,36 @@ export default function TaskSheetHistoryView({
     };
   }
 
+function parseTicketsDetail(row) {
+  if (row.tickets_detail) {
+    try {
+      const parsed =
+        typeof row.tickets_detail === 'string'
+          ? JSON.parse(row.tickets_detail)
+          : row.tickets_detail;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {
+      // ignore
+    }
+  }
+  if (row.linked_ticket_id) {
+    const key = `${(row.linked_key || 'TM').toUpperCase()}-${row.linked_ticket_id}`;
+    return [
+      {
+        id: row.linked_ticket_id,
+        key,
+        title: row.task_title,
+        status: row.task_state === 'completed' ? 'Completed' : 'In Progress',
+        workState: row.task_state,
+        taskStatus: row.task_state === 'completed' ? 'Completed' : 'In Progress',
+        blocker: row.blocker || '',
+        project_id: row.linked_project_id,
+      },
+    ];
+  }
+  return [];
+}
+
   function downloadTaskCsv() {
     const csvCell = (v) => {
       const s = String(v ?? '');
@@ -99,17 +129,48 @@ export default function TaskSheetHistoryView({
       'Task title',
       'Task description',
       'Task state',
-      'Blocker',
-      'Work item',
+      'Work items',
+      'Ticket statuses',
+      'Blockers',
     ];
     const lines = [
       header.map(csvCell).join(','),
       ...rows.map((r) => {
         const { date, time } = formatCell(r.created_at);
-        const key = r.linked_ticket_id
-          ? `#${(r.linked_key || 'TM').toUpperCase()}-${r.linked_ticket_id}`
-          : '';
-        return [date, time, r.name, r.project, r.hours_worked, r.task_title, r.task_description, STATE_META[r.task_state]?.label || r.task_state, r.blocker || '', key]
+        const tickets = parseTicketsDetail(r);
+        const keys =
+          tickets.map((t) => `#${t.key}`).join('; ') ||
+          (r.linked_ticket_id
+            ? `#${(r.linked_key || 'TM').toUpperCase()}-${r.linked_ticket_id}`
+            : '');
+        const ticketStatuses = tickets
+          .map(
+            (t) =>
+              `${t.key}: ${
+                t.workState === 'completed'
+                  ? 'Completed'
+                  : t.taskStatus || 'Not Completed'
+              }`
+          )
+          .join('; ');
+        const ticketBlockers =
+          tickets
+            .filter((t) => t.workState === 'not_completed' && t.blocker)
+            .map((t) => `${t.key}: ${t.blocker}`)
+            .join('; ') || r.blocker || '';
+        return [
+          date,
+          time,
+          r.name,
+          r.project,
+          r.hours_worked,
+          r.task_title,
+          r.task_description,
+          STATE_META[r.task_state]?.label || r.task_state,
+          keys,
+          ticketStatuses,
+          ticketBlockers,
+        ]
           .map(csvCell)
           .join(',');
       }),
@@ -321,13 +382,82 @@ export default function TaskSheetHistoryView({
                           <td className="list-cell">{row.project}</td>
                           <td className="list-cell list-cell-num">{row.hours_worked}h</td>
                           <td className="list-cell">
-                            <span className="list-title">{row.task_title}</span>
-                            <span className="list-cell-note">{row.task_description}</span>
-                            {row.blocker && (
-                              <span className="list-cell-note ts-blocker-note" title={row.blocker}>
-                                Blocked by: {row.blocker}
-                              </span>
-                            )}
+                            {(() => {
+                              const tickets = parseTicketsDetail(row);
+                              if (tickets.length > 0) {
+                                return (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {row.task_title && (
+                                      <div>
+                                        <span className="list-title">{row.task_title}</span>
+                                        {row.task_description && (
+                                          <span className="list-cell-note">{row.task_description}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {tickets.map((t) => {
+                                      const isDone = t.workState === 'completed';
+                                      const statusText = isDone ? 'Completed' : (t.taskStatus || 'Not Completed');
+                                      return (
+                                        <div
+                                          key={t.id || t.key}
+                                          style={{
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            background: 'var(--subtle-bg, rgba(0,0,0,0.02))',
+                                            border: '1px solid var(--border-subtle, rgba(0,0,0,0.06))',
+                                            fontSize: '12px',
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                            <strong style={{ color: 'var(--text-color, #172b4d)' }}>#{t.key}</strong>
+                                            {t.title && <span style={{ color: 'var(--text-muted, #626f86)' }}>{t.title}</span>}
+                                            <span
+                                              style={{
+                                                marginLeft: 'auto',
+                                                padding: '1px 6px',
+                                                borderRadius: '3px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                background: isDone ? '#d4f7dc' : '#eef0f4',
+                                                color: isDone ? '#1f8a3d' : '#626f86',
+                                              }}
+                                            >
+                                              {statusText}
+                                            </span>
+                                          </div>
+                                          {!isDone && t.blocker && (
+                                            <div
+                                              style={{
+                                                marginTop: '4px',
+                                                color: '#ae2e24',
+                                                fontSize: '11px',
+                                                display: 'flex',
+                                                gap: '4px',
+                                              }}
+                                            >
+                                              <span style={{ fontWeight: 600 }}>Blocker:</span>
+                                              <span>{t.blocker}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <>
+                                  <span className="list-title">{row.task_title}</span>
+                                  <span className="list-cell-note">{row.task_description}</span>
+                                  {row.blocker && (
+                                    <span className="list-cell-note ts-blocker-note" title={row.blocker}>
+                                      Blocked by: {row.blocker}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </td>
                           <td className="list-cell">
                             <span
@@ -338,22 +468,46 @@ export default function TaskSheetHistoryView({
                             </span>
                           </td>
                           <td className="list-cell">
-                            {row.linked_ticket_id ? (
-                              row.linked_project_id ? (
-                                <a
-                                  className="ts-ticket-link"
-                                  href={`/projects/${row.linked_project_id}/list?issue=${row.linked_ticket_id}`}
-                                >
-                                  #{(row.linked_key || 'TM').toUpperCase()}-{row.linked_ticket_id}
-                                </a>
-                              ) : (
-                                <span className="ts-muted">
-                                  #{(row.linked_key || 'TM').toUpperCase()}-{row.linked_ticket_id}
-                                </span>
-                              )
-                            ) : (
-                              <span className="ts-muted">—</span>
-                            )}
+                            {(() => {
+                              const tickets = parseTicketsDetail(row);
+                              if (tickets.length > 0) {
+                                return (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {tickets.map((t) => {
+                                      const projId = t.project_id || row.linked_project_id;
+                                      const key = t.key || (t.id ? `TM-${t.id}` : '');
+                                      const href = projId
+                                        ? `/projects/${projId}/list?selectedIssue=${encodeURIComponent(key)}`
+                                        : `/work-items?selectedIssue=${encodeURIComponent(key)}`;
+                                      return (
+                                        <a
+                                          key={t.id || t.key}
+                                          className="ts-ticket-link"
+                                          href={href}
+                                          title={`View #${key} on board`}
+                                        >
+                                          #{key}
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+                              if (row.linked_ticket_id) {
+                                const key = `${(row.linked_key || 'TM').toUpperCase()}-${row.linked_ticket_id}`;
+                                return row.linked_project_id ? (
+                                  <a
+                                    className="ts-ticket-link"
+                                    href={`/projects/${row.linked_project_id}/list?selectedIssue=${encodeURIComponent(key)}`}
+                                  >
+                                    #{key}
+                                  </a>
+                                ) : (
+                                  <span className="ts-muted">#{key}</span>
+                                );
+                              }
+                              return <span className="ts-muted">—</span>;
+                            })()}
                           </td>
                         </tr>
                       );

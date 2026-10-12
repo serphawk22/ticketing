@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS task_sheet_submissions (
   -- Only filled when the state is not_completed: what stopped the work.
   blocker            text,
   linked_ticket_id   integer REFERENCES tickets (id),
+  tickets_detail     text,
   created_at         timestamptz NOT NULL DEFAULT now()
 );
 
@@ -379,6 +380,15 @@ BEGIN
       AND column_name = 'blocker'
   ) THEN
     ALTER TABLE task_sheet_submissions ADD COLUMN blocker text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'task_sheet_submissions'
+      AND column_name = 'tickets_detail'
+  ) THEN
+    ALTER TABLE task_sheet_submissions ADD COLUMN tickets_detail text;
   END IF;
 END
 $$;
