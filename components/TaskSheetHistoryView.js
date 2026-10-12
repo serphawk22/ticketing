@@ -9,6 +9,7 @@ import { useToasts, Toaster } from '@/components/Toaster';
 import { ClockIcon } from '@/components/ticket/icons';
 import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
 import HappySheetHistoryView from '@/components/HappySheetHistoryView';
+import downloadTaskSheetPng from '@/components/taskSheetPng';
 
 const STATE_META = {
   completed: { label: 'Completed', className: 'is-done' },
@@ -126,6 +127,16 @@ export default function TaskSheetHistoryView({
     URL.revokeObjectURL(url);
   }
 
+  function downloadTaskImage() {
+    try {
+      downloadTaskSheetPng(rows, {
+        filters: { name, project: projectFilter, from, to },
+      });
+    } catch {
+      push({ message: 'Could not create the image.', tone: 'error' });
+    }
+  }
+
   const byName = rows.reduce((acc, r) => {
     acc[r.name] = (acc[r.name] || 0) + 1;
     return acc;
@@ -236,6 +247,14 @@ export default function TaskSheetHistoryView({
                 disabled={taskCount === 0}
               >
                 Download CSV
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={downloadTaskImage}
+                disabled={taskCount === 0}
+              >
+                Download image
               </button>
               {(name || projectFilter || from || to) && (
                 <button
