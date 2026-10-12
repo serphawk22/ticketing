@@ -2276,6 +2276,25 @@ textarea {
   color: var(--text-subtle);
 }
 
+.project-card-client {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: var(--fs-12);
+  color: var(--text-subtle);
+}
+
+.project-card-client-label {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--divider);
+  color: var(--text-subtle);
+  font-size: var(--fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .project-stats {
   display: flex;
   gap: 24px;

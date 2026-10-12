@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getAllProjects, createProject, getProjectByKey } from '@/lib/projects';
+import { getAllProjects, createProject, getProjectByKey, clientExists } from '@/lib/projects';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
 
@@ -22,7 +22,7 @@ export async function POST(request) {
     );
   }
 
-  const { key, name, description = '', color, workspace_id = null } = await request.json();
+  const { key, name, description = '', color, workspace_id = null, client_id = null } = await request.json();
   const projectKey = String(key ?? '').trim().toUpperCase();
 
   if (!isValidProjectKey(projectKey)) {
@@ -54,12 +54,20 @@ export async function POST(request) {
     );
   }
 
+  if (client_id != null && !(await clientExists(client_id))) {
+    return NextResponse.json(
+      { error: 'Client not found.' },
+      { status: 400 }
+    );
+  }
+
   const project = await createProject({
     key: projectKey,
     name: name.trim(),
     description: String(description ?? '').trim(),
     color,
     workspace_id: workspace_id == null ? null : Number(workspace_id),
+    client_id: client_id == null ? null : Number(client_id),
   });
 
   return NextResponse.json({ project }, { status: 201 });

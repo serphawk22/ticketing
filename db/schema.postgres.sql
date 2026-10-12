@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS projects (
   description  text        NOT NULL DEFAULT '',
   color        text        NOT NULL DEFAULT '#0c66e4',
   workspace_id integer              REFERENCES workspaces (id),
+  client_id    integer              REFERENCES users (id),
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -236,6 +237,21 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Optional client account behind a project. Nullable: a project may have no
+-- client, and projects created before the field existed stay valid.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'client_id'
+  ) THEN
+    ALTER TABLE projects ADD COLUMN client_id integer REFERENCES users (id);
+  END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS projects_client_idx ON projects (client_id);
 
 -- An admin-created account gets a temporary password that has to be changed at
 -- first login, so the flag that enforces it is added to databases that predate

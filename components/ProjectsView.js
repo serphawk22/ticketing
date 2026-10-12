@@ -10,6 +10,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 export default function ProjectsView({ initialProjects, currentUser, myIssuesCount }) {
   const [projects, setProjects] = useState(initialProjects);
   const [workspaces, setWorkspaces] = useState([]);
+  const [clients, setClients] = useState([]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');
@@ -32,6 +33,20 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
       }
     } catch {
       // Keep the picker on its last known list.
+    }
+
+    // The modal's client picker only lists client accounts, which only admins
+    // can read. Everyone else keeps the empty list.
+    if (isAdmin) {
+      try {
+        const usersRes = await fetch('/api/users');
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setClients((usersData.users || []).filter((u) => u.role === 'client'));
+        }
+      } catch {
+        // Keep the picker on its last known list.
+      }
     }
   }
 
@@ -144,6 +159,13 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
 
                   {p.description && <p className="project-card-desc">{p.description}</p>}
 
+                  {p.client_name && (
+                    <p className="project-card-client">
+                      <span className="project-card-client-label">Client</span>
+                      {p.client_name}
+                    </p>
+                  )}
+
                   <div className="project-stats">
                     <div className="project-stat">
                       <span className="project-stat-value">{p.open_count}</span>
@@ -196,6 +218,7 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
         <ProjectModal
           project={editing.isNew ? null : editing}
           workspaces={workspaces}
+          clients={clients}
           onClose={() => setEditing(null)}
           onSave={handleSave}
         />

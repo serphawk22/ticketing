@@ -6,6 +6,7 @@ import { PROJECT_COLORS } from './meta';
 export default function ProjectModal({
   project,
   workspaces = [],
+  clients = [],
   initialWorkspaceId = null,
   onClose,
   onSave,
@@ -15,6 +16,9 @@ export default function ProjectModal({
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
   const [color, setColor] = useState(project?.color || PROJECT_COLORS[0]);
+  const [clientId, setClientId] = useState(
+    project?.client_id != null ? String(project.client_id) : ''
+  );
   // A project created from inside a work space starts there rather than in the
   // "No work space" default, so the picker agrees with where the user clicked.
   const [workspaceId, setWorkspaceId] = useState(
@@ -52,6 +56,7 @@ export default function ProjectModal({
             description,
             color,
             workspace_id: workspaceId === '' ? null : Number(workspaceId),
+            client_id: clientId === '' ? null : Number(clientId),
           }),
         }
       );
@@ -157,6 +162,28 @@ export default function ProjectModal({
               </select>
             </div>
           )}
+
+          <div className="form-group">
+            <label htmlFor="project-client">Client (optional)</label>
+            <select
+              id="project-client"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              disabled={clients.length === 0}
+            >
+              <option value="">No client</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.email ? `${c.name} — ${c.email}` : c.name}
+                </option>
+              ))}
+            </select>
+            {clients.length === 0 && (
+              <p className="field-hint">
+                Add a client account from the Employees page to assign one here.
+              </p>
+            )}
+          </div>
 
           <div className="form-group">
             <label id="project-color-label">Color</label>
