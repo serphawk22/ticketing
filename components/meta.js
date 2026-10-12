@@ -24,6 +24,8 @@ import {
   parseDuration,
   ticketKey,
   relationLabelFor,
+  INCLUSION_META,
+  INCLUSION_ORDER,
 } from '../lib/ticketMeta';
 
 export {
@@ -52,6 +54,8 @@ export {
   formatDuration,
   parseDuration,
   ticketKey,
+  INCLUSION_META,
+  INCLUSION_ORDER,
 };
 
 export function TypeIcon({ type, size = 14 }) {

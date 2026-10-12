@@ -41,6 +41,7 @@ export default async function TaskSheetPage() {
     return (
       <PublicTaskSheetView
         people={people}
+        projects={projects.map((p) => ({ id: p.id, name: p.name, key: p.key, color: p.color }))}
         projectNames={projectNames}
         defaults={defaults}
       />

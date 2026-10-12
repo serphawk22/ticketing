@@ -56,7 +56,8 @@ export default function TaskSheetView({
           <div className="ts-card">
             <TaskSheetForm
               people={people}
-              projects={projectNames}
+              projects={projects}
+              projectNames={projectNames}
               defaults={defaults}
               onSubmitted={() => setSubmittedAt(new Date().toLocaleTimeString())}
             />

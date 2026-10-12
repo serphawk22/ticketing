@@ -7,9 +7,8 @@ import { ticketKey } from '@/lib/ticketMeta';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { logActivityChanges } from '@/lib/ticketActivity';
-import { deleteAttachment } from '@/lib/storage';
 import { wouldCreateCycle } from '@/lib/ticketTree';
-import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER } from '@/lib/ticketMeta';
+import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
 
@@ -108,6 +107,32 @@ export async function PATCH(request, { params }) {
     const value = parseNumber(body.estimate_seconds, { integer: true });
     if (value === undefined) return badValue('estimate_seconds', body.estimate_seconds);
     edits.estimate_seconds = value;
+  }
+
+  if (body.product_inclusion_status !== undefined) {
+    if (session.user.role === 'client') {
+      return NextResponse.json(
+        { error: 'Clients are not authorized to change product inclusion status.' },
+        { status: 403 }
+      );
+    }
+    if (!INCLUSION_ORDER.includes(body.product_inclusion_status)) {
+      return NextResponse.json(
+        { error: 'Invalid product inclusion status. Allowed: pending_review, included, not_included.' },
+        { status: 400 }
+      );
+    }
+    edits.product_inclusion_status = body.product_inclusion_status;
+  }
+
+  if (body.product_inclusion_reference !== undefined) {
+    if (session.user.role === 'client') {
+      return NextResponse.json(
+        { error: 'Clients are not authorized to change product inclusion reference.' },
+        { status: 403 }
+      );
+    }
+    edits.product_inclusion_reference = String(body.product_inclusion_reference ?? '').trim();
   }
 
   // Moving a ticket between projects is admin-only, matching the rule that only

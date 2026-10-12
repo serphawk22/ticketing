@@ -18,7 +18,7 @@ import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonO
 import { ChipInput, FieldRow, InlineText, Menu, MenuItem, MenuLabel } from './parts';
 import InlineDateField from '../InlineDateField';
 import UserPicker from '../UserPicker';
-import { CategoryField, PriorityField, ReporterField, StatusField } from '../TicketFields';
+import { CategoryField, PriorityField, ReporterField, StatusField, ProductInclusionField } from '../TicketFields';
 
 function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
   const assignable = useMemo(
@@ -137,10 +137,12 @@ function DateField({ label, value, onSave, canEdit, clickToEdit = false }) {
   );
 }
 
-function TimeField({ estimateSeconds, loggedSeconds, onSaveEstimate, onLog, canEdit }) {
+function TimeField({ estimateSeconds, loggedSeconds, timeLogs = [], onSaveEstimate, onLog, canEdit }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [note, setNote] = useState('');
+  const [workDate, setWorkDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [logging, setLogging] = useState(false);
 
   return (
     <FieldRow label="Time tracking">
@@ -158,6 +160,7 @@ function TimeField({ estimateSeconds, loggedSeconds, onSaveEstimate, onLog, canE
             className="tm-value-btn"
             onClick={() => canEdit && setOpen((v) => !v)}
             disabled={!canEdit}
+            title={canEdit ? 'View time spent and log work' : 'Only team members can log work time'}
           >
             <ClockIcon size={14} />
             {loggedSeconds ? formatDuration(loggedSeconds) : 'No time logged'}
@@ -165,14 +168,22 @@ function TimeField({ estimateSeconds, loggedSeconds, onSaveEstimate, onLog, canE
         </div>
       </div>
       <Menu open={open} onClose={() => setOpen(false)} className="tm-time-menu">
-        <div className="tm-time-form" onClick={(e) => e.stopPropagation()}>
+        <div className="tm-time-form" onClick={(e) => e.stopPropagation()} style={{ minWidth: '260px' }}>
           <label className="tm-mini-label" htmlFor="tm-log-time">Time spent</label>
           <input
             id="tm-log-time"
             className="tm-input"
-            placeholder="1h 30m"
+            placeholder="e.g. 1h 30m, 45m"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+          />
+          <label className="tm-mini-label" htmlFor="tm-log-date">Work date</label>
+          <input
+            id="tm-log-date"
+            type="date"
+            className="tm-input"
+            value={workDate}
+            onChange={(e) => setWorkDate(e.target.value)}
           />
           <label className="tm-mini-label" htmlFor="tm-log-note">Work description</label>
           <input
@@ -186,17 +197,54 @@ function TimeField({ estimateSeconds, loggedSeconds, onSaveEstimate, onLog, canE
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!parseDuration(draft)}
+              disabled={!parseDuration(draft) || logging}
               onClick={async () => {
-                await onLog(parseDuration(draft), note);
-                setDraft('');
-                setNote('');
-                setOpen(false);
+                setLogging(true);
+                try {
+                  await onLog(parseDuration(draft), note, workDate);
+                  setDraft('');
+                  setNote('');
+                  setOpen(false);
+                } finally {
+                  setLogging(false);
+                }
               }}
             >
-              Log time
+              {logging ? 'Logging...' : 'Log time'}
             </button>
           </div>
+
+          {timeLogs && timeLogs.length > 0 && (
+            <>
+              <hr className="tm-rule" />
+              <label className="tm-mini-label">Work entries ({timeLogs.length})</label>
+              <div style={{ maxHeight: '140px', overflowY: 'auto', fontSize: '12px' }}>
+                {timeLogs.map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      padding: '4px 0',
+                      borderBottom: '1px solid var(--border, #eee)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <strong>{entry.user_name || 'User'}</strong>
+                      <span className="tm-chip-plain" style={{ fontWeight: 600 }}>
+                        {formatDuration(entry.seconds)}
+                      </span>
+                    </div>
+                    <div style={{ color: 'var(--muted, #666)', fontSize: '11px' }}>
+                      {entry.work_date || (entry.created_at ? String(entry.created_at).slice(0, 10) : '')}
+                      {entry.note ? ` — ${entry.note}` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
           <hr className="tm-rule" />
           <label className="tm-mini-label" htmlFor="tm-estimate">Estimate</label>
           <input
@@ -256,23 +304,51 @@ function CustomField({ label, value, onSave, canEdit, placeholder, type = 'text'
             />
           </span>
         ) : (
-          <button
-            type="button"
-            className={`inline-value${value ? '' : ' is-empty'}`}
-            onClick={() => setEditing(true)}
-          >
-            {value ? (
-              <span className="tm-value-text">
-                {prefix ? <span className="tm-input-prefix">{prefix}</span> : null}
-                {value}
-              </span>
-            ) : (
-              placeholder
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              className={`inline-value${value ? '' : ' is-empty'}`}
+              onClick={() => setEditing(true)}
+            >
+              {value ? (
+                <span className="tm-value-text">
+                  {prefix ? <span className="tm-input-prefix">{prefix}</span> : null}
+                  {value}
+                </span>
+              ) : (
+                placeholder
+              )}
+            </button>
+            {value && /^https?:\/\//i.test(value) && (
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tm-inline-link"
+                title="Open reference link"
+                style={{ fontSize: '12px' }}
+              >
+                Open ↗
+              </a>
             )}
-          </button>
+          </span>
         )
       ) : (
-        <span className={value ? '' : 'tm-placeholder'}>{value || placeholder}</span>
+        <span className={value ? '' : 'tm-placeholder'}>
+          {value || placeholder}
+          {value && /^https?:\/\//i.test(value) && (
+            <a
+              href={value}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tm-inline-link"
+              title="Open reference link"
+              style={{ marginLeft: 6, fontSize: '12px' }}
+            >
+              Open ↗
+            </a>
+          )}
+        </span>
       )}
     </FieldRow>
   );
@@ -283,6 +359,7 @@ export default function DetailsSidebar({
   detail,
   employees,
   isAdmin,
+  currentUser,
   onPatch,
   onLogTime,
   onOpenWatcherMenu,
@@ -382,9 +459,10 @@ export default function DetailsSidebar({
             <TimeField
               estimateSeconds={ticket.estimate_seconds}
               loggedSeconds={detail.loggedSeconds}
+              timeLogs={detail.timeLogs}
               onSaveEstimate={(v) => onPatch({ estimate_seconds: v })}
               onLog={onLogTime}
-              canEdit
+              canEdit={!ticket.archived && currentUser?.role !== 'client'}
             />
             <FieldRow label="Category">
               <div className="tm-person">
@@ -410,6 +488,22 @@ export default function DetailsSidebar({
               onSave={(v) => onPatch({ budget: v === '' ? 0 : Number(v) })}
               canEdit={isAdmin}
               placeholder="0"
+            />
+            <FieldRow label="Main product">
+              <div className="tm-person">
+                <ProductInclusionField
+                  value={ticket.product_inclusion_status}
+                  onSelect={(v) => onPatch({ product_inclusion_status: v })}
+                  readOnly={ticket.archived || currentUser?.role === 'client'}
+                />
+              </div>
+            </FieldRow>
+            <CustomField
+              label="Inclusion ref"
+              value={ticket.product_inclusion_reference}
+              onSave={(v) => onPatch({ product_inclusion_reference: v })}
+              canEdit={!ticket.archived && currentUser?.role !== 'client'}
+              placeholder="e.g. PR #42, commit, v1.0"
             />
           </div>
         )}

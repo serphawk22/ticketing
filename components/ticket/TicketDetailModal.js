@@ -335,12 +335,12 @@ export default function TicketDetailModal({
   );
 
   const logTime = useCallback(
-    async (seconds, note) => {
+    async (seconds, note, workDate) => {
       try {
         const data = await call(`/api/tickets/${id}/time`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ seconds, note }),
+          body: JSON.stringify({ seconds, note, work_date: workDate }),
         });
         setDetail((d) => ({ ...d, ...data }));
       } catch (err) {
@@ -952,6 +952,7 @@ export default function TicketDetailModal({
             detail={{ ...detail, meEmployeeId: meEmployee?.id }}
             employees={employees}
             isAdmin={isAdmin}
+            currentUser={currentUser}
             onPatch={patch}
             onLogTime={logTime}
             onOpenWatcherMenu={() => setMoreOpen((v) => !v)}
