@@ -4188,6 +4188,12 @@ textarea {
   color: #64748b;
 }
 
+.client-passkey-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
 .auth-login .auth-demo code {
   padding: 1px 5px;
   border: 1px solid var(--border);
@@ -8785,6 +8791,31 @@ input.inline-input.tm-title-edit {
   color: var(--text-subtle);
 }
 
+.client-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.client-nav-link {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-subtle);
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.client-nav-link:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.client-nav-link-active {
+  color: var(--text);
+  background: var(--bg-selected);
+}
+
 .client-main {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
@@ -8793,6 +8824,13 @@ input.inline-input.tm-title-edit {
   margin: 0 auto;
   padding: 24px;
   align-items: start;
+}
+
+/* The raise-a-request route is a single form, so it drops the two-column grid
+   the list page uses and stays a comfortable reading width. */
+.client-main-single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 640px;
 }
 
 .client-raise,
@@ -8852,7 +8890,7 @@ input.inline-input.tm-title-edit {
 
 .client-requests-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
@@ -8919,12 +8957,87 @@ input.inline-input.tm-title-edit {
   white-space: pre-wrap;
 }
 
+.client-progress {
+  margin: 10px 0 0;
+}
+
+.client-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.client-progress-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-disabled);
+}
+
+.client-progress-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.client-progress-track {
+  height: 6px;
+  background: var(--bg-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.client-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
 .client-ticket-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   font-size: 12px;
   color: var(--text-disabled);
+}
+
+/* Status / who is working on it / when it was raised, as labelled facts rather
+   than a run-on line -- the answer a client came back for should be scannable. */
+.client-ticket-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 10px 0 0;
+}
+
+.client-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.client-fact dt {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-disabled);
+}
+
+.client-fact dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.client-fact-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--text-subtle);
 }
 
 .client-thread {
