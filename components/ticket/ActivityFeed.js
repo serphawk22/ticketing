@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Avatar from '../Avatar';
-import { PRIORITY_META, STATUS_META, FIELD_META, formatFullDateTime, ticketKey } from '../meta';
+import { PRIORITY_META, STATUS_META, INCLUSION_META, FIELD_META, formatFullDateTime, formatDuration, ticketKey } from '../meta';
 import { ArrowRightIcon, CommentIcon, HistoryIcon, SortDescIcon } from './icons';
 
 const TABS = [
@@ -28,6 +28,14 @@ function ValueChip({ field, value }) {
   }
   if (field === 'priority' && PRIORITY_META[value]) {
     const meta = PRIORITY_META[value];
+    return (
+      <span className="tm-lozenge" style={{ background: meta.bg, color: meta.text }}>
+        {meta.label}
+      </span>
+    );
+  }
+  if (field === 'product_inclusion_status' && INCLUSION_META[value]) {
+    const meta = INCLUSION_META[value];
     return (
       <span className="tm-lozenge" style={{ background: meta.bg, color: meta.text }}>
         {meta.label}
@@ -249,9 +257,14 @@ export default function ActivityFeed({
                 <p className="tm-activity-text">
                   <strong>{log.user_name}</strong> logged{' '}
                   <span className="tm-chip-plain">
-                    {Math.round(log.seconds / 60)}m
+                    {formatDuration(log.seconds)}
                     {log.note ? ` — ${log.note}` : ''}
                   </span>
+                  {log.work_date && (
+                    <span className="tm-muted" style={{ marginLeft: '6px', fontSize: '12px' }}>
+                      ({log.work_date})
+                    </span>
+                  )}
                 </p>
                 <time className="tm-activity-time">{formatFullDateTime(log.created_at)}</time>
               </div>
@@ -276,9 +289,14 @@ export default function ActivityFeed({
                   <p className="tm-activity-text">
                     <strong>{entry.user_name}</strong> logged{' '}
                     <span className="tm-chip-plain">
-                      {Math.round(entry.seconds / 60)}m
+                      {formatDuration(entry.seconds)}
                       {entry.note ? ` — ${entry.note}` : ''}
                     </span>
+                    {entry.work_date && (
+                      <span className="tm-muted" style={{ marginLeft: '6px', fontSize: '12px' }}>
+                        ({entry.work_date})
+                      </span>
+                    )}
                   </p>
                   <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
                 </div>

@@ -1,23 +1,50 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getAllTickets, getTicket, getTicketsForClient } from '@/lib/tickets';
+import { getAllTickets, getTicket, getTicketsForClient, getTicketsForProject } from '@/lib/tickets';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
 
-export async function GET() {
+export async function GET(request) {
   const session = await requireAuth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const url = request ? new URL(request.url) : null;
+  const projectIdParam = url?.searchParams.get('projectId');
+  const projectId = projectIdParam ? Number(projectIdParam) : null;
+
+  // If unauthenticated but requesting project-specific tickets for the task sheet:
+  if (!session) {
+    if (projectId && Number.isInteger(projectId)) {
+      const tickets = await getTicketsForProject(projectId);
+      const safeTickets = tickets.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        priority: t.priority,
+        type: t.type,
+        project_id: t.project_id,
+        project_name: t.project_name,
+        project_key: t.project_key,
+        employee_name: t.employee_name,
+      }));
+      return NextResponse.json({ tickets: safeTickets });
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   // A client account is scoped to its own requests. The team roles read the
-  // whole board as before.
-  const tickets =
-    session.user.role === 'client'
-      ? await getTicketsForClient(session.user.id)
-      : await getAllTickets();
+  // whole board as before, or scoped by project if projectId is supplied.
+  let tickets;
+  if (projectId && Number.isInteger(projectId)) {
+    tickets = await getTicketsForProject(projectId);
+  } else if (session.user.role === 'client') {
+    tickets = await getTicketsForClient(session.user.id);
+  } else {
+    tickets = await getAllTickets();
+  }
 
   return NextResponse.json({
     role: session.user.role,

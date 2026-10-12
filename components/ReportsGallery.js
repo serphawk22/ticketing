@@ -66,6 +66,15 @@ function ReportIcon({ slug }) {
       </svg>
     );
   }
+  if (slug === 'client-box-usage') {
+    return (
+      <svg {...common}>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M3 10h18" />
+        <path d="M10 14h4" />
+      </svg>
+    );
+  }
   return (
     <svg {...common}>
       <circle cx="9" cy="8" r="3" />

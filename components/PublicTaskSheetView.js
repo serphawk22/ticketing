@@ -13,7 +13,7 @@ import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
  * of it with no account to their name: no sidebar, no session, just the brand,
  * both cards, and the knowledge that the answers save with the name they pick.
  */
-export default function PublicTaskSheetView({ people, projectNames, defaults }) {
+export default function PublicTaskSheetView({ people, projects, projectNames, defaults }) {
   const [taskNote, setTaskNote] = useState(null);
   const [taskName, setTaskName] = useState('');
   const [happyNote, setHappyNote] = useState(null);
@@ -40,7 +40,8 @@ export default function PublicTaskSheetView({ people, projectNames, defaults }) 
           </p>
           <TaskSheetForm
             people={people}
-            projects={projectNames}
+            projects={projects || projectNames}
+            projectNames={projectNames}
             defaults={defaults}
             onSubmitted={(name) => {
               setTaskNote(new Date().toLocaleTimeString());

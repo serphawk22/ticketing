@@ -67,9 +67,39 @@ export async function POST(request) {
   const candidate = Number(body.linkedTicketId);
   if (Number.isInteger(candidate) && candidate > 0) {
     const exists = await db
-      .prepare('SELECT id FROM tickets WHERE id = ?')
+      .prepare('SELECT id, status, project_id FROM tickets WHERE id = ?')
       .get(candidate);
-    if (exists) linkedTicketId = candidate;
+    if (exists) {
+      linkedTicketId = candidate;
+
+      // When syncTicketStatus is requested or enabled by default:
+      // If taskState is completed, update the ticket status to 'resolved'.
+      if (body.syncTicketStatus !== false && taskState === 'completed') {
+        if (exists.status !== 'resolved' && exists.status !== 'closed') {
+          await db
+            .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
+            .run(linkedTicketId);
+
+          const { logActivity } = await import('@/lib/ticketActivity');
+          await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
+        }
+      }
+
+      // Record time log against the ticket if submitted by a registered user
+      if (submittedBy && hoursWorked > 0) {
+        const seconds = Math.min(Math.round(hoursWorked * 3600), 24 * 3600);
+        await db
+          .prepare(
+            'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
+          )
+          .run(
+            linkedTicketId,
+            submittedBy,
+            seconds,
+            `Task Sheet: ${taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
+          );
+      }
+    }
   }
 
   const submission = await createSubmission({

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import ChipSelect from '@/components/ChipSelect';
 import InlineDropdownField from '@/components/InlineDropdownField';
 import { CheckIcon } from '@/components/ticket/icons';
+import { STATUS_META } from '@/components/meta';
 
 /** The hours the sheet offers, plus Other for the half-days and the long ones. */
 const HOUR_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8'].map((v) => ({
@@ -64,6 +65,11 @@ export default function TaskSheetForm({
   const [linked, setLinked] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
 
+  const [projectTasks, setProjectTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [tasksError, setTasksError] = useState('');
+  const [syncTicketStatus, setSyncTicketStatus] = useState(true);
+
   const titleTimer = useRef(null);
   const titleRef = useRef(null);
 
@@ -74,19 +80,102 @@ export default function TaskSheetForm({
     () => (people || []).map((p) => ({ value: p.name, label: p.name })),
     [people]
   );
+
+  const normalizedProjects = useMemo(() => {
+    return (projects || []).map((p) => {
+      if (typeof p === 'string') return { id: null, name: p, key: '' };
+      return { id: p.id, name: p.name, key: p.key || '' };
+    });
+  }, [projects]);
+
   const projectOptions = useMemo(
-    () => (projects || []).map((p) => ({ value: p, label: p })),
-    [projects]
+    () => normalizedProjects.map((p) => ({ value: p.name, label: p.name })),
+    [normalizedProjects]
   );
+
+  const activeProject = useMemo(
+    () => normalizedProjects.find((p) => p.name === project),
+    [normalizedProjects, project]
+  );
+
+  // Fetch active tasks for the selected project
+  useEffect(() => {
+    if (!activeProject?.id) {
+      setProjectTasks([]);
+      return undefined;
+    }
+
+    let active = true;
+    setLoadingTasks(true);
+    setTasksError('');
+
+    fetch(`/api/tickets?projectId=${activeProject.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Could not load project tasks');
+        return res.json();
+      })
+      .then((data) => {
+        if (active) {
+          setProjectTasks(data.tickets || []);
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setTasksError(err.message);
+          setProjectTasks([]);
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingTasks(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeProject?.id]);
+
+  function handleSelectTask(taskId) {
+    if (!taskId) {
+      setLinked(null);
+      return;
+    }
+    const task = projectTasks.find((t) => String(t.id) === String(taskId));
+    if (!task) return;
+
+    const key = `${(task.project_key || activeProject?.key || 'TM').toUpperCase()}-${task.id}`;
+    setLinked({
+      id: task.id,
+      key,
+      title: task.title,
+      status: task.status,
+      assignee: task.employee_name || 'Unassigned',
+      project_id: task.project_id || activeProject?.id,
+      project_name: task.project_name || activeProject?.name || '',
+    });
+    setTaskTitle(task.title);
+    if (!taskDescription.trim() && task.description) {
+      setTaskDescription(task.description);
+    }
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.taskTitle;
+      return next;
+    });
+  }
+
+  function handleClearLinked() {
+    setLinked(null);
+  }
 
   // A typed number is only worth resolving while it is still a number. The
   // lookup is debounced so a person typing a summary does not fire a request
-  // per keystroke, and any edit clears the link: the confirmation describes the
-  // value that was in the box, not the one that is there now.
+  // per keystroke.
   useEffect(() => {
     const trimmed = taskTitle.trim();
     if (!TICKET_KEY.test(trimmed)) {
-      setLinked(null);
+      if (linked && !projectTasks.some((t) => t.id === linked.id && t.title === taskTitle)) {
+        setLinked(null);
+      }
       setLinking(false);
       return undefined;
     }
@@ -105,7 +194,22 @@ export default function TaskSheetForm({
         const match = (data.tickets || []).find(
           (t) => `${t.project_key}-${t.id}`.toUpperCase() === wanted
         );
-        setLinked(match ? { id: match.id, key: `${match.project_key}-${match.id}` } : null);
+        if (match) {
+          setLinked({
+            id: match.id,
+            key: `${(match.project_key || 'TM').toUpperCase()}-${match.id}`,
+            title: match.title,
+            status: match.status,
+            assignee: match.employee_name || '',
+            project_id: match.project_id,
+            project_name: match.project_name || '',
+          });
+          if (match.project_name && !project) {
+            setProject(match.project_name);
+          }
+        } else {
+          setLinked(null);
+        }
       } catch {
         setLinked(null);
       } finally {
@@ -117,7 +221,7 @@ export default function TaskSheetForm({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [taskTitle]);
+  }, [taskTitle, project, projectTasks, linked]);
 
   function resolvedHours() {
     if (hours === 'other') {
@@ -181,6 +285,7 @@ export default function TaskSheetForm({
           taskState,
           blocker: taskState === 'not_completed' ? blocker.trim() : null,
           linkedTicketId: linked ? linked.id : null,
+          syncTicketStatus,
         }),
       });
       const data = await res.json();
@@ -319,6 +424,26 @@ export default function TaskSheetForm({
           id="ts-taskTitle"
         >
           <label htmlFor="ts-title">Task title or ticket number</label>
+
+          {project && projectTasks.length > 0 && !linked && (
+            <div className="ts-task-picker" style={{ marginBottom: 6 }}>
+              <select
+                id="ts-task-dropdown"
+                className="ts-task-select"
+                value=""
+                onChange={(e) => handleSelectTask(e.target.value)}
+                aria-label={`Select an existing task from ${project}`}
+              >
+                <option value="">— Choose an existing task from {project} (optional) —</option>
+                {projectTasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    [{(t.project_key || activeProject?.key || 'TM').toUpperCase()}-{t.id}] {t.title} ({STATUS_META[t.status]?.label || t.status}{t.employee_name ? ` · ${t.employee_name}` : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <input
             id="ts-title"
             ref={titleRef}
@@ -328,10 +453,58 @@ export default function TaskSheetForm({
             onChange={(e) => setTaskTitle(e.target.value)}
             aria-invalid={errors.taskTitle ? 'true' : undefined}
           />
-          {(linked || linking) && (
-            <span className={`ts-link-chip${linking ? ' is-resolving' : ''}`}>
+
+          {linked && (
+            <div className="ts-linked-task-card" role="region" aria-label="Connected project task">
+              <div className="ts-linked-task-header">
+                <span className="ts-linked-task-key">#{linked.key}</span>
+                {linked.status && (
+                  <span
+                    className="ts-status-badge"
+                    style={{
+                      backgroundColor: STATUS_META[linked.status]?.bg || '#deebff',
+                      color: STATUS_META[linked.status]?.text || '#0747a6',
+                    }}
+                  >
+                    <span
+                      className="ts-status-dot"
+                      style={{ backgroundColor: STATUS_META[linked.status]?.color || '#579dff' }}
+                    />
+                    {STATUS_META[linked.status]?.label || linked.status}
+                  </span>
+                )}
+                {linked.assignee && (
+                  <span className="ts-linked-task-assignee">
+                    Assignee: <strong>{linked.assignee}</strong>
+                  </span>
+                )}
+                {linked.project_id && (
+                  <a
+                    href={`/projects/${linked.project_id}/list?issue=${linked.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ts-linked-open-link"
+                    title="Open task in project board"
+                  >
+                    View on board ↗
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="ts-linked-clear-btn"
+                  onClick={handleClearLinked}
+                  title="Disconnect task"
+                >
+                  ✕ Disconnect
+                </button>
+              </div>
+            </div>
+          )}
+
+          {linking && !linked && (
+            <span className="ts-link-chip is-resolving">
               <CheckIcon size={12} aria-hidden="true" />
-              {linking ? 'Looking up work item…' : `Linked to ${linked.key}: ${linked.title}`}
+              Looking up work item…
             </span>
           )}
           {errors.taskTitle ? <span className="error-text">{errors.taskTitle}</span> : null}
@@ -377,6 +550,16 @@ export default function TaskSheetForm({
               </button>
             ))}
           </div>
+          {linked && taskState === 'completed' && (
+            <label className="ts-sync-option">
+              <input
+                type="checkbox"
+                checked={syncTicketStatus}
+                onChange={(e) => setSyncTicketStatus(e.target.checked)}
+              />
+              <span>Mark connected task <strong>#{linked.key}</strong> as Resolved upon submission</span>
+            </label>
+          )}
           {errors.taskState ? <span className="error-text">{errors.taskState}</span> : null}
         </div>
 
@@ -446,8 +629,28 @@ function TaskSheetConfirmation({ summary, onReset }) {
           {done ? 'Completed' : 'Not Completed'}
         </p>
         <p className="ts-confirmation-line ts-confirmation-task">
-          {summary.linked ? `${summary.linked.key} — ` : ''}
+          {summary.linked ? (
+            <>
+              <strong>#{summary.linked.key}</strong>
+              {summary.linked.status ? ` (${summary.linked.status})` : ''} —{' '}
+            </>
+          ) : ''}
           {summary.taskTitle}
+          {summary.linked?.project_id && (
+            <>
+              {' '}
+              ·{' '}
+              <a
+                href={`/projects/${summary.linked.project_id}/list?issue=${summary.linked.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="ts-linked-open-link"
+                style={{ fontSize: 13 }}
+              >
+                View on board ↗
+              </a>
+            </>
+          )}
         </p>
         {summary.blocker && (
           <p className="ts-confirmation-line ts-confirmation-blocker">

@@ -6,6 +6,7 @@ import { getEmployees } from '@/lib/employees';
 import { getReport, parseReportOptions } from '@/lib/reportCatalog';
 import { buildReport } from '@/lib/reportMath';
 import { getReportSource } from '@/lib/reports';
+import { getClientBoxUsageData } from '@/lib/clientUsageReport';
 import ReportView from '@/components/ReportView';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,15 @@ export default async function ProjectReportPage({ params, searchParams }) {
     projectCounts[ticket.project_id] = (projectCounts[ticket.project_id] || 0) + 1;
   }
 
+  if (slug === 'client-box-usage') {
+    const clientBoxData = await getClientBoxUsageData({
+      days: options.days,
+      clientUserId: session.user.role === 'client' ? session.user.id : null,
+    });
+    source.clientBoxes = clientBoxData.clientBoxes;
+    source.clientBoxSummary = clientBoxData.summary;
+  }
+
   const result = buildReport(report.slug, source, options);
 
   return (
@@ -53,7 +63,7 @@ export default async function ProjectReportPage({ params, searchParams }) {
       report={report}
       options={options}
       result={result}
-      tickets={source.tickets}
+      tickets={report.slug === 'client-box-usage' ? tickets : source.tickets}
     />
   );
 }

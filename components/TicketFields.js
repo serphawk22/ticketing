@@ -2,7 +2,7 @@
 
 import Avatar from './Avatar';
 import InlineDropdownField from './InlineDropdownField';
-import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, RESOLUTION_ORDER, STATUS_META, STATUS_ORDER } from './meta';
+import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, RESOLUTION_ORDER, STATUS_META, STATUS_ORDER, INCLUSION_META, INCLUSION_ORDER } from './meta';
 
 /**
  * The editable fields of a work item, each one a thin wrapper that says what
@@ -184,6 +184,68 @@ export function ReporterField({
           </span>
         </>
       )}
+    />
+  );
+}
+
+/**
+ * Product inclusion field: tracks whether work was included in the main product.
+ */
+export function ProductInclusionField({
+  value,
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+  showLabel = false,
+}) {
+  const currentKey = value || 'pending_review';
+  const meta = INCLUSION_META[currentKey] || INCLUSION_META.pending_review;
+
+  return (
+    <InlineDropdownField
+      value={currentKey}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Product inclusion"
+      searchable={false}
+      variant={variant}
+      className={className}
+      options={INCLUSION_ORDER.map((key) => {
+        const m = INCLUSION_META[key];
+        return {
+          value: key,
+          label: m.label,
+          leading: (
+            <span
+              className="list-lozenge"
+              style={{ background: m.bg, color: m.text }}
+            >
+              {m.label}
+            </span>
+          ),
+        };
+      })}
+      renderValue={() =>
+        variant === 'button' ? (
+          <>
+            <span
+              className="list-lozenge"
+              style={{ background: meta.bg, color: meta.text }}
+            >
+              {meta.label}
+            </span>
+            {showLabel ? <span>{meta.label}</span> : null}
+          </>
+        ) : (
+          <span
+            className="list-lozenge"
+            style={{ background: meta.bg, color: meta.text }}
+          >
+            {meta.label}
+          </span>
+        )
+      }
     />
   );
 }

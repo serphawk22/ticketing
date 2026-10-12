@@ -9693,6 +9693,99 @@ input.inline-input.tm-title-edit {
   color: var(--text-subtle);
 }
 
+.ts-linked-task-card {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: var(--bg-subtle, #f7f8f9);
+  border: 1px solid var(--border, #dfe1e6);
+  border-radius: var(--radius, 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-linked-task-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ts-linked-task-key {
+  font-weight: 700;
+  color: var(--text-link, #0c66e4);
+}
+
+.ts-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ts-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.ts-linked-task-assignee {
+  color: var(--text-subtle, #626f86);
+}
+
+.ts-linked-open-link {
+  color: var(--text-link, #0c66e4);
+  text-decoration: underline;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.ts-linked-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-subtle, #626f86);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ts-linked-clear-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--danger, #ae2a19);
+}
+
+.ts-task-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ts-task-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border, #dfe1e6);
+  border-radius: var(--radius, 4px);
+  background: var(--bg-surface, #fff);
+  color: var(--text, #172b4d);
+  font-size: 13px;
+}
+
+.ts-sync-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-subtle, #626f86);
+  cursor: pointer;
+}
+
 /* ---------------- Confirmation ---------------- */
 
 .ts-confirmation {
