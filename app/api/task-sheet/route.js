@@ -49,58 +49,127 @@ export async function POST(request) {
   if (!TASK_STATES.includes(taskState)) {
     return NextResponse.json({ error: 'Please choose a task state.' }, { status: 400 });
   }
-  // A completed row has nothing blocked, so the answer is only recorded for
-  // work that was left open, and there it is required: "not completed" without
-  // a reason tells the reader nothing they could act on.
-  const blockerText = taskState === 'not_completed' ? blocker : null;
-  if (taskState === 'not_completed' && !blocker) {
-    return NextResponse.json(
-      { error: 'Please describe what is blocking this task.' },
-      { status: 400 }
-    );
+  const selectedTickets = Array.isArray(body.selectedTickets) ? body.selectedTickets : [];
+
+  // Validate per-ticket blockers if tickets were selected, or general blocker otherwise
+  if (selectedTickets.length > 0) {
+    for (const t of selectedTickets) {
+      if (t.workState === 'not_completed' && !String(t.blocker ?? '').trim()) {
+        return NextResponse.json(
+          { error: `Please describe what is blocking #${t.key || t.id}.` },
+          { status: 400 }
+        );
+      }
+    }
+  } else {
+    if (taskState === 'not_completed' && !blocker) {
+      return NextResponse.json(
+        { error: 'Please describe what is blocking this task.' },
+        { status: 400 }
+      );
+    }
+  }
+
+  let blockerText = null;
+  if (selectedTickets.length > 0) {
+    const blockers = selectedTickets
+      .filter((t) => t.workState === 'not_completed' && t.blocker?.trim())
+      .map((t) => `#${t.key}: ${t.blocker.trim()}`);
+    if (blockers.length > 0) {
+      blockerText = blockers.join('; ');
+    } else if (taskState === 'not_completed') {
+      blockerText = blocker || null;
+    }
+  } else {
+    blockerText = taskState === 'not_completed' ? blocker : null;
   }
 
   // The ticket link is a convenience, so an id that does not resolve is dropped
   // rather than failing the whole sheet: an unlinked timesheet line still says
   // what was worked on.
   let linkedTicketId = null;
-  const candidate = Number(body.linkedTicketId);
-  if (Number.isInteger(candidate) && candidate > 0) {
-    const exists = await db
-      .prepare('SELECT id, status, project_id FROM tickets WHERE id = ?')
-      .get(candidate);
-    if (exists) {
-      linkedTicketId = candidate;
 
-      // When syncTicketStatus is requested or enabled by default:
-      // If taskState is completed, update the ticket status to 'resolved'.
-      if (body.syncTicketStatus !== false && taskState === 'completed') {
-        if (exists.status !== 'resolved' && exists.status !== 'closed') {
+  if (selectedTickets.length > 0) {
+    for (const t of selectedTickets) {
+      const tid = Number(t.id);
+      if (!Number.isInteger(tid) || tid <= 0) continue;
+      const exists = await db
+        .prepare('SELECT id, status, project_id FROM tickets WHERE id = ?')
+        .get(tid);
+      if (exists) {
+        if (!linkedTicketId) linkedTicketId = tid;
+
+        // When syncResolved is requested explicitly for this completed ticket:
+        // update the ticket status to 'resolved'.
+        if (t.workState === 'completed' && t.syncResolved === true) {
+          if (exists.status !== 'resolved' && exists.status !== 'closed') {
+            await db
+              .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
+              .run(tid);
+
+            const { logActivity } = await import('@/lib/ticketActivity');
+            await logActivity(tid, submittedBy, 'status', exists.status, 'resolved');
+          }
+        }
+
+        // Record time log against the ticket if submitted by a registered user
+        if (submittedBy && hoursWorked > 0) {
+          const seconds = Math.min(
+            Math.round((hoursWorked / selectedTickets.length) * 3600),
+            24 * 3600
+          );
           await db
-            .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
-            .run(linkedTicketId);
-
-          const { logActivity } = await import('@/lib/ticketActivity');
-          await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
+            .prepare(
+              'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
+            )
+            .run(
+              tid,
+              submittedBy,
+              seconds,
+              `Task Sheet: ${t.title || taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
+            );
         }
       }
+    }
+  } else {
+    const candidate = Number(body.linkedTicketId);
+    if (Number.isInteger(candidate) && candidate > 0) {
+      const exists = await db
+        .prepare('SELECT id, status, project_id FROM tickets WHERE id = ?')
+        .get(candidate);
+      if (exists) {
+        linkedTicketId = candidate;
 
-      // Record time log against the ticket if submitted by a registered user
-      if (submittedBy && hoursWorked > 0) {
-        const seconds = Math.min(Math.round(hoursWorked * 3600), 24 * 3600);
-        await db
-          .prepare(
-            'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
-          )
-          .run(
-            linkedTicketId,
-            submittedBy,
-            seconds,
-            `Task Sheet: ${taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
-          );
+        if (body.syncTicketStatus !== false && taskState === 'completed') {
+          if (exists.status !== 'resolved' && exists.status !== 'closed') {
+            await db
+              .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
+              .run(linkedTicketId);
+
+            const { logActivity } = await import('@/lib/ticketActivity');
+            await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
+          }
+        }
+
+        if (submittedBy && hoursWorked > 0) {
+          const seconds = Math.min(Math.round(hoursWorked * 3600), 24 * 3600);
+          await db
+            .prepare(
+              'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
+            )
+            .run(
+              linkedTicketId,
+              submittedBy,
+              seconds,
+              `Task Sheet: ${taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
+            );
+        }
       }
     }
   }
+
+  const ticketsDetail =
+    selectedTickets.length > 0 ? JSON.stringify(selectedTickets) : null;
 
   const submission = await createSubmission({
     submittedBy,
@@ -112,6 +181,7 @@ export async function POST(request) {
     taskState,
     blocker: blockerText,
     linkedTicketId,
+    ticketsDetail,
   });
 
   return NextResponse.json({ submission }, { status: 201 });

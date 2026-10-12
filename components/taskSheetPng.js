@@ -126,9 +126,18 @@ export default function downloadTaskSheetPng(rows, { filters = {} } = {}) {
   let height = margin + titleBlockH + headerH;
 
   const cells = list.map((r) => {
-    const link = r.linked_ticket_id
-      ? `#${(r.linked_key || 'TM').toUpperCase()}-${r.linked_ticket_id}`
-      : '\u2014';
+    let tickets = [];
+    if (r.tickets_detail) {
+      try {
+        const parsed = typeof r.tickets_detail === 'string' ? JSON.parse(r.tickets_detail) : r.tickets_detail;
+        if (Array.isArray(parsed) && parsed.length > 0) tickets = parsed;
+      } catch {}
+    }
+    const link = tickets.length > 0
+      ? tickets.map((t) => `#${t.key}`).join(', ')
+      : (r.linked_ticket_id
+          ? `#${(r.linked_key || 'TM').toUpperCase()}-${r.linked_ticket_id}`
+          : '\u2014');
     const state =
       STATE[r.task_state] || {
         label: r.task_state || '',
@@ -154,13 +163,32 @@ export default function downloadTaskSheetPng(rows, { filters = {} } = {}) {
         if (r.task_description) {
           segments.push({ text: r.task_description, color: COLORS.muted, weight: '400', size: noteSize });
         }
-        if (r.blocker) {
+        if (tickets.length > 0) {
+          tickets.forEach((t) => {
+            const isDone = t.workState === 'completed';
+            const st = isDone ? 'Completed' : (t.taskStatus || 'Not Completed');
+            segments.push({
+              text: `\u2022 #${t.key}: ${t.title || ''} [${st}]`,
+              color: COLORS.ink,
+              weight: '500',
+              size: noteSize,
+            });
+            if (!isDone && t.blocker) {
+              segments.push({
+                text: `   Blocked: ${t.blocker}`,
+                color: COLORS.danger,
+                weight: '400',
+                size: noteSize,
+              });
+            }
+          });
+        } else if (r.blocker) {
           segments.push({ text: `Blocked by: ${r.blocker}`, color: COLORS.danger, weight: '400', size: noteSize });
         }
       } else if (c.key === 'state') {
         segments = [{ text: state.label, color: state.text, weight: '600', size: noteSize, pill: state.bg }];
       } else {
-        segments = [{ text: link, color: r.linked_ticket_id ? COLORS.link : COLORS.faint, weight: '600', size: noteSize }];
+        segments = [{ text: link, color: (tickets.length > 0 || r.linked_ticket_id) ? COLORS.link : COLORS.faint, weight: '600', size: noteSize }];
       }
 
       const lines = [];
