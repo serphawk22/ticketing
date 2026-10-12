@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeRedirectPath } from '@/lib/safeRedirect';
 
 /**
  * The screen an admin-created account lands on instead of the app.
@@ -39,10 +40,18 @@ export default function ChangePasswordView({ currentUser, forced }) {
 
       // The flag is cleared server-side; refresh re-reads the session so the
       // app stops redirecting back here. A client lands in their portal rather
-      // than the team board they are not allowed on.
+      // than the team board they are not allowed on. A ticket link that led
+      // here carries its destination in ?next and is honoured afterwards.
       const role = data.role || currentUser?.role;
+      const next = safeRedirectPath(
+        new URLSearchParams(window.location.search).get('next')
+      );
       router.refresh();
-      router.push(role === 'client' ? '/client' : '/');
+      if (role === 'client') {
+        router.push('/client');
+      } else {
+        router.push(next || '/');
+      }
     } catch (err) {
       setError(err.message);
       setSaving(false);

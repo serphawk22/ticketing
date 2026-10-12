@@ -142,7 +142,7 @@ column, which naming a column would break.
    | `OUTLOOK_EMAIL`      | no       | SMTP username.                                   |
    | `OUTLOOK_PASSWORD`   | no       | SMTP password or app password.                   |
    | `SENDER_EMAIL`       | no       | Envelope sender.                                 |
-   | `APP_URL`            | no       | Public origin, used in notification links.       |
+   | `APP_URL`            | no       | Public origin for links. Empty on Vercel (auto-detected). |
 
    Do not set `DB_DRIVER` on Vercel: leaving it unset lets the app pick Postgres
    from `DATABASE_URL`.
