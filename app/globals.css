@@ -9582,6 +9582,44 @@ input.inline-input.tm-title-edit {
 
 /* The daily sheet is one card, not a grid of tables, so the frame wraps a
    padded card instead of a scroll region. */
+.ts-frame,
+.ts-card,
+.ts-form,
+.ts-upper-section,
+.ts-board,
+.ts-public {
+  font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* Highlight the Task Sheet Heading */
+.ts-page-header .toolbar-title h1,
+.ts-board .toolbar-title h1,
+.ts-public-title {
+  font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 32px;
+  letter-spacing: -0.015em;
+  color: #091e42;
+  margin: 0;
+}
+
+.ts-page-header .toolbar-title-row svg,
+.ts-board .toolbar-title-row svg {
+  width: 22px;
+  height: 22px;
+  color: var(--primary, #0c66e4);
+}
+
+.ts-page-header .board-subtitle,
+.ts-board .board-subtitle,
+.ts-public p.sub {
+  font-size: 13.5px;
+  color: #5e6c84;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
 .ts-card {
   padding: 28px 24px 24px;
 }
@@ -9596,45 +9634,127 @@ input.inline-input.tm-title-edit {
   min-width: 0;
 }
 
-.ts-field-wide {
+/* Highlighted Upper Section */
+.ts-upper-section {
   grid-column: 1 / -1;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-left: 4px solid var(--primary, #0c66e4);
+  border-radius: 8px;
+  padding: 22px 22px 14px;
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 20px;
+  box-shadow: 0 1px 3px rgba(9, 30, 66, 0.05), 0 0 0 1px rgba(9, 30, 66, 0.03);
+}
+
+.ts-upper-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ts-upper-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #334155;
+}
+
+.ts-upper-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.ts-required-star {
+  color: var(--danger, #dc2626);
+  margin-left: 2px;
+  font-weight: 600;
 }
 
 @media (max-width: 640px) {
+  .ts-upper-section {
+    grid-template-columns: 1fr;
+    padding: 16px 14px 10px;
+    margin-bottom: 16px;
+  }
   .ts-grid {
     grid-template-columns: 1fr;
   }
   .ts-card {
     padding: 20px 16px;
   }
+  .ts-page-header .toolbar-title h1,
+  .ts-board .toolbar-title h1,
+  .ts-public-title {
+    font-size: 22px;
+    line-height: 28px;
+  }
 }
 
-/* Combo fields without a <label for>: the dropdown is a button, so there is no
-   control to point at. .ts-legend carries the same look as .form-group label
-   so a form reads as one style whether its field is an input or a dropdown. */
-.ts-legend {
-  font-size: var(--fs-12);
-  font-weight: 500;
-  color: var(--text-subtle);
+/* Increased font size for field labels */
+.ts-legend,
+.ts-form label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #172b4d;
+  letter-spacing: -0.005em;
+  margin-bottom: 6px;
 }
 
-/* The dropdown in a form rather than a cell: full width, the same box a
-   <select> would draw, and the list is a fixed handful of client names so
-   filtering would only hide options for nothing.
-   --fs-13 does not exist, so the button variant's fallback (inherit, 16px) is
-   deliberately pulled down here to the size the rest of the form uses. */
+/* Form inputs & dropdown button */
 .ts-field .idf-trigger-button {
   width: 100%;
-  height: var(--control-h);
-  padding: 0 10px;
-  border-color: var(--border-input);
-  background: var(--bg);
-  font-size: 14px;
+  height: 42px;
+  padding: 0 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 15px;
   font-weight: 400;
+  color: #172b4d;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
 .ts-field .idf-trigger-button:hover {
-  border-color: var(--text-subtle);
+  border-color: #94a3b8;
+}
+
+.ts-field .idf-trigger-button:focus,
+.ts-field .idf-trigger-button[aria-expanded='true'] {
+  border-color: #0c66e4;
+  box-shadow: 0 0 0 2px rgba(12, 102, 228, 0.2);
+}
+
+.ts-field input[type='text'],
+.ts-field input[type='number'],
+.ts-field textarea {
+  font-size: 15px;
+  color: #172b4d;
+  padding: 9px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  line-height: 1.45;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.ts-field input[type='text']:focus,
+.ts-field input[type='number']:focus,
+.ts-field textarea:focus {
+  border-color: #0c66e4;
+  box-shadow: 0 0 0 2px rgba(12, 102, 228, 0.2);
+  outline: none;
 }
 
 /* The field is in an error state, applied to whatever control it holds. */
@@ -9826,68 +9946,82 @@ input.inline-input.tm-title-edit {
 }
 
 .ts-linked-task-card {
-  margin-top: 8px;
-  padding: 10px 14px;
-  background: var(--bg-subtle, #f7f8f9);
-  border: 1px solid var(--border, #dfe1e6);
-  border-radius: var(--radius, 6px);
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .ts-linked-task-header {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  font-size: 12px;
+  gap: 10px;
+  font-size: 14px;
 }
 
 .ts-linked-task-key {
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-link, #0c66e4);
+  letter-spacing: -0.01em;
+}
+
+.ts-linked-task-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #172b4d;
 }
 
 .ts-status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
+  gap: 6px;
+  padding: 3px 10px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
 }
 
 .ts-status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
 .ts-linked-task-assignee {
+  font-size: 13.5px;
   color: var(--text-subtle, #626f86);
 }
 
 .ts-linked-open-link {
   color: var(--text-link, #0c66e4);
   text-decoration: underline;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 13.5px;
   margin-left: auto;
 }
 
 .ts-linked-clear-btn {
   background: transparent;
-  border: none;
+  border: 1px solid #cbd5e1;
   color: var(--text-subtle, #626f86);
   cursor: pointer;
-  font-size: 11px;
-  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
   border-radius: 4px;
+  transition: all var(--t-fast);
 }
 
 .ts-linked-clear-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: #fee2e2;
+  border-color: #fca5a5;
   color: var(--danger, #ae2a19);
 }
 
@@ -9900,20 +10034,42 @@ input.inline-input.tm-title-edit {
 
 .ts-task-select {
   width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--border, #dfe1e6);
-  border-radius: var(--radius, 4px);
-  background: var(--bg-surface, #fff);
-  color: var(--text, #172b4d);
-  font-size: 13px;
+  padding: 10px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172b4d;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  min-height: 42px;
+  cursor: pointer;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.ts-task-select:hover {
+  border-color: #94a3b8;
+}
+
+.ts-task-select:focus {
+  border-color: #0c66e4;
+  box-shadow: 0 0 0 2px rgba(12, 102, 228, 0.2);
+  outline: none;
+}
+
+.ts-task-select option {
+  font-size: 14.5px;
+  padding: 8px 10px;
+  line-height: 1.45;
+  color: #172b4d;
 }
 
 .ts-sync-option {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-subtle, #626f86);
   cursor: pointer;
 }

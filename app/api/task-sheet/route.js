@@ -46,23 +46,64 @@ export async function POST(request) {
       { status: 400 }
     );
   }
-  if (!TASK_STATES.includes(taskState)) {
-    return NextResponse.json({ error: 'Please choose a task state.' }, { status: 400 });
-  }
   const selectedTickets = Array.isArray(body.selectedTickets) ? body.selectedTickets : [];
 
-  // Validate per-ticket blockers if tickets were selected, or general blocker otherwise
+  // Allowed dynamic status choices per workState
+  const ALLOWED_NOT_COMPLETED = ['To Do', 'In Progress'];
+  const ALLOWED_COMPLETED = ['QA Testing', 'Closed'];
+
+  // Map user-facing task sheet status to internal ticket status in tickets table
+  const STATUS_MAP = {
+    'To Do': 'open',
+    'In Progress': 'in_progress',
+    'QA Testing': 'resolved',
+    'Closed': 'closed',
+  };
+
+  // Determine overall taskState if selectedTickets are present and body.taskState was omitted/empty
+  let effectiveTaskState = taskState;
+  if (!effectiveTaskState && selectedTickets.length > 0) {
+    // If all selected tickets are completed, overall is completed; otherwise not_completed
+    effectiveTaskState = selectedTickets.every((t) => t.workState === 'completed')
+      ? 'completed'
+      : 'not_completed';
+  } else if (!effectiveTaskState) {
+    effectiveTaskState = 'completed';
+  }
+
+  if (!TASK_STATES.includes(effectiveTaskState)) {
+    effectiveTaskState = 'completed';
+  }
+
+  // Validate per-ticket statuses and blockers
   if (selectedTickets.length > 0) {
     for (const t of selectedTickets) {
-      if (t.workState === 'not_completed' && !String(t.blocker ?? '').trim()) {
-        return NextResponse.json(
-          { error: `Please describe what is blocking #${t.key || t.id}.` },
-          { status: 400 }
-        );
+      if (t.workState === 'not_completed') {
+        const status = t.taskStatus || 'In Progress';
+        if (!ALLOWED_NOT_COMPLETED.includes(status)) {
+          return NextResponse.json(
+            { error: `Invalid status "${status}" for incomplete ticket #${t.key || t.id}.` },
+            { status: 400 }
+          );
+        }
+        if (!String(t.blocker ?? '').trim()) {
+          return NextResponse.json(
+            { error: `Please describe what is blocking #${t.key || t.id}.` },
+            { status: 400 }
+          );
+        }
+      } else if (t.workState === 'completed') {
+        const status = t.taskStatus || 'QA Testing';
+        if (!ALLOWED_COMPLETED.includes(status)) {
+          return NextResponse.json(
+            { error: `Invalid status "${status}" for completed ticket #${t.key || t.id}.` },
+            { status: 400 }
+          );
+        }
       }
     }
   } else {
-    if (taskState === 'not_completed' && !blocker) {
+    if (effectiveTaskState === 'not_completed' && !blocker) {
       return NextResponse.json(
         { error: 'Please describe what is blocking this task.' },
         { status: 400 }
@@ -77,11 +118,11 @@ export async function POST(request) {
       .map((t) => `#${t.key}: ${t.blocker.trim()}`);
     if (blockers.length > 0) {
       blockerText = blockers.join('; ');
-    } else if (taskState === 'not_completed') {
+    } else if (effectiveTaskState === 'not_completed') {
       blockerText = blocker || null;
     }
   } else {
-    blockerText = taskState === 'not_completed' ? blocker : null;
+    blockerText = effectiveTaskState === 'not_completed' ? blocker : null;
   }
 
   // The ticket link is a convenience, so an id that does not resolve is dropped
@@ -94,22 +135,66 @@ export async function POST(request) {
       const tid = Number(t.id);
       if (!Number.isInteger(tid) || tid <= 0) continue;
       const exists = await db
-        .prepare('SELECT id, status, project_id FROM tickets WHERE id = ?')
+        .prepare(`
+          SELECT t.id, t.status, t.project_id,
+            p.name AS project_name, p.key AS project_key,
+            e.name AS employee_name, a.name AS assigned_to_name
+          FROM tickets t
+          LEFT JOIN projects p ON p.id = t.project_id
+          LEFT JOIN employees e ON e.id = t.employee_id
+          LEFT JOIN users a ON a.id = t.assigned_to
+          WHERE t.id = ?
+        `)
         .get(tid);
-      if (exists) {
-        if (!linkedTicketId) linkedTicketId = tid;
+      if (!exists) {
+        return NextResponse.json(
+          { error: `Ticket #${t.key || tid} was not found.` },
+          { status: 404 }
+        );
+      }
 
-        // When syncResolved is requested explicitly for this completed ticket:
-        // update the ticket status to 'resolved'.
-        if (t.workState === 'completed' && t.syncResolved === true) {
-          if (exists.status !== 'resolved' && exists.status !== 'closed') {
-            await db
-              .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
-              .run(tid);
+      // Validate ticket status: must not be Closed
+      if (exists.status === 'closed') {
+        return NextResponse.json(
+          { error: `Ticket #${t.key || tid} is closed and cannot be submitted on the task sheet.` },
+          { status: 400 }
+        );
+      }
 
-            const { logActivity } = await import('@/lib/ticketActivity');
-            await logActivity(tid, submittedBy, 'status', exists.status, 'resolved');
-          }
+      // Validate project: ticket must belong to the selected project
+      if (project && exists.project_name && exists.project_name.toLowerCase() !== project.toLowerCase()) {
+        return NextResponse.json(
+          { error: `Ticket #${t.key || tid} does not belong to project "${project}".` },
+          { status: 400 }
+        );
+      }
+
+      // Validate user assignment: ticket must be assigned to the selected user
+      if (name) {
+        const isAssigned =
+          (exists.employee_name && exists.employee_name.toLowerCase() === name.toLowerCase()) ||
+          (exists.assigned_to_name && exists.assigned_to_name.toLowerCase() === name.toLowerCase());
+        if (!isAssigned) {
+          return NextResponse.json(
+            { error: `Ticket #${t.key || tid} is not assigned to ${name}.` },
+            { status: 400 }
+          );
+        }
+      }
+
+      if (!linkedTicketId) linkedTicketId = tid;
+
+        // Synchronize linked project task status directly from the user's selected status
+        const selectedStatusLabel = t.taskStatus || (t.workState === 'completed' ? 'QA Testing' : 'In Progress');
+        const targetDbStatus = STATUS_MAP[selectedStatusLabel];
+
+        if (targetDbStatus && exists.status !== targetDbStatus) {
+          await db
+            .prepare("UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?")
+            .run(targetDbStatus, tid);
+
+          const { logActivity } = await import('@/lib/ticketActivity');
+          await logActivity(tid, submittedBy, 'status', exists.status, targetDbStatus);
         }
 
         // Record time log against the ticket if submitted by a registered user
@@ -130,39 +215,56 @@ export async function POST(request) {
             );
         }
       }
-    }
   } else {
     const candidate = Number(body.linkedTicketId);
     if (Number.isInteger(candidate) && candidate > 0) {
       const exists = await db
-        .prepare('SELECT id, status, project_id FROM tickets WHERE id = ?')
+        .prepare(`
+          SELECT t.id, t.status, t.project_id,
+            p.name AS project_name,
+            e.name AS employee_name, a.name AS assigned_to_name
+          FROM tickets t
+          LEFT JOIN projects p ON p.id = t.project_id
+          LEFT JOIN employees e ON e.id = t.employee_id
+          LEFT JOIN users a ON a.id = t.assigned_to
+          WHERE t.id = ?
+        `)
         .get(candidate);
       if (exists) {
-        linkedTicketId = candidate;
+        const isClosed = exists.status === 'closed';
+        const projectMismatch = project && exists.project_name && exists.project_name.toLowerCase() !== project.toLowerCase();
+        const userMismatch = name && !(
+          (exists.employee_name && exists.employee_name.toLowerCase() === name.toLowerCase()) ||
+          (exists.assigned_to_name && exists.assigned_to_name.toLowerCase() === name.toLowerCase())
+        );
 
-        if (body.syncTicketStatus !== false && taskState === 'completed') {
-          if (exists.status !== 'resolved' && exists.status !== 'closed') {
-            await db
-              .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
-              .run(linkedTicketId);
+        if (!isClosed && !projectMismatch && !userMismatch) {
+          linkedTicketId = candidate;
 
-            const { logActivity } = await import('@/lib/ticketActivity');
-            await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
+          if (body.syncTicketStatus !== false && taskState === 'completed') {
+            if (exists.status !== 'resolved' && exists.status !== 'closed') {
+              await db
+                .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
+                .run(linkedTicketId);
+
+              const { logActivity } = await import('@/lib/ticketActivity');
+              await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
+            }
           }
-        }
 
-        if (submittedBy && hoursWorked > 0) {
-          const seconds = Math.min(Math.round(hoursWorked * 3600), 24 * 3600);
-          await db
-            .prepare(
-              'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
-            )
-            .run(
-              linkedTicketId,
-              submittedBy,
-              seconds,
-              `Task Sheet: ${taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
-            );
+          if (submittedBy && hoursWorked > 0) {
+            const seconds = Math.min(Math.round(hoursWorked * 3600), 24 * 3600);
+            await db
+              .prepare(
+                'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
+              )
+              .run(
+                linkedTicketId,
+                submittedBy,
+                seconds,
+                `Task Sheet: ${taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
+              );
+          }
         }
       }
     }
@@ -178,7 +280,7 @@ export async function POST(request) {
     hoursWorked,
     taskTitle,
     taskDescription,
-    taskState,
+    taskState: effectiveTaskState,
     blocker: blockerText,
     linkedTicketId,
     ticketsDetail,

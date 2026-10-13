@@ -40,8 +40,9 @@ export default function TaskSheetView({
       onProjectChange={(id) => router.push(`/?project=${id}`)}
       onCreate={() => {}}
     >
-      <div className="board">
+      <div className="board ts-board">
         <PageHeader
+          className="ts-page-header"
           breadcrumb={[{ label: 'Issues', href: '/' }, { label: 'Task Sheet' }]}
           title="Task Sheet"
           icon={<ClipboardIcon />}

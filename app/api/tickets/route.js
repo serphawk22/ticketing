@@ -13,11 +13,21 @@ export async function GET(request) {
   const url = request ? new URL(request.url) : null;
   const projectIdParam = url?.searchParams.get('projectId');
   const projectId = projectIdParam ? Number(projectIdParam) : null;
+  const excludeClosed = url?.searchParams.get('excludeClosed') === 'true' || url?.searchParams.get('excludeClosed') === '1';
+  const userName = (url?.searchParams.get('userName') || url?.searchParams.get('user') || '').trim();
 
   // If unauthenticated but requesting project-specific tickets for the task sheet:
   if (!session) {
     if (projectId && Number.isInteger(projectId)) {
-      const tickets = await getTicketsForProject(projectId);
+      let tickets = await getTicketsForProject(projectId);
+      if (excludeClosed) {
+        tickets = tickets.filter((t) => t.status !== 'closed');
+      }
+      if (userName) {
+        tickets = tickets.filter(
+          (t) => t.employee_name === userName || t.assigned_to_name === userName
+        );
+      }
       const safeTickets = tickets.map((t) => ({
         id: t.id,
         title: t.title,
@@ -29,6 +39,7 @@ export async function GET(request) {
         project_name: t.project_name,
         project_key: t.project_key,
         employee_name: t.employee_name,
+        assigned_to_name: t.assigned_to_name,
       }));
       return NextResponse.json({ tickets: safeTickets });
     }
@@ -44,6 +55,16 @@ export async function GET(request) {
     tickets = await getTicketsForClient(session.user.id);
   } else {
     tickets = await getAllTickets();
+  }
+
+  if (excludeClosed) {
+    tickets = tickets.filter((t) => t.status !== 'closed');
+  }
+
+  if (userName) {
+    tickets = tickets.filter(
+      (t) => t.employee_name === userName || t.assigned_to_name === userName
+    );
   }
 
   return NextResponse.json({
