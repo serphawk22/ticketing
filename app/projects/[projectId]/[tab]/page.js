@@ -8,7 +8,6 @@ import ComingSoonView from '@/components/ComingSoonView';
 // own static routes, which take precedence over this one.
 const PLACEHOLDER_TABS = {
   timeline: 'Timeline',
-  docs: 'Docs',
 };
 
 export const dynamic = 'force-dynamic';
