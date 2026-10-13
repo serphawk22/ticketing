@@ -6,9 +6,12 @@ export const dynamic = 'force-dynamic';
 
 const SEARCH_QUERY = `
   SELECT t.id, t.title, t.status, t.priority, t.type, t.project_id,
-    p.key AS project_key, p.name AS project_name, p.color AS project_color
+    p.key AS project_key, p.name AS project_name, p.color AS project_color,
+    e.name AS employee_name, a.name AS assigned_to_name
   FROM tickets t
   LEFT JOIN projects p ON p.id = t.project_id
+  LEFT JOIN employees e ON e.id = t.employee_id
+  LEFT JOIN users a ON a.id = t.assigned_to
   WHERE t.title LIKE ? OR p.key LIKE ? OR (p.key || '-' || t.id) LIKE ?
   ORDER BY
     CASE WHEN (p.key || '-' || t.id) LIKE ? THEN 0 ELSE 1 END,
@@ -22,12 +25,19 @@ const SEARCH_QUERY = `
 // any board.
 export async function GET(request) {
   const session = await requireAuth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const params = new URL(request.url).searchParams;
+  const scopeProject = params.get('projectId');
+
+  if (!session) {
+    if (!scopeProject || !Number.isInteger(Number(scopeProject))) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
   const q = (params.get('q') || '').trim();
   const exclude = Number(params.get('exclude'));
-  const scopeProject = params.get('projectId');
+  const excludeClosed = params.get('excludeClosed') === 'true' || params.get('excludeClosed') === '1';
+  const userName = (params.get('userName') || params.get('user') || '').trim();
 
   if (q.length < 2) {
     return NextResponse.json({ tickets: [] });
@@ -41,13 +51,26 @@ export async function GET(request) {
   const exactKeyLike = `${q.toUpperCase()}%`;
 
   const scoped = scopeProject ? ' AND t.project_id = ?' : '';
-  const sql = SEARCH_QUERY.replace('WHERE t.title LIKE ?', `WHERE t.archived = 0${scoped} AND t.title LIKE ?`);
-  const extra = scopeProject ? [Number(scopeProject)] : [];
+  const closedFilter = excludeClosed ? " AND t.status != 'closed'" : '';
+  const userFilter = userName ? ' AND (e.name = ? OR a.name = ?)' : '';
+  const sql = SEARCH_QUERY.replace(
+    "WHERE t.title LIKE ? OR p.key LIKE ? OR (p.key || '-' || t.id) LIKE ?",
+    `WHERE t.archived = 0${scoped}${closedFilter}${userFilter} AND (t.title LIKE ? OR p.key LIKE ? OR (p.key || '-' || t.id) LIKE ?)`
+  );
+  const extra = [];
+  if (scopeProject) extra.push(Number(scopeProject));
+  if (userName) extra.push(userName, userName);
 
   const rows = await db
     .prepare(sql)
     .all(...extra, like, like, keyLike, exactKeyLike, Math.min(Number(params.get('limit')) || 20, 50));
 
-  const tickets = Number.isInteger(exclude) ? rows.filter((r) => r.id !== exclude) : rows;
+  let tickets = Number.isInteger(exclude) ? rows.filter((r) => r.id !== exclude) : rows;
+  if (excludeClosed) {
+    tickets = tickets.filter((r) => r.status !== 'closed');
+  }
+  if (userName) {
+    tickets = tickets.filter((r) => r.employee_name === userName || r.assigned_to_name === userName);
+  }
   return NextResponse.json({ tickets });
 }
