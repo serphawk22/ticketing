@@ -455,8 +455,7 @@ export default function DevDashboard({
       employeeCount={employees.filter((e) => e.active).length}
       myIssuesCount={mineCount}
       view="dashboard"
-      projectId={projectId}
-      onProjectChange={setProjectId}
+      projectId={null}
     >
       <div className="dash">
         {error && (
