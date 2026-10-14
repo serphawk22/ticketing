@@ -164,6 +164,13 @@ export default function ProjectSummary({
     };
   }, []);
 
+  // Reset filter and update data when navigating between projects
+  useEffect(() => {
+    setData(initialSummary);
+    setAssignee('all');
+    setError('');
+  }, [projectId, initialSummary]);
+
   useEffect(() => {
     if (assignee === 'all') {
       setData(initialSummary);

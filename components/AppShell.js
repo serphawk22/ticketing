@@ -293,7 +293,7 @@ export default function AppShell({
 
   function selectProject(id) {
     setSidebarOpen(false);
-    onProjectChange?.(id);
+    router.push(`/projects/${id}/summary`);
   }
 
   function toggleRowMenu(key) {
@@ -351,13 +351,14 @@ export default function AppShell({
 
   function renderProjectItem(p) {
     const menuKey = `project:${p.id}`;
+    const isActive =
+      projectId != null && String(projectId) === String(p.id);
     return (
       <div className="nav-item-wrap" key={p.id}>
-        <button
-          className={`nav-item${
-            projectId != null && String(projectId) === String(p.id) ? ' active' : ''
-          }`}
-          onClick={() => selectProject(p.id)}
+        <Link
+          href={`/projects/${p.id}/summary`}
+          className={`nav-item${isActive ? ' active' : ''}`}
+          onClick={() => setSidebarOpen(false)}
           title={p.name}
         >
           <span
@@ -369,7 +370,7 @@ export default function AppShell({
           <span className="nav-count">
             {projectCounts?.[p.id] ?? p.open_count ?? 0}
           </span>
-        </button>
+        </Link>
         {isAdmin && (
           <div className="nav-row-actions">
             <button
