@@ -3579,19 +3579,28 @@ textarea {
 }
 
 /* Due date urgency: grey the whole row once a ticket is past its date, then
-   the due date itself reads red on its final day and green while there is
-   still time. Finished work gets no colour at all. */
+   the due date cell itself carries a background by tone -- red when overdue,
+   amber when due within DUE_SOON_DAYS, green while there is good time.
+   Finished work and dateless work get no colour at all. */
 .list-row.is-overdue > .list-cell {
   opacity: 0.5;
 }
 
-.list-cell-date.is-due-today {
-  color: #ae2e24;
+.list-cell-date.is-due-overdue {
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.list-cell-date.is-due-soon {
+  background: var(--warning-bg);
+  color: var(--warning);
   font-weight: 600;
 }
 
 .list-cell-date.is-due-future {
-  color: #216e4e;
+  background: var(--success-bg);
+  color: var(--success);
   font-weight: 600;
 }
 
