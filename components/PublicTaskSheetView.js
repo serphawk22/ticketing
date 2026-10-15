@@ -23,11 +23,11 @@ export default function PublicTaskSheetView({ people, projects, projectNames, de
     <div className="auth-container ts-public">
       <main>
         <div className="auth-card ts-public-card">
-          <header className="auth-brand">
+          <header className="auth-brand ts-public-brand">
             <Link href="/login" className="logo-tile" aria-label="Ticket Manager">
               T
             </Link>
-            <h1>Task Sheet</h1>
+            <h1 className="ts-public-title">Task Sheet</h1>
           </header>
           <p className="sub">
             {taskNote ? (

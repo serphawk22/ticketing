@@ -148,7 +148,7 @@ function parseTicketsDetail(row) {
             (t) =>
               `${t.key}: ${
                 t.workState === 'completed'
-                  ? 'Completed'
+                  ? (t.taskStatus || 'Completed')
                   : t.taskStatus || 'Not Completed'
               }`
           )
@@ -397,7 +397,7 @@ function parseTicketsDetail(row) {
                                     )}
                                     {tickets.map((t) => {
                                       const isDone = t.workState === 'completed';
-                                      const statusText = isDone ? 'Completed' : (t.taskStatus || 'Not Completed');
+                                      const statusText = isDone ? (t.taskStatus || 'Completed') : (t.taskStatus || 'Not Completed');
                                       return (
                                         <div
                                           key={t.id || t.key}

@@ -166,7 +166,7 @@ export default function downloadTaskSheetPng(rows, { filters = {} } = {}) {
         if (tickets.length > 0) {
           tickets.forEach((t) => {
             const isDone = t.workState === 'completed';
-            const st = isDone ? 'Completed' : (t.taskStatus || 'Not Completed');
+            const st = isDone ? (t.taskStatus || 'Completed') : (t.taskStatus || 'Not Completed');
             segments.push({
               text: `\u2022 #${t.key}: ${t.title || ''} [${st}]`,
               color: COLORS.ink,

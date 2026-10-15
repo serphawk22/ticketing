@@ -27,7 +27,7 @@ import UserPicker from './UserPicker';
 import { CategoryField, PriorityField, ReporterField, ResolutionField, StatusField } from './TicketFields';
 import InlineDateField from './InlineDateField';
 import { useToasts, Toaster } from './Toaster';
-import { dueDays, isOverdue, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
+import { dueTone, matchRules, readViewPrefs, rowStyle, writeViewPrefs } from './list/viewPrefs';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -956,10 +956,12 @@ export default function ListView({
     const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
     const isSelected = selected.has(t.id);
 
-    // Due date urgency for the Due date column: negative days is overdue, 0 is
-    // today, positive still has time. Overdue work also greys the whole row.
-    const dueIn = dueDays(t);
-    const isOverdueRow = dueIn != null && dueIn < 0;
+    // Due date urgency for the Due date column, driving the cell background:
+    // grey when finished or dateless, red when overdue, amber when due within
+    // DUE_SOON_DAYS, green while there is good time. Overdue work also greys
+    // the whole row.
+    const tone = dueTone(t);
+    const isOverdueRow = tone === 'overdue';
 
     // Conditional formatting is evaluated per render, so a saved rule shows up
     // on the row without any extra state to keep in sync. The background goes
@@ -1128,13 +1130,7 @@ export default function ListView({
         {visibleColumns.some((c) => c.key === 'due') && (
           <td
             className={`list-cell list-cell-muted list-cell-date${
-              dueIn == null
-                ? ''
-                : dueIn < 0
-                  ? ' is-due-overdue'
-                  : dueIn === 0
-                    ? ' is-due-today'
-                    : ' is-due-future'
+              tone === 'none' ? '' : ` is-due-${tone}`
             }`}
           >
             <InlineDateField

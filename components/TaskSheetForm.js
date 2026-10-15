@@ -99,31 +99,43 @@ export default function TaskSheetForm({
     [normalizedProjects, project]
   );
 
-  // Fetch active tasks for the selected project and revalidate tickets
+  // Fetch active tasks for the selected project and user, and revalidate tickets
   useEffect(() => {
-    if (!activeProject?.id) {
+    // Clear tickets that do not belong to the selected project and user or are closed
+    setSelectedTickets((prev) =>
+      prev.filter((t) =>
+        Boolean(
+          activeProject?.id &&
+          t.project_id === activeProject.id &&
+          name &&
+          (t.assignee === name || t.employee_name === name || t.assigned_to_name === name) &&
+          t.status !== 'closed'
+        )
+      )
+    );
+
+    if (!activeProject?.id || !name) {
       setProjectTasks([]);
-      setSelectedTickets([]);
       return undefined;
     }
-
-    // Clear tickets that do not belong to the selected project
-    setSelectedTickets((prev) =>
-      prev.filter((t) => t.project_id === activeProject.id)
-    );
 
     let active = true;
     setLoadingTasks(true);
     setTasksError('');
 
-    fetch(`/api/tickets?projectId=${activeProject.id}`)
+    fetch(`/api/tickets?projectId=${activeProject.id}&userName=${encodeURIComponent(name)}&excludeClosed=true`)
       .then((res) => {
         if (!res.ok) throw new Error('Could not load project tasks');
         return res.json();
       })
       .then((data) => {
         if (active) {
-          setProjectTasks(data.tickets || []);
+          const matching = (data.tickets || []).filter(
+            (t) =>
+              (t.employee_name === name || t.assigned_to_name === name) &&
+              t.status !== 'closed'
+          );
+          setProjectTasks(matching);
         }
       })
       .catch((err) => {
@@ -139,7 +151,7 @@ export default function TaskSheetForm({
     return () => {
       active = false;
     };
-  }, [activeProject?.id]);
+  }, [activeProject?.id, name]);
 
   function handleSelectTask(taskId) {
     if (!taskId) return;
@@ -152,20 +164,23 @@ export default function TaskSheetForm({
     const key = `${(task.project_key || activeProject?.key || 'TM').toUpperCase()}-${task.id}`;
     let defaultStatus = 'In Progress';
     if (task.status === 'open') defaultStatus = 'To Do';
-    else if (task.status === 'in_progress') defaultStatus = 'In Progress';
+
+    const initialWorkState = task.status === 'resolved' ? 'completed' : 'not_completed';
+    const initialStatus = initialWorkState === 'completed' ? 'QA Testing' : defaultStatus;
 
     const newTicket = {
       id: task.id,
       key,
       title: task.title,
       status: task.status,
-      assignee: task.employee_name || 'Unassigned',
+      assignee: task.employee_name || task.assigned_to_name || 'Unassigned',
+      employee_name: task.employee_name,
+      assigned_to_name: task.assigned_to_name,
       project_id: task.project_id || activeProject?.id,
       project_name: task.project_name || activeProject?.name || '',
-      workState: taskState === 'not_completed' ? 'not_completed' : 'completed',
-      taskStatus: defaultStatus,
+      workState: initialWorkState,
+      taskStatus: initialStatus,
       blocker: '',
-      syncResolved: true,
     };
     setSelectedTickets((prev) => [...prev, newTicket]);
     if (!taskTitle.trim()) {
@@ -220,12 +235,24 @@ export default function TaskSheetForm({
       return undefined;
     }
 
+    if (!activeProject?.id || !name) {
+      setLinking(false);
+      return undefined;
+    }
+
     setLinking(true);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
+        const queryParams = new URLSearchParams({
+          q: trimmed,
+          limit: '10',
+          excludeClosed: 'true',
+          projectId: String(activeProject.id),
+          userName: name,
+        });
         const res = await fetch(
-          `/api/tickets/search?q=${encodeURIComponent(trimmed)}&limit=10`,
+          `/api/tickets/search?${queryParams.toString()}`,
           { signal: controller.signal }
         );
         if (!res.ok) throw new Error('lookup failed');
@@ -235,9 +262,17 @@ export default function TaskSheetForm({
           (t) => `${t.project_key}-${t.id}`.toUpperCase() === wanted
         );
         if (match) {
-          const matchKey = `${(match.project_key || 'TM').toUpperCase()}-${match.id}`;
+          const matchAssignee = match.employee_name || match.assigned_to_name;
+          if (matchAssignee !== name) return;
+          if (match.project_id !== activeProject.id) return;
+          if (match.status === 'closed') return;
+
+          const matchKey = `${(match.project_key || activeProject?.key || 'TM').toUpperCase()}-${match.id}`;
           let defaultStatus = 'In Progress';
           if (match.status === 'open') defaultStatus = 'To Do';
+          const initialWorkState = match.status === 'resolved' ? 'completed' : 'not_completed';
+          const initialStatus = initialWorkState === 'completed' ? 'QA Testing' : defaultStatus;
+
           setSelectedTickets((prev) => {
             if (prev.some((t) => t.id === match.id)) return prev;
             return [
@@ -247,19 +282,17 @@ export default function TaskSheetForm({
                 key: matchKey,
                 title: match.title,
                 status: match.status,
-                assignee: match.employee_name || 'Unassigned',
-                project_id: match.project_id,
-                project_name: match.project_name || '',
-                workState: taskState === 'not_completed' ? 'not_completed' : 'completed',
-                taskStatus: defaultStatus,
+                assignee: match.employee_name || match.assigned_to_name || 'Unassigned',
+                employee_name: match.employee_name,
+                assigned_to_name: match.assigned_to_name,
+                project_id: match.project_id || activeProject.id,
+                project_name: match.project_name || activeProject.name || '',
+                workState: initialWorkState,
+                taskStatus: initialStatus,
                 blocker: '',
-                syncResolved: true,
               },
             ];
           });
-          if (match.project_name && !project) {
-            setProject(match.project_name);
-          }
         }
       } catch {
         // preserve previous state
@@ -272,7 +305,7 @@ export default function TaskSheetForm({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [taskTitle, project, taskState]);
+  }, [taskTitle, activeProject?.id, activeProject?.key, activeProject?.name, name]);
 
   function resolvedHours() {
     if (hours === 'other') {
@@ -295,17 +328,12 @@ export default function TaskSheetForm({
     }
     if (!taskTitle.trim()) next.taskTitle = 'Please enter a task title or number.';
     if (!taskDescription.trim()) next.taskDescription = 'Please describe the task.';
-    if (!taskState) next.taskState = 'Please choose a task state.';
 
     if (selectedTickets.length > 0) {
       for (const t of selectedTickets) {
         if (t.workState === 'not_completed' && !t.blocker?.trim()) {
           next[`ticket_blocker_${t.id}`] = `Please describe what is blocking #${t.key}.`;
         }
-      }
-    } else {
-      if (taskState === 'not_completed' && !blocker.trim()) {
-        next.blocker = 'Please describe what is blocking this task.';
       }
     }
     return next;
@@ -339,6 +367,10 @@ export default function TaskSheetForm({
     }
 
     setBusy(true);
+    const effectiveTaskState = selectedTickets.length > 0
+      ? (selectedTickets.every((t) => t.workState === 'completed') ? 'completed' : 'not_completed')
+      : taskState;
+
     try {
       const res = await fetch('/api/task-sheet', {
         method: 'POST',
@@ -349,8 +381,8 @@ export default function TaskSheetForm({
           hoursWorked: resolvedHours(),
           taskTitle: taskTitle.trim(),
           taskDescription: taskDescription.trim(),
-          taskState,
-          blocker: taskState === 'not_completed' ? blocker.trim() : null,
+          taskState: effectiveTaskState,
+          blocker: effectiveTaskState === 'not_completed' ? (selectedTickets.length === 0 ? blocker.trim() : null) : null,
           linkedTicketId: linked ? linked.id : null,
           selectedTickets,
           syncTicketStatus,
@@ -365,8 +397,8 @@ export default function TaskSheetForm({
         project,
         hoursWorked: resolvedHours(),
         taskTitle: taskTitle.trim(),
-        taskState,
-        blocker: taskState === 'not_completed' ? blocker.trim() : null,
+        taskState: effectiveTaskState,
+        blocker: effectiveTaskState === 'not_completed' ? blocker.trim() : null,
         selectedTickets,
         linked,
       });
@@ -418,12 +450,17 @@ export default function TaskSheetForm({
         </div>
       )}
 
-      <div className="ts-grid">
+      <div className="ts-upper-section">
+        <div className="ts-upper-header">
+          <span className="ts-upper-title">Daily Work Information</span>
+          <span className="ts-upper-badge">Step 1 of 2</span>
+        </div>
+
         <div className={`form-group ts-field${errors.name ? ' has-error' : ''}`}
           id="ts-name"
           role="group"
           aria-label="Name">
-          <span className="ts-legend">Name</span>
+          <span className="ts-legend">Name <span className="ts-required-star">*</span></span>
           <InlineDropdownField
             value={name}
             options={nameOptions}
@@ -442,7 +479,7 @@ export default function TaskSheetForm({
           role="group"
           aria-label="Project"
         >
-          <span className="ts-legend">Project</span>
+          <span className="ts-legend">Project <span className="ts-required-star">*</span></span>
           <InlineDropdownField
             value={project}
             options={projectOptions}
@@ -457,12 +494,12 @@ export default function TaskSheetForm({
         </div>
 
         <div
-          className={`form-group ts-field${errors.hours ? ' has-error' : ''}`}
+          className={`form-group ts-field ts-field-wide${errors.hours ? ' has-error' : ''}`}
           id="ts-hours"
           role="group"
           aria-label="Approximate hours worked"
         >
-          <span className="ts-legend">Approximate hours worked</span>
+          <span className="ts-legend">Approximate hours worked <span className="ts-required-star">*</span></span>
           <ChipSelect
             label="Approximate hours worked"
             name="ts-hours"
@@ -492,14 +529,15 @@ export default function TaskSheetForm({
           className={`form-group ts-field ts-field-wide${errors.taskTitle ? ' has-error' : ''}`}
           id="ts-taskTitle"
         >
-          <label htmlFor="ts-title">Task title or ticket number</label>
+          <label htmlFor="ts-title">Task title or ticket number <span className="ts-required-star">*</span></label>
 
-          {project && projectTasks.length > 0 && (
+          {project && (
             <div className="ts-task-picker" style={{ marginBottom: 6 }}>
               <select
                 id="ts-task-dropdown"
                 className="ts-task-select"
                 value=""
+                disabled={!name || loadingTasks || projectTasks.length === 0 || projectTasks.filter((t) => !selectedTickets.some((st) => st.id === t.id)).length === 0}
                 onChange={(e) => {
                   handleSelectTask(e.target.value);
                   e.target.value = '';
@@ -507,7 +545,13 @@ export default function TaskSheetForm({
                 aria-label={`Select an existing task from ${project}`}
               >
                 <option value="">
-                  {selectedTickets.length > 0
+                  {!name
+                    ? '— Select your name above to view assigned tasks —'
+                    : loadingTasks
+                    ? `Loading tasks for ${name}...`
+                    : projectTasks.length === 0
+                    ? `No open tasks assigned to ${name} in ${project}`
+                    : selectedTickets.length > 0
                     ? `+ Add another task from ${project} (optional)`
                     : `— Choose an existing task from ${project} (optional) —`}
                 </option>
@@ -584,61 +628,74 @@ export default function TaskSheetForm({
                     </button>
                   </div>
 
-                  <div className="ts-ticket-controls" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border, #dfe1e6)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-subtle, #626f86)' }}>Work State:</span>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', fontWeight: t.workState === 'completed' ? 600 : 400 }}>
-                        <input
-                          type="radio"
-                          name={`ticket-state-${t.id}`}
-                          checked={t.workState === 'completed'}
-                          onChange={() => handleUpdateTicket(t.id, { workState: 'completed' })}
-                        />
-                        Completed
-                      </label>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', fontWeight: t.workState === 'not_completed' ? 600 : 400 }}>
-                        <input
-                          type="radio"
-                          name={`ticket-state-${t.id}`}
-                          checked={t.workState === 'not_completed'}
-                          onChange={() => handleUpdateTicket(t.id, { workState: 'not_completed' })}
-                        />
-                        Not Completed
-                      </label>
-                    </div>
-
-                    {t.workState === 'completed' && (
-                      <label className="ts-sync-option" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0 0 0' }}>
-                        <input
-                          type="checkbox"
-                          checked={t.syncResolved !== false}
-                          onChange={(e) => handleUpdateTicket(t.id, { syncResolved: e.target.checked })}
-                        />
-                        <span>Mark connected task <strong>#{t.key}</strong> as Resolved upon submission</span>
-                      </label>
-                    )}
-
-                    {t.workState === 'not_completed' && (
-                      <div className="ts-ticket-incomplete-fields" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 10px', background: 'rgba(9, 30, 66, 0.03)', borderRadius: 4, border: '1px solid #dfe1e6' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <label htmlFor={`ticket-status-${t.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #172b4d)' }}>
-                            Status:
-                          </label>
+                    <div className="ts-ticket-controls" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border, #dfe1e6)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-subtle, #626f86)' }}>Work State:</span>
+                      
+                      {/* Completed option with dynamic status dropdown */}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer', fontWeight: t.workState === 'completed' ? 600 : 400 }}>
+                          <input
+                            type="radio"
+                            name={`ticket-state-${t.id}`}
+                            checked={t.workState === 'completed'}
+                            onChange={() => handleUpdateTicket(t.id, {
+                              workState: 'completed',
+                              taskStatus: (t.taskStatus === 'QA Testing' || t.taskStatus === 'Closed') ? t.taskStatus : 'QA Testing',
+                            })}
+                          />
+                          Completed
+                        </label>
+                        {t.workState === 'completed' && (
                           <select
-                            id={`ticket-status-${t.id}`}
+                            id={`ticket-status-completed-${t.id}`}
                             className="ts-task-select"
-                            value={t.taskStatus || 'In Progress'}
+                            value={t.taskStatus === 'Closed' ? 'Closed' : 'QA Testing'}
                             onChange={(e) => handleUpdateTicket(t.id, { taskStatus: e.target.value })}
-                            style={{ width: 'auto', minWidth: 140, padding: '3px 8px', fontSize: 12 }}
+                            style={{ width: 'auto', minWidth: 125, padding: '4px 10px', fontSize: 13 }}
+                            aria-label={`Status for completed ticket #${t.key}`}
+                          >
+                            <option value="QA Testing">QA Testing</option>
+                            <option value="Closed">Closed</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Not Completed option with dynamic status dropdown */}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer', fontWeight: t.workState === 'not_completed' ? 600 : 400 }}>
+                          <input
+                            type="radio"
+                            name={`ticket-state-${t.id}`}
+                            checked={t.workState === 'not_completed'}
+                            onChange={() => handleUpdateTicket(t.id, {
+                              workState: 'not_completed',
+                              taskStatus: (t.taskStatus === 'To Do' || t.taskStatus === 'In Progress') ? t.taskStatus : 'In Progress',
+                            })}
+                          />
+                          Not Completed
+                        </label>
+                        {t.workState === 'not_completed' && (
+                          <select
+                            id={`ticket-status-not-completed-${t.id}`}
+                            className="ts-task-select"
+                            value={t.taskStatus === 'To Do' ? 'To Do' : 'In Progress'}
+                            onChange={(e) => handleUpdateTicket(t.id, { taskStatus: e.target.value })}
+                            style={{ width: 'auto', minWidth: 125, padding: '4px 10px', fontSize: 13 }}
+                            aria-label={`Status for incomplete ticket #${t.key}`}
                           >
                             <option value="To Do">To Do</option>
                             <option value="In Progress">In Progress</option>
-                            <option value="QA Testing">QA Testing</option>
                           </select>
-                        </div>
+                        )}
+                      </div>
+                    </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }} id={`ts-ticket_blocker_${t.id}`}>
-                          <label htmlFor={`ticket-blocker-${t.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text, #172b4d)' }}>
+                    {/* Blocker description: required when Not Completed */}
+                    {t.workState === 'not_completed' && (
+                      <div className="ts-ticket-incomplete-fields" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', background: 'rgba(9, 30, 66, 0.03)', borderRadius: 6, border: '1px solid #dfe1e6' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }} id={`ts-ticket_blocker_${t.id}`}>
+                          <label htmlFor={`ticket-blocker-${t.id}`} style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #172b4d)' }}>
                             What is blocking this task? <span style={{ color: 'var(--danger, #ae2a19)' }}>*</span>
                           </label>
                           <textarea
@@ -648,15 +705,15 @@ export default function TaskSheetForm({
                             placeholder="Waiting on a dependency, a review, access, a decision…"
                             onChange={(e) => handleUpdateTicket(t.id, { blocker: e.target.value })}
                             style={{
-                              fontSize: 12,
-                              padding: '6px 8px',
+                              fontSize: 14,
+                              padding: '8px 10px',
                               borderRadius: 4,
                               border: errors[`ticket_blocker_${t.id}`] ? '1px solid #ae2a19' : '1px solid #dfe1e6',
                             }}
                             aria-invalid={errors[`ticket_blocker_${t.id}`] ? 'true' : undefined}
                           />
                           {errors[`ticket_blocker_${t.id}`] && (
-                            <span className="error-text" style={{ fontSize: 11, color: '#ae2a19', marginTop: 2 }}>
+                            <span className="error-text" style={{ fontSize: 12, color: '#ae2a19', marginTop: 2 }}>
                               {errors[`ticket_blocker_${t.id}`]}
                             </span>
                           )}
@@ -677,14 +734,16 @@ export default function TaskSheetForm({
           )}
           {errors.taskTitle ? <span className="error-text">{errors.taskTitle}</span> : null}
         </div>
+      </div>
 
+      <div className="ts-grid">
         <div
           className={`form-group ts-field ts-field-wide${
             errors.taskDescription ? ' has-error' : ''
           }`}
           id="ts-taskDescription"
         >
-          <label htmlFor="ts-description">Task description</label>
+          <label htmlFor="ts-description">Task description <span className="ts-required-star">*</span></label>
           <textarea
             id="ts-description"
             rows={4}
@@ -697,49 +756,6 @@ export default function TaskSheetForm({
             <span className="error-text">{errors.taskDescription}</span>
           ) : null}
         </div>
-
-        <div className={`form-group ts-field${errors.taskState ? ' has-error' : ''}`} id="ts-taskState">
-          <span className="ts-legend">Task state</span>
-          <div className="ts-states" role="radiogroup" aria-label="Task state">
-            {STATE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={taskState === option.value}
-                className={`ts-state${taskState === option.value ? ' is-selected' : ''}`}
-                onClick={() => setTaskState(option.value)}
-              >
-                <span className="ts-state-dot" aria-hidden="true" />
-                <span className="ts-state-text">
-                  <strong>{option.title}</strong>
-                  <span>{option.blurb}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-          {errors.taskState ? <span className="error-text">{errors.taskState}</span> : null}
-        </div>
-
-        {selectedTickets.length === 0 && taskState === 'not_completed' && (
-          <div
-            className={`form-group ts-field ts-field-wide${
-              errors.blocker ? ' has-error' : ''
-            }`}
-            id="ts-blocker"
-          >
-            <label htmlFor="ts-blocker-input">What is blocking this task?</label>
-            <textarea
-              id="ts-blocker-input"
-              rows={3}
-              value={blocker}
-              placeholder="Waiting on a dependency, a review, access, a decision…"
-              onChange={(e) => setBlocker(e.target.value)}
-              aria-invalid={errors.blocker ? 'true' : undefined}
-            />
-            {errors.blocker ? <span className="error-text">{errors.blocker}</span> : null}
-          </div>
-        )}
       </div>
 
       <div className="ts-actions">
