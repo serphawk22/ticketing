@@ -11344,6 +11344,8 @@ input.inline-input.tm-title-edit {
 
 .idf-label.is-empty {
   color: var(--text-subtle);
+}
+
 .docs-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
