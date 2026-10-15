@@ -6,8 +6,6 @@ import {
   PRIORITY_ORDER,
   STATUS_META,
   STATUS_ORDER,
-  TYPE_META,
-  TYPE_ORDER,
   formatDuration,
   formatFullDateTime,
   formatShortDate,
@@ -15,80 +13,9 @@ import {
   ticketKey,
 } from '../meta';
 import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonOutlineIcon } from './icons';
-import { ChipInput, FieldRow, InlineText, Menu, MenuItem, MenuLabel } from './parts';
+import { ChipInput, FieldRow, InlineText, Menu } from './parts';
 import InlineDateField from '../InlineDateField';
-import UserPicker from '../UserPicker';
-import { CategoryField, PriorityField, ReporterField, StatusField, ProductInclusionField } from '../TicketFields';
-
-function PersonField({ ticket, employees, canReassign, meEmployeeId, onSave }) {
-  const assignable = useMemo(
-    () =>
-      employees
-        // Clients raise requests but never take ownership of the work, so they
-        // are kept out of the list of people a ticket can be assigned to.
-        .filter((e) => e.active && e.role !== 'client')
-        .map((e) => ({ id: e.id, name: e.name }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [employees]
-  );
-
-  return (
-    <FieldRow label="Assignee">
-      <div className="tm-person">
-        <UserPicker
-          value={ticket.employee_id}
-          users={assignable}
-          onSelect={onSave}
-          readOnly={!canReassign}
-          label="Assignee"
-        />
-      </div>
-      {!ticket.employee_id && canReassign && meEmployeeId && (
-        <button type="button" className="tm-inline-link" onClick={() => onSave(meEmployeeId)}>
-          Assign to me
-        </button>
-      )}
-    </FieldRow>
-  );
-}
-
-function TypeField({ type, onSave, canEdit }) {
-  const [open, setOpen] = useState(false);
-  const meta = TYPE_META[type] || TYPE_META.task;
-  return (
-    <FieldRow label="Issue type">
-      <button
-        type="button"
-        className="tm-value-btn"
-        onClick={() => canEdit && setOpen((v) => !v)}
-        disabled={!canEdit}
-        title={canEdit ? '' : 'Only admins can change the issue type'}
-      >
-        <span className="tm-type-dot" style={{ background: meta.color }} aria-hidden="true" />
-        {meta.label}
-      </button>
-      <Menu open={open} onClose={() => setOpen(false)}>
-        <MenuLabel>Change issue type</MenuLabel>
-        {TYPE_ORDER.map((key) => {
-          const option = TYPE_META[key];
-          return (
-            <MenuItem
-              key={key}
-              active={key === type}
-              onClick={() => {
-                onSave(key);
-                setOpen(false);
-              }}
-              icon={<span className="tm-type-dot" style={{ background: option.color }} />}
-            >
-              {option.label}
-            </MenuItem>
-          );
-        })}
-      </Menu>
-    </FieldRow>
-  );
-}
+import { CategoryField, PriorityField, ReporterField, StatusField, ProductInclusionField, AssigneeField, IssueTypeField } from '../TicketFields';
 
 function DateField({ label, value, onSave, canEdit, clickToEdit = false }) {
   // The due date opens on click: the value sits there until it is clicked, the
@@ -366,6 +293,18 @@ export default function DetailsSidebar({
   configureOpen,
   onToggleConfigure,
 }) {
+  // The people a ticket can be assigned to: active staff, never clients, the
+  // same rule ticket creation and the list's inline picker apply. The email and
+  // role ride along so the dropdown can be searched by either.
+  const assignable = useMemo(
+    () =>
+      employees
+        .filter((e) => e.active && e.role !== 'client')
+        .map((e) => ({ id: e.id, name: e.name, email: e.email, role: e.role, title: e.title }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [employees]
+  );
+
   // Same roster the list builds: employees carry the matching user id, because
   // a reporter is a user and tickets.created_by holds a user id.
   const reporters = useMemo(
@@ -414,13 +353,21 @@ export default function DetailsSidebar({
 
         {detailsOpen && (
           <div className="tm-fields">
-            <PersonField
-              ticket={ticket}
-              employees={employees}
-              canReassign={isAdmin}
-              meEmployeeId={detail.meEmployeeId}
-              onSave={(v) => onPatch({ employee_id: v })}
-            />
+            <FieldRow label="Assignee">
+              <div className="tm-person">
+                <AssigneeField
+                  value={ticket.employee_id}
+                  employees={assignable}
+                  onSelect={(v) => onPatch({ employee_id: v })}
+                  variant="sidebar"
+                />
+              </div>
+              {!ticket.employee_id && isAdmin && detail.meEmployeeId && (
+                <button type="button" className="tm-inline-link" onClick={() => onPatch({ employee_id: detail.meEmployeeId })}>
+                  Assign to me
+                </button>
+              )}
+            </FieldRow>
             <FieldRow label="Reporter">
               <div className="tm-person">
                 <ReporterField
@@ -432,10 +379,18 @@ export default function DetailsSidebar({
             </FieldRow>
             <FieldRow label="Priority">
               <div className="tm-person">
-                <PriorityField value={ticket.priority} onSelect={(v) => onPatch({ priority: v })} />
+                <PriorityField value={ticket.priority} onSelect={(v) => onPatch({ priority: v })} variant="sidebar" searchable />
               </div>
             </FieldRow>
-            <TypeField type={ticket.type} onSave={(v) => onPatch({ type: v })} canEdit={isAdmin} />
+            <FieldRow label="Issue type">
+              <div className="tm-person">
+                <IssueTypeField
+                  value={ticket.type}
+                  onSelect={(v) => onPatch({ type: v })}
+                  variant="sidebar"
+                />
+              </div>
+            </FieldRow>
             <FieldRow label="Labels">
               <ChipInput
                 values={labels}
@@ -453,7 +408,7 @@ export default function DetailsSidebar({
               label="Due date"
               value={ticket.due_date}
               onSave={(v) => onPatch({ due_date: v })}
-              canEdit={isAdmin}
+              canEdit
               clickToEdit
             />
             <TimeField

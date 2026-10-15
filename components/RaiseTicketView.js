@@ -5,12 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import {
+  CategoryField,
+  IssueTypeField,
+  PriorityField,
+} from '@/components/TicketFields';
+import {
   LOZENGE_TINTS,
   PRIORITY_META,
-  PRIORITY_ORDER,
   STATUS_META,
   TYPE_META,
-  TYPE_ORDER,
   PriorityIcon,
   TypeIcon,
   ticketKey,
@@ -156,46 +159,20 @@ export default function RaiseTicketView({
                 />
               </div>
 
-              <div className="form-row">
+              <div className="create-ticket-grid">
                 <div className="form-group">
-                  <label htmlFor="raise-priority">Priority</label>
-                  <select
-                    id="raise-priority"
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                  >
-                    {PRIORITY_ORDER.map((p) => (
-                      <option key={p} value={p}>
-                        {PRIORITY_META[p].label}
-                      </option>
-                    ))}
-                  </select>
+                  <label>Priority</label>
+                  <PriorityField value={priority} onSelect={setPriority} variant="form" searchable />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="raise-type">Issue type</label>
-                  <select
-                    id="raise-type"
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                  >
-                    {TYPE_ORDER.map((t) => (
-                      <option key={t} value={t}>
-                        {TYPE_META[t].label}
-                      </option>
-                    ))}
-                  </select>
+                  <label>Issue type</label>
+                  <IssueTypeField value={type} onSelect={setType} variant="form" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="raise-category">Category</label>
-                  <input
-                    id="raise-category"
-                    type="text"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Add category"
-                  />
+                  <label>Category</label>
+                  <CategoryField value={category} onSelect={setCategory} variant="form" />
                 </div>
               </div>
 

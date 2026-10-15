@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AppShell from './AppShell';
 import TicketCard from './TicketCard';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import CreateTicketModal from './CreateTicketModal';
 import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import { DONE_STATUSES, PRIORITY_META, PRIORITY_ORDER, ticketKey } from './meta';
@@ -128,6 +129,7 @@ export default function DevDashboard({
   const [error, setError] = useState('');
   const [draggingId, setDraggingId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const projectCounts = useMemo(() => {
     const counts = {};
@@ -284,6 +286,14 @@ export default function DevDashboard({
   function openTicket(id) {
     const found = tickets.find((t) => t.id === id);
     if (found) modal.select(found);
+  }
+
+  // The modal creates the ticket itself (POST /api/tickets) and hands back the
+  // saved row, so it is appended straight away: the two ownership lists re-derive
+  // from `tickets`, so the new card lands in the right section immediately.
+  function handleCreate(created) {
+    setShowCreate(false);
+    if (created) setTickets((ts) => (ts.some((t) => t.id === created.id) ? ts : [created, ...ts]));
   }
 
   async function updateStatus(id, status) {
@@ -489,6 +499,22 @@ export default function DevDashboard({
           </div>
 
           <div className="toolbar-actions">
+            <button className="btn-primary" onClick={() => setShowCreate(true)}>
+              <svg
+                viewBox="0 0 24 24"
+                width="15"
+                height="15"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Create
+            </button>
+
             <div className="search-field">
               <SearchIcon />
               <input
@@ -576,6 +602,16 @@ export default function DevDashboard({
           onTicketChanged={applyTicketUpdate}
           onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
+        />
+      )}
+
+      {showCreate && (
+        <CreateTicketModal
+          employees={employees}
+          projects={projects}
+          defaultProjectId={projectId === 'all' ? '' : projectId}
+          onClose={() => setShowCreate(false)}
+          onCreate={handleCreate}
         />
       )}
     </AppShell>

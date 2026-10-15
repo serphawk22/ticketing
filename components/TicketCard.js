@@ -46,8 +46,12 @@ export default function TicketCard({
   isActive = false,
   onOpen,
 }) {
-  const priority = PRIORITY_META[ticket.priority];
-  const status = STATUS_META[ticket.status];
+  // A card can be handed a ticket whose status or priority is missing or not a
+  // value the meta tables know about (for example a row written before a value
+  // was introduced). Fall back to the same defaults the schema uses -- 'open'
+  // and 'medium' -- so the card still renders instead of throwing.
+  const priority = PRIORITY_META[ticket.priority] || PRIORITY_META.medium;
+  const status = STATUS_META[ticket.status] || STATUS_META.open;
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' || e.key === ' ') {

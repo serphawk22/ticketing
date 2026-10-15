@@ -7,10 +7,14 @@
   /* Typography */
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-sora), var(--font-inter), -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-size: 16px;
   --line-height: 24px;
   --fs-11: 11px;
   --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
   --fs-16: 16px;
   --fs-24: 24px;
 
@@ -74,6 +78,17 @@
   --topnav-h: 56px;
   --sidebar-w: 240px;
   --control-h: 32px;
+
+  /* Aliases (kept for components whose rich styles reference them) */
+  --surface: #ffffff;
+  --sur: #ffffff;
+  --bg-elevated: #ffffff;
+  --hover-bg: #f1f2f4;
+  --muted: #6b778c;
+  --accent: #0c66e4;
+  --accent-ring: #b3d4ff;
+  --border-strong: #8590a2;
+  --shadow-sm: 0 1px 2px rgba(9, 30, 66, 0.08);
 }
 
 /* ---------------- Base ---------------- */
@@ -440,6 +455,14 @@ textarea {
   padding-top: var(--topnav-h);
 }
 
+/* Display typography for the authenticated shell only. The login page lives
+   outside .app and is intentionally left untouched. */
+.app :is(h1, h2, h3, h4),
+.app .topnav-brand-name {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
 /* ---------------- Top navigation ---------------- */
 
 .topnav {
@@ -483,14 +506,16 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
   flex: 0 0 auto;
-  border-radius: var(--radius);
+  border-radius: 8px;
   background: var(--primary);
   color: #fff;
-  font-size: var(--fs-16);
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
   line-height: 1;
 }
 
@@ -577,32 +602,34 @@ textarea {
 
 .topnav-search svg {
   position: absolute;
-  left: 8px;
+  left: 12px;
   color: var(--text-subtle);
   pointer-events: none;
 }
 
+/* Slightly wider than the page-level search fields, with a bold black edge so it
+   reads as the primary nav control. The width scales down with the viewport so
+   it never crowds the icons. */
 .topnav-search input {
-  width: 200px;
-  height: var(--control-h);
-  padding: 5px 8px 5px 30px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-surface);
-  transition: width var(--t-base), background-color var(--t-fast),
-    border-color var(--t-fast), box-shadow var(--t-fast);
+  width: clamp(200px, 24vw, 320px);
+  height: 42px;
+  padding: 0 12px 0 38px;
+  border: 3px solid #111111;
+  border-radius: 8px;
+  background: var(--bg);
+  transition: background-color var(--t-fast), border-color var(--t-fast),
+    box-shadow var(--t-fast);
 }
 
 .topnav-search input:hover {
-  background: var(--bg-hover);
+  border-color: #111111;
 }
 
 .topnav-search input:focus {
-  width: 260px;
   outline: none;
   background: var(--bg);
-  border-color: var(--focus);
-  box-shadow: 0 0 0 2px #388bff4d;
+  border-color: #111111;
+  box-shadow: 0 0 0 3px #1111111a;
 }
 
 .topnav-avatar-wrap {
@@ -1565,8 +1592,6 @@ textarea {
   grid-template-columns: repeat(4, minmax(240px, 1fr));
   gap: 8px;
   align-items: start;
-  flex: 1;
-  min-height: 0;
   overflow-x: auto;
   padding-bottom: 4px;
 }
@@ -1574,7 +1599,6 @@ textarea {
 .column {
   display: flex;
   flex-direction: column;
-  height: 320px;
   padding: 8px;
   border-radius: var(--radius);
   background: var(--bg-hover);
@@ -1621,10 +1645,7 @@ textarea {
 .column-body {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
   gap: 8px;
-  overflow-y: auto;
 }
 
 .column-empty {
@@ -1895,8 +1916,6 @@ textarea {
 }
 
 .dash-sections {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
@@ -1906,7 +1925,6 @@ textarea {
 .dash-section {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1959,10 +1977,6 @@ textarea {
 }
 
 .dash-list {
-  flex: 1;
-  min-height: 0;
-  max-height: 330px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2541,11 +2555,24 @@ textarea {
   margin-bottom: 16px;
 }
 
+.project-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .project-icon-sm {
   width: 24px;
   height: 24px;
-  border-radius: var(--radius);
-  font-size: var(--fs-12);
+  font-size: 15px;
 }
 
 /* Info banner */
@@ -4757,11 +4784,30 @@ textarea {
   }
 }
 
+/* The login page is frozen exactly as it was designed: these variables
+   reproduce the dark values it relies on and are scoped to the login container
+   only, so re-theming the authenticated app to the light Jira palette below
+   cannot leak into it. */
+.auth-split-container {
+  color-scheme: dark;
+  --text: #f5f7fb;
+  --bg: #0b0d12;
+  --bg-surface: #151a23;
+  --bg-hover: #1c2330;
+  --bg-pressed: #232c3b;
+  --border: #2a3240;
+  --border-input: #3a4453;
+  --border-strong: #3a4453;
+  --primary: #2583f5;
+  --primary-hover: #4a9bff;
+  color: var(--text);
+}
+
 .auth-split-container {
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #ffffff;
+  background: var(--bg);
 }
 
 .auth-split-cursor {
@@ -4957,7 +5003,7 @@ textarea {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #1e1b4b;
+  color: var(--text);
 }
 
 .auth-split-tagline {
@@ -4967,6 +5013,10 @@ textarea {
   line-height: 1.15;
   letter-spacing: -0.03em;
   color: #ffffff;
+}
+
+.auth-split-accent {
+  color: #2583f5;
 }
 
 .auth-split-subtagline {
@@ -5008,7 +5058,7 @@ textarea {
   justify-content: center;
   width: 50%;
   padding: 48px;
-  background: linear-gradient(160deg, #f8fafc 0%, #e9edff 100%);
+  background: linear-gradient(165deg, #0b0d12 0%, #10131a 55%, #151a23 100%);
 }
 
 .auth-split-form-inner {
@@ -5016,12 +5066,12 @@ textarea {
   max-width: 440px;
   box-sizing: border-box;
   padding: 36px 32px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
+  border: 1px solid var(--border);
   border-radius: 20px;
-  background: #ffffff;
+  background: var(--bg-surface);
   box-shadow:
-    0 28px 60px -30px rgba(30, 27, 75, 0.4),
-    0 6px 18px -10px rgba(30, 27, 75, 0.18);
+    0 28px 60px -30px rgba(0, 0, 0, 0.7),
+    0 6px 18px -10px rgba(0, 0, 0, 0.45);
 }
 
 .auth-split-form-brand {
@@ -5041,13 +5091,13 @@ textarea {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: #1e1b4b;
+  color: var(--text);
 }
 
 .auth-split-heading p {
   font-size: 15px;
   line-height: 1.5;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .auth-split-form-element {
@@ -5066,7 +5116,7 @@ textarea {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: #312e81;
+  color: var(--text-secondary);
 }
 
 .auth-split-input-wrap {
@@ -5079,43 +5129,43 @@ textarea {
   left: 14px;
   display: flex;
   align-items: center;
-  color: #94a3b8;
+  color: var(--text-tertiary);
   pointer-events: none;
   transform: translateY(-50%);
   transition: color 0.2s ease;
 }
 
 .auth-split-input-wrap:focus-within .auth-split-input-icon {
-  color: #6366f1;
+  color: var(--primary);
 }
 
 .auth-split-input-wrap input {
   width: 100%;
   height: 48px;
   padding: 0 16px 0 44px;
-  border: 1px solid #e0e7ff;
+  border: 1px solid var(--border-input);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--bg);
   font-size: 15px;
-  color: #0f172a;
+  color: var(--text);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   box-sizing: border-box;
 }
 
 .auth-split-input-wrap input::placeholder {
-  color: #94a3b8;
+  color: var(--text-tertiary);
 }
 
 .auth-split-input-wrap input:hover {
-  border-color: #c7d2fe;
-  background: #f1f5ff;
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
 }
 
 .auth-split-input-wrap input:focus {
   outline: none;
-  border-color: #6366f1;
-  background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  border-color: var(--primary);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 4px rgba(37, 131, 245, 0.18);
 }
 
 .auth-split-forgot {
@@ -5127,7 +5177,7 @@ textarea {
 .auth-split-link {
   font-size: 13px;
   font-weight: 600;
-  color: #4f46e5;
+  color: var(--primary);
   background: none;
   border: none;
   padding: 0;
@@ -5136,7 +5186,7 @@ textarea {
 }
 
 .auth-split-link:hover {
-  color: #4338ca;
+  color: var(--primary-hover);
   text-decoration: underline;
 }
 
@@ -5145,30 +5195,30 @@ textarea {
   height: 48px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #2583f5 0%, #1c6bd0 100%);
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
-  box-shadow: 0 12px 26px -12px rgba(79, 70, 229, 0.75);
+  box-shadow: 0 12px 26px -12px rgba(37, 131, 245, 0.7);
 }
 
 .auth-split-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%);
-  box-shadow: 0 16px 30px -12px rgba(79, 70, 229, 0.85);
+  background: linear-gradient(135deg, #3b92f7 0%, #2583f5 100%);
+  box-shadow: 0 16px 30px -12px rgba(37, 131, 245, 0.8);
   transform: translateY(-1px);
 }
 
 .auth-split-btn:active:not(:disabled) {
-  background: linear-gradient(135deg, #3730a3 0%, #1e40af 100%);
+  background: linear-gradient(135deg, #1c6bd0 0%, #175aa8 100%);
   transform: translateY(0);
 }
 
 .auth-split-btn:disabled {
-  background: #e2e8f0;
-  color: #94a3b8;
+  background: var(--bg-pressed);
+  color: var(--text-tertiary);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -5178,10 +5228,10 @@ textarea {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid #fecaca;
+  border: 1px solid rgba(255, 107, 107, 0.35);
   border-radius: 10px;
-  background: #fef2f2;
-  color: #b91c1c;
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff8a80;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -5197,9 +5247,9 @@ textarea {
   align-items: center;
   gap: 16px;
   padding: 24px;
-  border: 1px solid rgba(33, 110, 78, 0.2);
+  border: 1px solid rgba(87, 217, 163, 0.3);
   border-radius: 12px;
-  background: #f0fdf4;
+  background: rgba(87, 217, 163, 0.1);
   text-align: center;
 }
 
@@ -5210,14 +5260,14 @@ textarea {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #dcfce7;
-  color: #15803d;
+  background: rgba(87, 217, 163, 0.18);
+  color: #57d9a3;
 }
 
 .auth-split-success p {
   font-size: 14px;
   line-height: 1.6;
-  color: #15803d;
+  color: #57d9a3;
 }
 
 .auth-split-back {
@@ -5232,19 +5282,19 @@ textarea {
   background: none;
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: color 0.15s ease;
 }
 
 .auth-split-back:hover {
-  color: #6366f1;
+  color: var(--primary);
 }
 
 .auth-split-demo {
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid #e0e7ff;
+  border-top: 1px solid var(--border);
 }
 
 .auth-split-demo-divider {
@@ -5256,7 +5306,7 @@ textarea {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--text-tertiary);
 }
 
 .auth-split-demo-divider::before,
@@ -5264,7 +5314,7 @@ textarea {
   content: '';
   flex: 1;
   height: 1px;
-  background: #e0e7ff;
+  background: var(--border);
 }
 
 .auth-split-demo-list {
@@ -5278,15 +5328,15 @@ textarea {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border: 1px solid #e0e7ff;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg);
 }
 
 .auth-split-demo-role {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .auth-split-demo-creds {
@@ -5294,21 +5344,21 @@ textarea {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .auth-split-demo-creds code {
   padding: 2px 6px;
-  border: 1px solid #e0e7ff;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--bg-surface);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  color: #334155;
+  color: var(--text);
 }
 
 .auth-split-demo-sep {
-  color: #cbd5e1;
+  color: var(--text-tertiary);
 }
 
 @keyframes auth-split-float {
@@ -5456,7 +5506,7 @@ textarea {
   }
 
   .topnav-search input {
-    width: 160px;
+    width: 180px;
   }
 
   .sidebar {
@@ -8480,7 +8530,9 @@ input.inline-input.tm-title-edit {
 
 .idf-panel {
   position: fixed;
-  z-index: 90;
+  /* Above the ticket detail modal overlay (z-index 200) and other dialogs, so a
+     field edited inside a modal can still show its option list. */
+  z-index: 1000;
   padding: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -11067,6 +11119,231 @@ input.inline-input.tm-title-edit {
   }
 }
 
+/* ---------------- Create ticket modal ----------------
+   The one form with more fields than fit a single column: a fixed header, a
+   body that scrolls on its own, and a pinned action row, so nothing overflows
+   the viewport and the primary action never scrolls out of reach. */
+
+.create-ticket-overlay {
+  align-items: flex-start;
+}
+
+.create-ticket-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 96vw);
+  max-width: 720px;
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.create-ticket-modal > header {
+  flex: none;
+}
+
+.create-ticket-modal form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+.create-ticket-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.create-ticket-body .form-group {
+  margin-bottom: 0;
+}
+
+.create-ticket-modal .form-group > label,
+.raise-form-card .form-group > label {
+  color: var(--text);
+  font-size: var(--fs-13);
+  font-weight: 600;
+}
+
+.create-ticket-modal .form-parent {
+  margin: 0;
+}
+
+.create-ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.create-ticket-grid > .form-group {
+  min-width: 0;
+}
+
+.create-ticket-modal .error-text {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+  font-size: var(--fs-13);
+}
+
+.create-ticket-actions {
+  flex: none;
+  padding: 12px 20px;
+}
+
+.create-ticket-modal .field-error {
+  color: var(--danger);
+  font-size: var(--fs-12);
+}
+
+/* Invalid fields keep the warning border through hover and focus. */
+.create-ticket-modal input.is-invalid,
+.create-ticket-modal textarea.is-invalid,
+.create-ticket-modal input.is-invalid:hover,
+.create-ticket-modal textarea.is-invalid:hover,
+.create-ticket-modal input.is-invalid:focus,
+.create-ticket-modal textarea.is-invalid:focus {
+  border-color: var(--danger);
+}
+
+.create-ticket-modal input.is-invalid:focus,
+.create-ticket-modal textarea.is-invalid:focus {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+/* The date control is not in the app-wide input list, so it is dressed here to
+   match the text inputs and form-style dropdowns it sits beside. */
+.create-ticket-modal input[type='text'],
+.create-ticket-modal textarea,
+.create-ticket-modal input[type='date'] {
+  font-size: var(--fs-14);
+}
+
+.create-ticket-modal input[type='date'] {
+  width: 100%;
+  height: var(--control-h);
+  padding: 5px 8px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  line-height: var(--line-height);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.create-ticket-modal input[type='date']:hover:not(:disabled) {
+  border-color: var(--text-subtle);
+}
+
+.create-ticket-modal input[type='date']:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+
+@media (max-width: 640px) {
+  .create-ticket-overlay {
+    padding: 16px;
+  }
+
+  .create-ticket-modal {
+    width: 100%;
+    max-height: calc(100vh - 32px);
+  }
+
+  .create-ticket-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The inline dropdown wearing a form field: full width at input height, so it
+   lines up with the text inputs and the date field beside it. */
+.idf-trigger-form {
+  width: 100%;
+  height: var(--control-h);
+  gap: 8px;
+  justify-content: space-between;
+  margin-left: 0;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: var(--fs-14);
+  font-weight: 400;
+}
+
+.idf-trigger-form:hover {
+  border-color: var(--text-subtle);
+  background: var(--bg);
+}
+
+.idf-trigger-form[aria-disabled='true'] {
+  background: var(--bg-hover);
+}
+
+.idf-trigger-form .idf-label,
+.idf-trigger-form .idf-icon-value,
+.idf-trigger-form .idf-user-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.idf-icon-value,
+.idf-user-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.idf-user-value .user-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Editing in a form is a plain search box: no avatar/icon gutter, so the text
+   sits where it does in the inputs around it. */
+.idf-edit-form {
+  width: 100%;
+}
+
+.idf-edit-form > .idf-edit-leading {
+  display: none;
+}
+
+.create-ticket-modal .idf-edit-form > .idf-input,
+.raise-form-card .idf-edit-form > .idf-input {
+  height: var(--control-h);
+  padding: 0 10px;
+  font-size: var(--fs-14);
+  line-height: calc(var(--control-h) - 2px);
+}
+
+.idf-option-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.idf-option-secondary {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  color: var(--text-subtle);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+}
+
+.idf-label.is-empty {
+  color: var(--text-subtle);
 .docs-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
