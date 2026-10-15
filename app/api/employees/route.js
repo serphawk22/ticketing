@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getEmployees, createEmployee, getEmployeeByEmail } from '@/lib/employees';
+import { getEmployees, createEmployee, getEmployeeByEmail, toSafeEmployee } from '@/lib/employees';
 import {
   createClientAccount,
   createUserWithTempPassword,
@@ -18,7 +18,12 @@ export async function GET() {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  return NextResponse.json({ employees: await getEmployees() });
+  const isAdmin = session.user.role === 'admin';
+  const allEmployees = await getEmployees();
+  // Safe filtering: non-admins NEVER receive base_salary, last_payment_date, payment_status
+  const employees = allEmployees.map((e) => toSafeEmployee(e, isAdmin));
+
+  return NextResponse.json({ employees });
 }
 
 export async function POST(request) {
@@ -32,8 +37,17 @@ export async function POST(request) {
     );
   }
 
-  const { name, email, role = 'developer', department = '', title = '' } =
-    await request.json();
+  const {
+    name,
+    email,
+    role = 'developer',
+    department = '',
+    title = '',
+    base_salary = null,
+    salary_currency = 'USD',
+    last_payment_date = null,
+    payment_status = '',
+  } = await request.json();
 
   const cleanName = String(name ?? '').trim();
   const cleanEmail = String(email ?? '').trim().toLowerCase();
@@ -81,6 +95,10 @@ export async function POST(request) {
       role,
       department: String(department ?? '').trim(),
       title: String(title ?? '').trim(),
+      base_salary,
+      salary_currency,
+      last_payment_date,
+      payment_status,
     });
 
     // A client authenticates with one passkey, emailed to the address the admin
@@ -132,6 +150,10 @@ export async function POST(request) {
     role,
     department: String(department ?? '').trim(),
     title: String(title ?? '').trim(),
+    base_salary,
+    salary_currency,
+    last_payment_date,
+    payment_status,
   });
 
   const invite = await sendEmployeeInvite({

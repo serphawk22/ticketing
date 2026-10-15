@@ -8,18 +8,64 @@ import {
   employeeTicketCount,
   unassignEmployeeTickets,
   getEmployeeByEmail,
+  toSafeEmployee,
 } from '@/lib/employees';
 import {
   getUserByEmail,
   syncUserFromEmployee,
   deleteUserByEmail,
   deleteUserSessions,
+  getUserById,
 } from '@/lib/users';
+import { db } from '@/lib/db';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Clients are accounts too: they live in the same directory so one page
 // manages every login, but they are never assignable work.
 const VALID_ROLES = ['admin', 'developer', 'client'];
+
+export async function GET(request, { params }) {
+  const session = await requireAuth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await params;
+  const employee = await getEmployee(id);
+  if (!employee) {
+    return NextResponse.json({ error: 'Employee not found.' }, { status: 404 });
+  }
+
+  const isAdmin = session.user.role === 'admin';
+  const isSelf = session.user.email === employee.email;
+
+  // Non-admins can only see sensitive salary/payment info for themselves
+  const canSeeSalary = isAdmin || isSelf;
+
+  // Permitted profile details (age, github, linkedin, avatar)
+  let profile = null;
+  const user = await getUserByEmail(employee.email);
+  if (user) {
+    try {
+      profile = await db
+        .prepare('SELECT avatar_url, age, github_url, linkedin_url FROM user_profiles WHERE user_id = ?')
+        .get(user.id);
+    } catch {
+      // Table might not exist yet
+    }
+  }
+
+  const safeEmployee = toSafeEmployee(employee, canSeeSalary);
+
+  return NextResponse.json({
+    employee: {
+      ...safeEmployee,
+      joined_at: user?.created_at || employee.created_at,
+      avatar_url: profile?.avatar_url || '',
+      age: profile?.age ?? null,
+      github_url: profile?.github_url || '',
+      linkedin_url: profile?.linkedin_url || '',
+    },
+  });
+}
 
 export async function PATCH(request, { params }) {
   const session = await requireAuth();
@@ -53,6 +99,28 @@ export async function PATCH(request, { params }) {
   const title = body.title === undefined ? existing.title : String(body.title).trim();
   const active = body.active === undefined ? Boolean(existing.active) : Boolean(body.active);
 
+  const base_salary =
+    body.base_salary !== undefined
+      ? body.base_salary !== null && body.base_salary !== ''
+        ? Number(body.base_salary)
+        : null
+      : existing.base_salary;
+
+  const salary_currency =
+    body.salary_currency !== undefined
+      ? String(body.salary_currency).trim().toUpperCase()
+      : existing.salary_currency || 'USD';
+
+  const last_payment_date =
+    body.last_payment_date !== undefined
+      ? body.last_payment_date || null
+      : existing.last_payment_date;
+
+  const payment_status =
+    body.payment_status !== undefined
+      ? String(body.payment_status).trim()
+      : existing.payment_status;
+
   if (!name) {
     return NextResponse.json({ error: 'Employee name is required.' }, { status: 400 });
   }
@@ -65,6 +133,10 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Role must be admin or developer.' }, { status: 400 });
   }
 
+  if (base_salary !== null && (Number.isNaN(base_salary) || base_salary < 0)) {
+    return NextResponse.json({ error: 'Base salary must be a positive number.' }, { status: 400 });
+  }
+
   const clash = await getEmployeeByEmail(email);
   if (clash && clash.id !== existing.id) {
     return NextResponse.json(
@@ -73,7 +145,18 @@ export async function PATCH(request, { params }) {
     );
   }
 
-  const employee = await updateEmployee(id, { name, email, role, department, title, active });
+  const employee = await updateEmployee(id, {
+    name,
+    email,
+    role,
+    department,
+    title,
+    active,
+    base_salary,
+    salary_currency,
+    last_payment_date,
+    payment_status,
+  });
 
   // Mirror the change onto the login account, keyed by the email it had before
   // the edit: renaming the address moves both rows or login breaks.

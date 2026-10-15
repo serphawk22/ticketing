@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Avatar from './Avatar';
+import { CURRENCIES, getCurrencySymbol } from '@/lib/currency';
 
 const ROLES = [
   { value: 'developer', label: 'Developer' },
@@ -9,6 +11,14 @@ const ROLES = [
   // so an admin has one directory to manage accounts from, but they are not
   // assignable work.
   { value: 'client', label: 'Client' },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: '', label: 'Not set' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'unpaid', label: 'Unpaid' },
 ];
 
 export default function EmployeeModal({ employee, onClose, onSave }) {
@@ -21,6 +31,26 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
   // status from here as well as from the row menu.
   const [active, setActive] = useState(employee ? Boolean(employee.active) : true);
   const [title, setTitle] = useState(employee?.title || '');
+
+  // Employment & Compensation fields (managed by administrators)
+  const [baseSalary, setBaseSalary] = useState(
+    employee?.base_salary !== null && employee?.base_salary !== undefined
+      ? String(employee.base_salary)
+      : ''
+  );
+  const [salaryCurrency, setSalaryCurrency] = useState(
+    employee?.salary_currency || 'USD'
+  );
+  const [lastPaymentDate, setLastPaymentDate] = useState(
+    employee?.last_payment_date || ''
+  );
+  const [paymentStatus, setPaymentStatus] = useState(
+    employee?.payment_status || ''
+  );
+
+  // Profile metadata for view in modal
+  const [profileMeta, setProfileMeta] = useState(null);
+
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,9 +62,44 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Load extended profile details if editing
+  useEffect(() => {
+    if (!employee?.id) return;
+    let activeEffect = true;
+    fetch(`/api/employees/${employee.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (activeEffect && data?.employee) {
+          setProfileMeta(data.employee);
+          if (data.employee.base_salary !== null && data.employee.base_salary !== undefined) {
+            setBaseSalary(String(data.employee.base_salary));
+          }
+          if (data.employee.salary_currency) {
+            setSalaryCurrency(data.employee.salary_currency);
+          }
+          if (data.employee.last_payment_date) {
+            setLastPaymentDate(data.employee.last_payment_date);
+          }
+          if (data.employee.payment_status) {
+            setPaymentStatus(data.employee.payment_status);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      activeEffect = false;
+    };
+  }, [employee?.id]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+
+    if (baseSalary && (Number.isNaN(Number(baseSalary)) || Number(baseSalary) < 0)) {
+      setError('Base salary must be a positive number.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -43,7 +108,18 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
         {
           method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, role, department, title, active }),
+          body: JSON.stringify({
+            name,
+            email,
+            role,
+            department,
+            title,
+            active,
+            base_salary: baseSalary.trim() === '' ? null : Number(baseSalary),
+            salary_currency: salaryCurrency || 'USD',
+            last_payment_date: lastPaymentDate || null,
+            payment_status: paymentStatus || '',
+          }),
         }
       );
       const data = await res.json();
@@ -63,6 +139,7 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
     <div className="modal-overlay" onMouseDown={onClose}>
       <div
         className="modal"
+        style={{ maxWidth: 560 }}
         role="dialog"
         aria-modal="true"
         aria-label={isEdit ? 'Edit employee' : 'Add employee'}
@@ -97,6 +174,57 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
         </header>
 
         <form onSubmit={handleSubmit}>
+          {isEdit && profileMeta && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 14px',
+                background: 'var(--bg-surface)',
+                borderRadius: 'var(--radius)',
+                marginBottom: 16,
+                border: '1px solid var(--border)',
+              }}
+            >
+              <Avatar
+                name={employee.name}
+                src={profileMeta.avatar_url}
+                assigned
+                size={36}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{employee.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-subtle)' }}>
+                  Joined: {profileMeta.joined_at ? String(profileMeta.joined_at).slice(0, 10) : '—'}
+                  {profileMeta.age ? ` · Age: ${profileMeta.age}` : ''}
+                </div>
+              </div>
+              {profileMeta.github_url && (
+                <a
+                  href={profileMeta.github_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="link-button"
+                  style={{ fontSize: 12 }}
+                >
+                  GitHub
+                </a>
+              )}
+              {profileMeta.linkedin_url && (
+                <a
+                  href={profileMeta.linkedin_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="link-button"
+                  style={{ fontSize: 12 }}
+                >
+                  LinkedIn
+                </a>
+              )}
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="employee-name">Full name</label>
             <input
@@ -147,7 +275,9 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
                 placeholder="Senior Engineer"
               />
             </div>
+          </div>
 
+          <div className="form-row">
             <div className="form-group form-group-narrow">
               <label htmlFor="employee-role">Role</label>
               <select
@@ -178,7 +308,73 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
             )}
           </div>
 
-          {error && <div className="error-text">{error}</div>}
+          {/* Administrator Compensation Management */}
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--text)' }}>
+              Compensation & Payment (Admin Controls)
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="employee-salary-currency">Currency</label>
+                <select
+                  id="employee-salary-currency"
+                  value={salaryCurrency}
+                  onChange={(e) => setSalaryCurrency(e.target.value)}
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="employee-salary">
+                  Base Salary ({getCurrencySymbol(salaryCurrency)})
+                </label>
+                <input
+                  id="employee-salary"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={baseSalary}
+                  onChange={(e) => setBaseSalary(e.target.value)}
+                  placeholder={salaryCurrency === 'INR' ? 'e.g. 600000' : 'e.g. 75000'}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="employee-payment-status">Payment Status</label>
+                <select
+                  id="employee-payment-status"
+                  value={paymentStatus}
+                  onChange={(e) => setPaymentStatus(e.target.value)}
+                >
+                  {PAYMENT_STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="employee-payment-date">Last Payment Date</label>
+                <input
+                  id="employee-payment-date"
+                  type="date"
+                  value={lastPaymentDate}
+                  onChange={(e) => setLastPaymentDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="error-text" style={{ marginTop: 12 }}>{error}</div>}
 
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>

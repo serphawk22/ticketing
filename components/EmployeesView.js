@@ -10,18 +10,30 @@ import { useToasts, Toaster } from '@/components/Toaster';
 import ConfirmModal from '@/components/ConfirmModal';
 import Avatar from '@/components/Avatar';
 import { formatFullDateTime, STATUS_ORDER, STATUS_META } from '@/components/meta';
+import { formatSalary } from '@/lib/currency';
 
 const TABS = [
   { id: 'directory', label: 'Directory' },
   { id: 'notifications', label: 'Notifications' },
 ];
 
-const COLUMNS = [
+const BASE_COLUMNS = [
   { id: 'name', label: 'Employee' },
   { id: 'department', label: 'Department' },
   { id: 'role', label: 'Role' },
   { id: 'open_count', label: 'Open', num: true },
   { id: 'assigned_count', label: 'Assigned', num: true },
+  { id: 'active', label: 'Status' },
+];
+
+const ADMIN_COLUMNS = [
+  { id: 'name', label: 'Employee' },
+  { id: 'department', label: 'Department' },
+  { id: 'role', label: 'Role' },
+  { id: 'open_count', label: 'Open', num: true },
+  { id: 'assigned_count', label: 'Assigned', num: true },
+  { id: 'base_salary', label: 'Salary', num: true },
+  { id: 'payment_status', label: 'Payment' },
   { id: 'active', label: 'Status' },
 ];
 
@@ -253,7 +265,8 @@ export default function EmployeesView({
         e.name.toLowerCase().includes(query) ||
         e.email.toLowerCase().includes(query) ||
         e.department.toLowerCase().includes(query) ||
-        e.title.toLowerCase().includes(query)
+        e.title.toLowerCase().includes(query) ||
+        (e.payment_status && e.payment_status.toLowerCase().includes(query))
       );
     });
 
@@ -264,6 +277,10 @@ export default function EmployeesView({
       if (sortKey === 'active') {
         av = a.active ? 1 : 0;
         bv = b.active ? 1 : 0;
+      } else if (sortKey === 'base_salary') {
+        av = a.base_salary != null ? Number(a.base_salary) : -1;
+        bv = b.base_salary != null ? Number(b.base_salary) : -1;
+        return (av - bv) * dir;
       }
       if (typeof av === 'string' || typeof bv === 'string') {
         return String(av || '').localeCompare(String(bv || '')) * dir;
@@ -459,7 +476,7 @@ export default function EmployeesView({
                 <table className="data-table">
                   <thead>
                     <tr>
-                      {COLUMNS.map((c) => (
+                      {(isAdmin ? ADMIN_COLUMNS : BASE_COLUMNS).map((c) => (
                         <th key={c.id} className={c.num ? 'num' : undefined} scope="col">
                           <button
                             className="th-sort"
@@ -490,7 +507,7 @@ export default function EmployeesView({
                             aria-label={`Show ticket counts for ${e.name}`}
                           >
                             <div className="cell-person">
-                              <Avatar name={e.name} assigned size={32} />
+                              <Avatar name={e.name} src={e.avatar_url} assigned size={32} />
                               <div className="cell-person-text">
                                 <span className="cell-person-name">{e.name}</span>
                                 <span className="cell-person-meta">{e.email}</span>
@@ -504,6 +521,32 @@ export default function EmployeesView({
                         </td>
                         <td className="num">{e.open_count}</td>
                         <td className="num">{e.assigned_count}</td>
+                        {isAdmin && (
+                          <>
+                            <td className="num">
+                              {e.base_salary != null
+                                ? formatSalary(e.base_salary, e.salary_currency)
+                                : '—'}
+                            </td>
+                            <td>
+                              <span
+                                className={`pill ${
+                                  e.payment_status === 'paid'
+                                    ? 'pill-active'
+                                    : e.payment_status === 'pending' || e.payment_status === 'processing'
+                                    ? 'pill-warning'
+                                    : e.payment_status === 'unpaid'
+                                    ? 'pill-inactive'
+                                    : 'pill-neutral'
+                                }`}
+                              >
+                                {e.payment_status
+                                  ? e.payment_status.charAt(0).toUpperCase() + e.payment_status.slice(1)
+                                  : 'Not set'}
+                              </span>
+                            </td>
+                          </>
+                        )}
                         <td>
                           <span
                             className={`pill ${
