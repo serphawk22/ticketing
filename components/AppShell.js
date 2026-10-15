@@ -532,18 +532,27 @@ export default function AppShell({
             aria-expanded={menuOpen}
             aria-label="Account menu"
           >
-            <Avatar name={currentUser.name} assigned size={32} />
+            <Avatar name={currentUser.name} src={currentUser.avatar_url} assigned size={32} />
           </button>
           {menuOpen && (
             <div className="menu-popup account-menu" role="menu">
               <div className="account-head">
-                <Avatar name={currentUser.name} assigned size={32} />
+                <Avatar name={currentUser.name} src={currentUser.avatar_url} assigned size={32} />
                 <div className="account-text">
                   <span className="account-name">{currentUser.name}</span>
                   <span className="account-email">{currentUser.email}</span>
                 </div>
               </div>
               <div className="menu-sep" />
+              <Link
+                href="/profile"
+                className="menu-item"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                <PersonIcon />
+                Profile
+              </Link>
               <button className="menu-item" role="menuitem" onClick={handleLogout}>
                 <LogoutIcon />
                 Log out
