@@ -25,6 +25,7 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
   const isEdit = Boolean(employee);
   const [name, setName] = useState(employee?.name || '');
   const [email, setEmail] = useState(employee?.email || '');
+  const [secondaryEmail, setSecondaryEmail] = useState(employee?.secondary_email || '');
   const [role, setRole] = useState(employee?.role || 'developer');
   const [department, setDepartment] = useState(employee?.department || '');
   // A new employee is always created active; editing lets an admin correct the
@@ -71,6 +72,9 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
       .then((data) => {
         if (activeEffect && data?.employee) {
           setProfileMeta(data.employee);
+          if (data.employee.secondary_email !== undefined) {
+            setSecondaryEmail(data.employee.secondary_email || '');
+          }
           if (data.employee.base_salary !== null && data.employee.base_salary !== undefined) {
             setBaseSalary(String(data.employee.base_salary));
           }
@@ -91,11 +95,37 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
     };
   }, [employee?.id]);
 
+  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
-    if (baseSalary && (Number.isNaN(Number(baseSalary)) || Number(baseSalary) < 0)) {
+    const isClient = role === 'client';
+    const cleanEmail = email.trim();
+    const cleanSecondary = secondaryEmail.trim();
+
+    if (!cleanEmail) {
+      setError(isClient ? 'Primary email is required.' : 'Email is required.');
+      return;
+    }
+
+    if (!EMAIL_PATTERN.test(cleanEmail)) {
+      setError('A valid email address is required.');
+      return;
+    }
+
+    if (isClient && cleanSecondary && !EMAIL_PATTERN.test(cleanSecondary)) {
+      setError('A valid secondary email address is required.');
+      return;
+    }
+
+    if (isClient && cleanEmail && cleanSecondary && cleanEmail.toLowerCase() === cleanSecondary.toLowerCase()) {
+      setError('Secondary email must be different from primary email.');
+      return;
+    }
+
+    if (!isClient && baseSalary && (Number.isNaN(Number(baseSalary)) || Number(baseSalary) < 0)) {
       setError('Base salary must be a positive number.');
       return;
     }
@@ -109,16 +139,17 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
           method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name,
-            email,
+            name: name.trim(),
+            email: cleanEmail ? cleanEmail : null,
+            secondary_email: isClient ? (cleanSecondary ? cleanSecondary : null) : null,
             role,
-            department,
-            title,
+            department: isClient ? '' : department.trim(),
+            title: isClient ? '' : title.trim(),
             active,
-            base_salary: baseSalary.trim() === '' ? null : Number(baseSalary),
-            salary_currency: salaryCurrency || 'USD',
-            last_payment_date: lastPaymentDate || null,
-            payment_status: paymentStatus || '',
+            base_salary: isClient ? null : (baseSalary.trim() === '' ? null : Number(baseSalary)),
+            salary_currency: isClient ? 'USD' : (salaryCurrency || 'USD'),
+            last_payment_date: isClient ? null : (lastPaymentDate || null),
+            payment_status: isClient ? '' : (paymentStatus || ''),
           }),
         }
       );
@@ -239,7 +270,10 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="employee-email">Email</label>
+            <label htmlFor="employee-email">
+              {role === 'client' ? 'Primary Email' : 'Email'}{' '}
+              <span className="req-star" style={{ color: 'var(--danger, #e5484d)' }}>*</span>
+            </label>
             <input
               id="employee-email"
               type="text"
@@ -249,33 +283,55 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
               required
             />
             <span className="field-hint">
-              Assignment notifications are delivered to this address.
+              {role === 'client'
+                ? 'Required. The login passkey and notifications will be sent here.'
+                : 'Assignment notifications are delivered to this address.'}
             </span>
           </div>
 
-          <div className="form-row">
+          {role === 'client' && (
             <div className="form-group">
-              <label htmlFor="employee-department">Department</label>
+              <label htmlFor="employee-secondary-email">
+                Secondary Email (optional)
+              </label>
               <input
-                id="employee-department"
+                id="employee-secondary-email"
                 type="text"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="Platform"
+                value={secondaryEmail}
+                onChange={(e) => setSecondaryEmail(e.target.value)}
+                placeholder="priya.backup@example.com"
               />
+              <span className="field-hint">
+                Optional alternative contact address for this client.
+              </span>
             </div>
+          )}
 
-            <div className="form-group">
-              <label htmlFor="employee-title">Job title</label>
-              <input
-                id="employee-title"
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Senior Engineer"
-              />
+          {role !== 'client' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="employee-department">Department</label>
+                <input
+                  id="employee-department"
+                  type="text"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  placeholder="Platform"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="employee-title">Job title</label>
+                <input
+                  id="employee-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Senior Engineer"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="form-row">
             <div className="form-group form-group-narrow">
@@ -309,70 +365,72 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
           </div>
 
           {/* Administrator Compensation Management */}
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--text)' }}>
-              Compensation & Payment (Admin Controls)
+          {role !== 'client' && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--text)' }}>
+                Compensation & Payment (Admin Controls)
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="employee-salary-currency">Currency</label>
+                  <select
+                    id="employee-salary-currency"
+                    value={salaryCurrency}
+                    onChange={(e) => setSalaryCurrency(e.target.value)}
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="employee-salary">
+                    Base Salary ({getCurrencySymbol(salaryCurrency)})
+                  </label>
+                  <input
+                    id="employee-salary"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={baseSalary}
+                    onChange={(e) => setBaseSalary(e.target.value)}
+                    placeholder={salaryCurrency === 'INR' ? 'e.g. 600000' : 'e.g. 75000'}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="employee-payment-status">Payment Status</label>
+                  <select
+                    id="employee-payment-status"
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                  >
+                    {PAYMENT_STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="employee-payment-date">Last Payment Date</label>
+                  <input
+                    id="employee-payment-date"
+                    type="date"
+                    value={lastPaymentDate}
+                    onChange={(e) => setLastPaymentDate(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="employee-salary-currency">Currency</label>
-                <select
-                  id="employee-salary-currency"
-                  value={salaryCurrency}
-                  onChange={(e) => setSalaryCurrency(e.target.value)}
-                >
-                  {CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="employee-salary">
-                  Base Salary ({getCurrencySymbol(salaryCurrency)})
-                </label>
-                <input
-                  id="employee-salary"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={baseSalary}
-                  onChange={(e) => setBaseSalary(e.target.value)}
-                  placeholder={salaryCurrency === 'INR' ? 'e.g. 600000' : 'e.g. 75000'}
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="employee-payment-status">Payment Status</label>
-                <select
-                  id="employee-payment-status"
-                  value={paymentStatus}
-                  onChange={(e) => setPaymentStatus(e.target.value)}
-                >
-                  {PAYMENT_STATUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="employee-payment-date">Last Payment Date</label>
-                <input
-                  id="employee-payment-date"
-                  type="date"
-                  value={lastPaymentDate}
-                  onChange={(e) => setLastPaymentDate(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
+          )}
 
           {error && <div className="error-text" style={{ marginTop: 12 }}>{error}</div>}
 

@@ -35,14 +35,18 @@ export async function GET(request, { params }) {
   }
 
   const isAdmin = session.user.role === 'admin';
-  const isSelf = session.user.email === employee.email;
+  const isSelf =
+    (session.user.id && employee.user_id && session.user.id === employee.user_id) ||
+    (session.user.email && employee.email && session.user.email === employee.email);
 
   // Non-admins can only see sensitive salary/payment info for themselves
   const canSeeSalary = isAdmin || isSelf;
 
   // Permitted profile details (age, github, linkedin, avatar)
   let profile = null;
-  const user = await getUserByEmail(employee.email);
+  const user = employee.user_id
+    ? await getUserById(employee.user_id)
+    : await getUserByEmail(employee.email);
   if (user) {
     try {
       profile = await db
@@ -91,63 +95,124 @@ export async function PATCH(request, { params }) {
   }
 
   const name = body.name === undefined ? existing.name : String(body.name).trim();
-  const email =
-    body.email === undefined ? existing.email : String(body.email).trim().toLowerCase();
+  const rawEmail =
+    body.email !== undefined
+      ? body.email !== null
+        ? String(body.email).trim()
+        : ''
+      : existing.email || '';
+  const email = rawEmail ? rawEmail.toLowerCase() : null;
   const role = body.role === undefined ? existing.role : body.role;
-  const department =
-    body.department === undefined ? existing.department : String(body.department).trim();
-  const title = body.title === undefined ? existing.title : String(body.title).trim();
+  const isClient = role === 'client';
+
+  const department = isClient
+    ? ''
+    : body.department === undefined
+    ? existing.department
+    : String(body.department).trim();
+  const title = isClient
+    ? ''
+    : body.title === undefined
+    ? existing.title
+    : String(body.title).trim();
   const active = body.active === undefined ? Boolean(existing.active) : Boolean(body.active);
 
-  const base_salary =
-    body.base_salary !== undefined
-      ? body.base_salary !== null && body.base_salary !== ''
-        ? Number(body.base_salary)
-        : null
-      : existing.base_salary;
+  const base_salary = isClient
+    ? null
+    : body.base_salary !== undefined
+    ? body.base_salary !== null && body.base_salary !== ''
+      ? Number(body.base_salary)
+      : null
+    : existing.base_salary;
 
-  const salary_currency =
-    body.salary_currency !== undefined
-      ? String(body.salary_currency).trim().toUpperCase()
-      : existing.salary_currency || 'USD';
+  const salary_currency = isClient
+    ? 'USD'
+    : body.salary_currency !== undefined
+    ? String(body.salary_currency).trim().toUpperCase()
+    : existing.salary_currency || 'USD';
 
-  const last_payment_date =
-    body.last_payment_date !== undefined
-      ? body.last_payment_date || null
-      : existing.last_payment_date;
+  const last_payment_date = isClient
+    ? null
+    : body.last_payment_date !== undefined
+    ? body.last_payment_date || null
+    : existing.last_payment_date;
 
-  const payment_status =
-    body.payment_status !== undefined
-      ? String(body.payment_status).trim()
-      : existing.payment_status;
+  const payment_status = isClient
+    ? ''
+    : body.payment_status !== undefined
+    ? String(body.payment_status).trim()
+    : existing.payment_status;
+
+  const rawSecondary =
+    body.secondary_email !== undefined
+      ? body.secondary_email !== null
+        ? String(body.secondary_email).trim()
+        : ''
+      : existing.secondary_email || '';
+  const secondary_email = isClient ? (rawSecondary ? rawSecondary.toLowerCase() : null) : null;
 
   if (!name) {
     return NextResponse.json({ error: 'Employee name is required.' }, { status: 400 });
   }
 
-  if (!EMAIL_PATTERN.test(email)) {
-    return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
+  if (!VALID_ROLES.includes(role)) {
+    return NextResponse.json({ error: 'Role must be admin, developer or client.' }, { status: 400 });
   }
 
-  if (!VALID_ROLES.includes(role)) {
-    return NextResponse.json({ error: 'Role must be admin or developer.' }, { status: 400 });
+  if (!isClient && body.secondary_email !== undefined && body.secondary_email !== null && String(body.secondary_email).trim() !== '') {
+    return NextResponse.json({ error: 'Secondary email is only applicable for clients.' }, { status: 400 });
+  }
+
+  if (!isClient) {
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required for employees.' }, { status: 400 });
+    }
+    if (!EMAIL_PATTERN.test(email)) {
+      return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
+    }
+  } else {
+    if (!email) {
+      return NextResponse.json({ error: 'Primary email is required for clients.' }, { status: 400 });
+    }
+    if (!EMAIL_PATTERN.test(email)) {
+      return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
+    }
+    if (secondary_email && !EMAIL_PATTERN.test(secondary_email)) {
+      return NextResponse.json({ error: 'A valid secondary email address is required.' }, { status: 400 });
+    }
+    if (email && secondary_email && email === secondary_email) {
+      return NextResponse.json({ error: 'Secondary email must be different from primary email.' }, { status: 400 });
+    }
   }
 
   if (base_salary !== null && (Number.isNaN(base_salary) || base_salary < 0)) {
     return NextResponse.json({ error: 'Base salary must be a positive number.' }, { status: 400 });
   }
 
-  const clash = await getEmployeeByEmail(email);
-  if (clash && clash.id !== existing.id) {
-    return NextResponse.json(
-      { error: `${email} is already in the directory.` },
-      { status: 409 }
-    );
+  if (email) {
+    const clash = await getEmployeeByEmail(email);
+    if (clash && clash.id !== existing.id) {
+      return NextResponse.json(
+        { error: `${email} is already in the directory.` },
+        { status: 409 }
+      );
+    }
+  }
+
+  if (secondary_email) {
+    const clash = await getEmployeeByEmail(secondary_email);
+    if (clash && clash.id !== existing.id) {
+      return NextResponse.json(
+        { error: `${secondary_email} is already in the directory.` },
+        { status: 409 }
+      );
+    }
   }
 
   const employee = await updateEmployee(id, {
     name,
     email,
+    secondary_email,
     role,
     department,
     title,
@@ -158,18 +223,21 @@ export async function PATCH(request, { params }) {
     payment_status,
   });
 
-  // Mirror the change onto the login account, keyed by the email it had before
-  // the edit: renaming the address moves both rows or login breaks.
-  if (await getUserByEmail(existing.email)) {
+  // Mirror the change onto the login account
+  const linkedUser = existing.user_id
+    ? await getUserById(existing.user_id)
+    : await getUserByEmail(existing.email);
+  if (linkedUser) {
     try {
       await syncUserFromEmployee({
         email,
         previousEmail: existing.email,
         name,
         role,
+        userId: linkedUser.id,
       });
     } catch (error) {
-      console.error(`[employees] could not sync login for ${existing.email}:`, error);
+      console.error(`[employees] could not sync login for ${existing.email || existing.name}:`, error);
       return NextResponse.json(
         {
           error:
@@ -201,7 +269,10 @@ export async function DELETE(request, { params }) {
   }
 
   // Removing yourself would delete the account making the request.
-  if (session.user.email === existing.email) {
+  const isRemovingSelf =
+    (session.user.id && existing.user_id && session.user.id === existing.user_id) ||
+    (session.user.email && existing.email && session.user.email === existing.email);
+  if (isRemovingSelf) {
     return NextResponse.json(
       { error: 'You cannot remove your own account.' },
       { status: 400 }
@@ -236,17 +307,19 @@ export async function DELETE(request, { params }) {
 
   await deleteEmployee(id);
 
-  // The directory entry and the login account are separate tables joined by
-  // email, so removing one without the other would leave someone able to sign
-  // in to a workspace they are no longer part of.
+  // The directory entry and the login account are linked, so removing one
+  // without the other would leave someone able to sign in to a workspace they
+  // are no longer part of.
   try {
-    const account = await getUserByEmail(existing.email);
+    const account = existing.user_id
+      ? await getUserById(existing.user_id)
+      : await getUserByEmail(existing.email);
     if (account) {
       await deleteUserSessions(account.id);
-      await deleteUserByEmail(existing.email);
+      await db.prepare('DELETE FROM users WHERE id = ?').run(account.id);
     }
   } catch (error) {
-    console.error(`[employees] removed ${existing.email} but could not delete login:`, error);
+    console.error(`[employees] removed ${existing.email || existing.name} but could not delete login:`, error);
     return NextResponse.json(
       {
         error:

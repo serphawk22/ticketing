@@ -200,9 +200,11 @@ export default function EmployeesView({
       setResending(null);
       await refresh();
       if (target.role === 'client' && data.passkey) {
-        // Delivery failed, so the fresh passkey has to be relayed by hand.
+        // Delivery failed or mail skipped, so the fresh passkey has to be relayed by hand.
         push({
-          message: `Mail could not be sent. Give ${target.email} their new passkey: ${data.passkey}`,
+          message: target.email
+            ? `Mail could not be sent. Give ${target.email} their new passkey: ${data.passkey}`
+            : `Give ${target.name} their new passkey: ${data.passkey}`,
           tone: 'error',
         });
       } else {
@@ -510,7 +512,7 @@ export default function EmployeesView({
                               <Avatar name={e.name} src={e.avatar_url} assigned size={32} />
                               <div className="cell-person-text">
                                 <span className="cell-person-name">{e.name}</span>
-                                <span className="cell-person-meta">{e.email}</span>
+                                <span className="cell-person-meta">{e.email || '—'}</span>
                               </div>
                             </div>
                           </button>
@@ -738,7 +740,9 @@ export default function EmployeesView({
           title={resending.role === 'client' ? 'Resend passkey' : 'Resend invite'}
           message={
             resending.role === 'client'
-              ? `Email ${resending.name} a fresh passkey? A new one will be generated and the current one will stop working.`
+              ? resending.email
+                ? `Email ${resending.name} a fresh passkey? A new one will be generated and the current one will stop working.`
+                : `Generate a fresh passkey for ${resending.name}? Any previous one will stop working.`
               : `Email ${resending.name} a new invite? A fresh temporary password will be generated and any previous one will stop working.`
           }
           confirmLabel={resending.role === 'client' ? 'Resend passkey' : 'Resend invite'}
@@ -761,7 +765,7 @@ export default function EmployeesView({
               <div className="account-text">
                 <span className="account-name">{statsEmployee.name}</span>
                 <span className="account-email">
-                  {statsEmployee.email} · {statsCounts._total} assigned
+                  {statsEmployee.email || '—'} · {statsCounts._total} assigned
                 </span>
               </div>
               <button

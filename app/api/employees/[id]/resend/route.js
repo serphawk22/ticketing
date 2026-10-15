@@ -36,10 +36,12 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Employee not found.' }, { status: 404 });
   }
 
-  const account = await getUserByEmail(employee.email);
+  const account = employee.user_id
+    ? await getUserById(employee.user_id)
+    : await getUserByEmail(employee.email);
   if (!account) {
     return NextResponse.json(
-      { error: `${employee.email} has no login yet.` },
+      { error: `${employee.name} has no login yet.` },
       { status: 409 }
     );
   }
@@ -48,37 +50,41 @@ export async function POST(request, { params }) {
 
   if (isClient) {
     const passkey = await issueClientPasskey(account.id);
+    let sent = false;
+    let mail = null;
 
-    const mail = await sendClientPasskey({
-      client: employee,
-      passkey,
-      actorName: session.user.name,
-      trigger: 'client-passkey-resend',
-    });
+    if (employee.email) {
+      mail = await sendClientPasskey({
+        client: employee,
+        passkey,
+        actorName: session.user.name,
+        trigger: 'client-passkey-resend',
+      });
+      sent = mail?.status === 'sent';
 
-    const sent = mail?.status === 'sent';
-
-    if (!sent) {
-      console.error(
-        `[employees] passkey resend to ${employee.email} failed (${mail?.status || 'unknown'}): ${
-          mail?.error || 'SMTP is not configured'
-        }`
-      );
+      if (!sent) {
+        console.error(
+          `[employees] passkey resend to ${employee.email} failed (${mail?.status || 'unknown'}): ${
+            mail?.error || 'SMTP is not configured'
+          }`
+        );
+      }
     }
 
     return NextResponse.json(
       {
         resent: sent,
-        status: mail?.status || 'unknown',
+        status: employee.email ? (mail?.status || 'unknown') : 'not_applicable',
         error: sent
           ? null
-          : mail?.error || 'SMTP is not configured, so no email was sent.',
-        // Echoe back only on failure, so a passkey stuck on a failed send can
-        // still be relayed by hand.
+          : employee.email
+          ? mail?.error || 'SMTP is not configured, so no email was sent.'
+          : 'No email address provided for this client.',
+        // Echo back on failure or when no email so the fresh passkey can be relayed by hand
         passkey: sent ? null : passkey,
         employee,
       },
-      { status: sent ? 200 : 502 }
+      { status: sent || !employee.email ? 200 : 502 }
     );
   }
 
