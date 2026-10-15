@@ -51,6 +51,10 @@ export async function PATCH(request, { params }) {
 
   const body = await request.json();
   const isAdmin = session.user.role === 'admin';
+  // Routing the work -- naming an assignee -- is the same team decision at
+  // edit time as it is at create time, so it answers to the same rule the POST
+  // route applies: both team roles may take it, a requester may not.
+  const canRoute = isAdmin || session.user.role === 'developer';
 
   const edits = {};
 
@@ -80,18 +84,25 @@ export async function PATCH(request, { params }) {
   }
 
   if (body.type !== undefined) {
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Only admins can edit issue type.' }, { status: 403 });
-    }
     if (!TYPE_ORDER.includes(body.type)) return badValue('type', body.type);
     edits.type = body.type;
   }
 
+  let startDateVal = ticket.start_date;
+  let dueDateVal = ticket.due_date;
   for (const field of ['due_date', 'start_date']) {
     if (body[field] === undefined) continue;
     const value = parseDate(body[field]);
     if (value === undefined) return badValue(field, body[field]);
     edits[field] = value;
+    if (field === 'start_date') startDateVal = value;
+    if (field === 'due_date') dueDateVal = value;
+  }
+  if (startDateVal && dueDateVal && startDateVal > dueDateVal) {
+    return NextResponse.json(
+      { error: 'Due date must be on or after the start date.' },
+      { status: 400 }
+    );
   }
 
   if (body.budget !== undefined) {
@@ -213,9 +224,9 @@ export async function PATCH(request, { params }) {
   }
 
   if (body.employee_id !== undefined) {
-    if (!isAdmin) {
+    if (!canRoute) {
       return NextResponse.json(
-        { error: 'Only admins can reassign tickets.' },
+        { error: 'Only the team can reassign tickets.' },
         { status: 403 }
       );
     }

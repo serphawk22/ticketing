@@ -34,14 +34,15 @@ import { ChevronDown } from './ticket/icons';
  * Callers supply only what makes their field different:
  *
  *   value           the selected option's value, '' or null when unset
- *   options         [{ value, label, keywords?, leading?, trailing? }] where
- *                   leading/trailing are already-rendered nodes
+ *   options         [{ value, label, keywords?, leading?, trailing?, secondary? }]
+ *                   where leading/trailing are already-rendered nodes and
+ *                   secondary is muted trailing text (e.g. an email address)
  *   onSelect        (value) => void — the caller's update mutation
  *   searchable      false for a short fixed list, which keeps the caret in the
  *                   box anyway so Enter and Escape behave identically
  *   readOnly        shows the value with no edit affordance
  *   variant         'cell' for a table cell, 'button' for the modal's larger
- *                   status button
+ *                   status button, 'form' for a full-width form field
  */
 export default function InlineDropdownField({
   value = '',
@@ -51,7 +52,7 @@ export default function InlineDropdownField({
   allowCustom = false,
   readOnly = false,
   label = 'Value',
-  emptyText = 'No matching options',
+  emptyText = 'No results found',
   className = '',
   variant = 'cell',
   renderValue,
@@ -147,13 +148,18 @@ export default function InlineDropdownField({
   }, [open, syncScroll]);
 
   // Opening puts the caret in a box that already holds the current value, with
-  // that value selected, so typing replaces it instead of appending to it.
+  // that value selected, so typing replaces it instead of appending to it. A
+  // fixed list shows the trigger itself rather than a text box, so the caret
+  // goes on that button to keep the Arrow keys and Enter working.
   useEffect(() => {
     if (!open) return;
     const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    input.select();
+    if (input) {
+      input.focus();
+      input.select();
+      return;
+    }
+    triggerRef.current?.focus();
   }, [open]);
 
   function close({ focusTrigger = false } = {}) {
@@ -222,9 +228,13 @@ export default function InlineDropdownField({
     if (e.key === 'Tab') close();
   }
 
-  const shellClass = `idf-trigger${variant === 'button' ? ' idf-trigger-button' : ''}${
-    className ? ` ${className}` : ''
-  }`;
+  const shellClass = `idf-trigger${
+    variant === 'button'
+      ? ' idf-trigger-button'
+      : variant === 'form'
+        ? ' idf-trigger-form'
+        : ''
+  }${className ? ` ${className}` : ''}`;
 
   if (!open) {
     return (
@@ -235,6 +245,10 @@ export default function InlineDropdownField({
         onClick={() => {
           if (readOnly) return;
           setDraft(currentLabel);
+          // Land the keyboard cursor on the value already in the field, not the
+          // top of the list, so opening and pressing Enter confirms the current
+          // choice instead of silently jumping to the first option.
+          setActive(Math.max(0, options.findIndex((o) => o.value === value)));
           setOpen(true);
         }}
         aria-disabled={readOnly || undefined}
@@ -245,14 +259,98 @@ export default function InlineDropdownField({
       >
         {renderValue ? renderValue(current) : <span className="idf-label">{currentLabel}</span>}
         {/* Keeps the menu affordance the replaced status button had. */}
-        {variant === 'button' && <ChevronDown size={12} className="idf-caret" aria-hidden="true" />}
+        {(variant === 'button' || variant === 'form') && (
+          <ChevronDown size={12} className="idf-caret" aria-hidden="true" />
+        )}
       </button>
+    );
+  }
+
+  // The option list is the same for the typed and the fixed field, so it is
+  // built once and dropped under whichever trigger is showing.
+  const panel = createPortal(
+    <div
+      ref={panelRef}
+      className="idf-panel"
+      style={{ top: pos.top, left: pos.left, minWidth: Math.max(pos.width, 180) }}
+    >
+      {scroll.top && (
+        <span className="idf-chev idf-chev-top" aria-hidden="true" />
+      )}
+      <div className="idf-scroll" ref={listRef} id={listId} role="listbox">
+        {visible.length === 0 && <p className="idf-empty">{emptyText}</p>}
+        {visible.map((option, i) => {
+          const isCurrent = option.value === value;
+          return (
+            <button
+              key={option.value === '' ? '__empty' : option.value}
+              id={`${listId}-${i}`}
+              type="button"
+              role="option"
+              aria-selected={isCurrent}
+              className={`idf-option${i === active ? ' is-active' : ''}${
+                isCurrent ? ' is-current' : ''
+              }`}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => commit(option)}
+            >
+              {option.leading ? (
+                <span className="idf-option-leading" aria-hidden="true">
+                  {option.leading}
+                </span>
+              ) : null}
+              <span className="idf-option-label">{option.label}</span>
+              {option.secondary ? (
+                <span className="idf-option-secondary">{option.secondary}</span>
+              ) : null}
+              {option.trailing ? (
+                <span className="idf-option-trailing" aria-hidden="true">
+                  {option.trailing}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {scroll.bottom && (
+        <span className="idf-chev idf-chev-bottom" aria-hidden="true" />
+      )}
+    </div>,
+    document.body
+  );
+
+  // A fixed list has nothing to search, so the field stays a menu rather than
+  // turning into a text box: the trigger keeps showing the current value and the
+  // list opens beneath it. Arrow keys still walk the options and Enter commits
+  // the highlighted one. This is what the modal's status, priority and product
+  // inclusion fields are, so none of them can be typed into by hand.
+  if (!searchable) {
+    return (
+      <>
+        <button
+          ref={triggerRef}
+          type="button"
+          className={shellClass}
+          onClick={() => close({ focusTrigger: true })}
+          onKeyDown={onKeyDown}
+          aria-haspopup="listbox"
+          aria-expanded="true"
+          aria-controls={listId}
+          aria-label={`${label}, ${currentLabel}`}
+        >
+          {renderValue ? renderValue(current) : <span className="idf-label">{currentLabel}</span>}
+          {(variant === 'button' || variant === 'form') && (
+            <ChevronDown size={12} className="idf-caret" aria-hidden="true" />
+          )}
+        </button>
+        {panel}
+      </>
     );
   }
 
   return (
     <>
-      <span className="idf-edit">
+      <span className={`idf-edit${variant === 'form' ? ' idf-edit-form' : ''}`}>
         {current?.leading ? (
           <span className="idf-edit-leading" aria-hidden="true">
             {current.leading}
@@ -264,7 +362,6 @@ export default function InlineDropdownField({
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);
-            if (!searchable) return;
             setQuery(e.target.value);
             setActive(0);
           }}
@@ -273,59 +370,13 @@ export default function InlineDropdownField({
           aria-expanded="true"
           aria-controls={listId}
           aria-activedescendant={`${listId}-${active}`}
-          aria-label={`${label}, ${searchable ? 'search' : 'choose'}`}
+          aria-label={`${label}, search`}
           autoComplete="off"
           spellCheck="false"
         />
       </span>
 
-      {createPortal(
-        <div
-          ref={panelRef}
-          className="idf-panel"
-          style={{ top: pos.top, left: pos.left, minWidth: Math.max(pos.width, 180) }}
-        >
-          {scroll.top && (
-            <span className="idf-chev idf-chev-top" aria-hidden="true" />
-          )}
-          <div className="idf-scroll" ref={listRef} id={listId} role="listbox">
-            {visible.length === 0 && <p className="idf-empty">{emptyText}</p>}
-            {visible.map((option, i) => {
-              const isCurrent = option.value === value;
-              return (
-                <button
-                  key={option.value === '' ? '__empty' : option.value}
-                  id={`${listId}-${i}`}
-                  type="button"
-                  role="option"
-                  aria-selected={isCurrent}
-                  className={`idf-option${i === active ? ' is-active' : ''}${
-                    isCurrent ? ' is-current' : ''
-                  }`}
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => commit(option)}
-                >
-                  {option.leading ? (
-                    <span className="idf-option-leading" aria-hidden="true">
-                      {option.leading}
-                    </span>
-                  ) : null}
-                  <span className="idf-option-label">{option.label}</span>
-                  {option.trailing ? (
-                    <span className="idf-option-trailing" aria-hidden="true">
-                      {option.trailing}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-          {scroll.bottom && (
-            <span className="idf-chev idf-chev-bottom" aria-hidden="true" />
-          )}
-        </div>,
-        document.body
-      )}
+      {panel}
     </>
   );
 }

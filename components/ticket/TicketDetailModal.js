@@ -138,7 +138,7 @@ export default function TicketDetailModal({
 
   const patch = useCallback(
     async (fields) => {
-      if (!id) return;
+      if (!id || busy) return;
       setBusy(true);
       setError('');
       try {
@@ -150,13 +150,14 @@ export default function TicketDetailModal({
         setDetail((d) => ({ ...d, ticket: data.ticket }));
         onTicketChanged?.(data.ticket);
         await load();
+        setError('');
       } catch (err) {
         setError(err.message);
       } finally {
         setBusy(false);
       }
     },
-    [id, onTicketChanged, load]
+    [id, onTicketChanged, load, busy]
   );
 
   const setArchived = useCallback(
@@ -563,7 +564,7 @@ export default function TicketDetailModal({
             <button type="button" className="tm-key-link" onClick={() => {}}>
               {key}
             </button>
-            {loading && <span className="tm-spinner" aria-label="Loading" />}
+             {(loading || busy) && <span className="tm-spinner" aria-label="Saving" />}
           </div>
           <div className="tm-topbar-right">
             <button

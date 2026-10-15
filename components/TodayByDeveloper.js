@@ -51,7 +51,9 @@ export default function TodayByDeveloper({
   // turn of the same controls, so both places read the same way.
   function renderTicketItem(t, onOpen = onOpenTicket) {
     const lozenge = LOZENGE_TINTS[t.status] || LOZENGE_TINTS.open;
-    const priority = PRIORITY_META[t.priority];
+    // Same guard as the board card: an unexpected or missing priority falls back
+    // to the schema default instead of dereferencing an undefined meta row.
+    const priority = PRIORITY_META[t.priority] || PRIORITY_META.medium;
     return (
       <li key={t.id}>
         <button

@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PRIORITY_META, PRIORITY_ORDER, TYPE_META, TYPE_ORDER } from './meta';
+import {
+  AssigneeField,
+  CategoryField,
+  IssueTypeField,
+  PriorityField,
+  ProjectField,
+} from './TicketFields';
 
 export default function CreateTicketModal({
   employees = [],
@@ -29,11 +35,13 @@ export default function CreateTicketModal({
   );
   const [dueDate, setDueDate] = useState(defaultDueDate || '');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   // Same rule as the ticket detail sidebar: clients request work, they do not
   // receive it.
   const assignable = employees.filter((e) => e.active && e.role !== 'client');
+  const assigneeEmail = assignable.find((emp) => String(emp.id) === employeeId)?.email;
 
   useEffect(() => {
     function onKey(e) {
@@ -43,9 +51,21 @@ export default function CreateTicketModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  function validate() {
+    const errs = {};
+    if (!title.trim()) errs.summary = 'Summary is required.';
+    if (!description.trim()) errs.description = 'Description is required.';
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
+    if (submitting) return;
     setError('');
+
+    if (!validate()) return;
+
     setSubmitting(true);
 
     try {
@@ -79,9 +99,9 @@ export default function CreateTicketModal({
   }
 
   return (
-    <div className="modal-overlay" onMouseDown={onClose}>
+    <div className="modal-overlay create-ticket-overlay" onMouseDown={onClose}>
       <div
-        className="modal"
+        className="modal create-ticket-modal"
         role="dialog"
         aria-modal="true"
         aria-label="Create ticket"
@@ -114,151 +134,133 @@ export default function CreateTicketModal({
           </button>
         </header>
 
-        <form onSubmit={handleSubmit}>
-          {parent && (
-            <p className="form-parent">
-              Child of <strong>{parent.project_key ? `${parent.project_key}-${parent.id}` : `#${parent.id}`}</strong>
-              {parent.title ? ` — ${parent.title}` : ''}
-            </p>
-          )}
-          {(defaultStartDate || dueDate) && (
-            <p className="form-parent">
-              {defaultStartDate && dueDate ? (
-                <>
-                  Scheduled <strong>{defaultStartDate}</strong>
-                  {' – '}
-                  <strong>{dueDate}</strong>
-                </>
-              ) : dueDate ? (
-                <>
-                  Due <strong>{dueDate}</strong>
-                </>
-              ) : (
-                <>
-                  Starts <strong>{defaultStartDate}</strong>
-                </>
-              )}
-            </p>
-          )}
-          <div className="form-group">
-            <label htmlFor="summary">Summary</label>
-            <input
-              id="summary"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What needs to be done?"
-              required
-              autoFocus
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="ticket-description">Description</label>
-            <textarea
-              id="ticket-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a description…"
-              required
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="ticket-priority">Priority</label>
-              <select
-                id="ticket-priority"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-              >
-                {PRIORITY_ORDER.map((p) => (
-                  <option key={p} value={p}>
-                    {PRIORITY_META[p].label}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="create-ticket-body">
+            {parent && (
+              <p className="form-parent">
+                Child of <strong>{parent.project_key ? `${parent.project_key}-${parent.id}` : `#${parent.id}`}</strong>
+                {parent.title ? ` — ${parent.title}` : ''}
+              </p>
+            )}
+            {(defaultStartDate || dueDate) && (
+              <p className="form-parent">
+                {defaultStartDate && dueDate ? (
+                  <>
+                    Scheduled <strong>{defaultStartDate}</strong>
+                    {' – '}
+                    <strong>{dueDate}</strong>
+                  </>
+                ) : dueDate ? (
+                  <>
+                    Due <strong>{dueDate}</strong>
+                  </>
+                ) : (
+                  <>
+                    Starts <strong>{defaultStartDate}</strong>
+                  </>
+                )}
+              </p>
+            )}
 
             <div className="form-group">
-              <label htmlFor="ticket-type">Issue type</label>
-              <select
-                id="ticket-type"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-              >
-                {TYPE_ORDER.map((t) => (
-                  <option key={t} value={t}>
-                    {TYPE_META[t].label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="ticket-category">Category</label>
+              <label htmlFor="summary">Summary</label>
               <input
-                id="ticket-category"
+                id="summary"
                 type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Add category"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (fieldErrors.summary) {
+                    setFieldErrors((prev) => ({ ...prev, summary: '' }));
+                  }
+                }}
+                placeholder="What needs to be done?"
+                className={fieldErrors.summary ? 'is-invalid' : ''}
+                aria-invalid={fieldErrors.summary ? 'true' : undefined}
+                autoFocus
               />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="assignee">Assign to</label>
-              <select
-                id="assignee"
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-              >
-                <option value="">Unassigned</option>
-                {assignable.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name}
-                    {emp.title ? ` — ${emp.title}` : ''}
-                  </option>
-                ))}
-              </select>
-              {employeeId && (
-                <span className="field-hint">
-                  {assignable.find((emp) => String(emp.id) === employeeId)?.email} will
-                  be emailed when this ticket is assigned.
-                </span>
+              {fieldErrors.summary && (
+                <span className="field-error">{fieldErrors.summary}</span>
               )}
             </div>
 
             <div className="form-group">
-              <label htmlFor="project">Project</label>
-              <select
-                id="project"
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-              >
-                <option value="">No project</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.key})
-                  </option>
-                ))}
-              </select>
+              <label htmlFor="ticket-description">Description</label>
+              <textarea
+                id="ticket-description"
+                rows={4}
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  if (fieldErrors.description) {
+                    setFieldErrors((prev) => ({ ...prev, description: '' }));
+                  }
+                }}
+                placeholder="Add a description…"
+                className={fieldErrors.description ? 'is-invalid' : ''}
+                aria-invalid={fieldErrors.description ? 'true' : undefined}
+              />
+              {fieldErrors.description && (
+                <span className="field-error">{fieldErrors.description}</span>
+              )}
             </div>
 
-            <div className="form-group">
-              <label htmlFor="ticket-due-date">Due date</label>
-              <input
-                id="ticket-due-date"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
+            <div className="create-ticket-grid">
+              <div className="form-group">
+                <label>Priority</label>
+                <PriorityField value={priority} onSelect={setPriority} variant="form" searchable />
+              </div>
+
+              <div className="form-group">
+                <label>Issue type</label>
+                <IssueTypeField value={type} onSelect={setType} variant="form" />
+              </div>
+
+              <div className="form-group">
+                <label>Category</label>
+                <CategoryField value={category} onSelect={setCategory} variant="form" />
+              </div>
+
+              <div className="form-group">
+                <label>Assign to</label>
+                <AssigneeField
+                  value={employeeId}
+                  employees={assignable}
+                  onSelect={(v) => setEmployeeId(v == null ? '' : String(v))}
+                  variant="form"
+                />
+                {assigneeEmail && (
+                  <span className="field-hint">
+                    {assigneeEmail} will be emailed when this ticket is assigned.
+                  </span>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Project</label>
+                <ProjectField
+                  value={projectId}
+                  projects={projects}
+                  onSelect={(v) => setProjectId(v == null ? '' : String(v))}
+                  variant="form"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="ticket-due-date">Due date</label>
+                <input
+                  id="ticket-due-date"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
             </div>
+
+            {error && <div className="error-text">{error}</div>}
           </div>
 
-          {error && <div className="error-text">{error}</div>}
-
-          <div className="modal-actions">
+          <div className="modal-actions create-ticket-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>

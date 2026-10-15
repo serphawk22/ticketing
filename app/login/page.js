@@ -117,10 +117,10 @@ export default function LoginPage() {
             <span className="auth-split-brand-name">Ticket Manager</span>
           </div>
           <h2 className="auth-split-tagline">
-            Support, simplified.
+            Manage Your <span className="auth-split-accent">Work.</span>
           </h2>
           <p className="auth-split-subtagline">
-            Track, manage, and resolve every request with clarity and speed.
+            Everything you need to stay productive, all in one place.
           </p>
           <div className="auth-split-features">
             <div className="auth-split-feature">
