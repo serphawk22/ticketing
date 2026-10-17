@@ -9,7 +9,7 @@ const TABS = [
   { key: 'calendar', label: 'Calendar' },
   { key: 'timeline', label: 'Timeline' },
   { key: 'reports', label: 'Reports' },
-  { key: 'docs', label: 'Docs', soon: true },
+  { key: 'docs', label: 'Docs' },
   { key: 'attachments', label: 'Attachments' },
   { key: 'archived', label: 'Archived' },
 ];

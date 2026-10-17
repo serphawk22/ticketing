@@ -19,6 +19,7 @@ export default function ProjectModal({
   const [clientId, setClientId] = useState(
     project?.client_id != null ? String(project.client_id) : ''
   );
+  const [githubRepo, setGithubRepo] = useState(project?.github_repo || '');
   // A project created from inside a work space starts there rather than in the
   // "No work space" default, so the picker agrees with where the user clicked.
   const [workspaceId, setWorkspaceId] = useState(
@@ -57,6 +58,7 @@ export default function ProjectModal({
             color,
             workspace_id: workspaceId === '' ? null : Number(workspaceId),
             client_id: clientId === '' ? null : Number(clientId),
+            github_repo: githubRepo.trim(),
           }),
         }
       );
@@ -183,6 +185,24 @@ export default function ProjectModal({
                 Add a client account from the Employees page to assign one here.
               </p>
             )}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="project-github-repo">GitHub repo (optional)</label>
+            <input
+              id="project-github-repo"
+              type="text"
+              value={githubRepo}
+              onChange={(e) => setGithubRepo(e.target.value)}
+              placeholder="owner/repo or owner/a, owner/b"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="field-hint">
+              Used on the task sheet to find PRs and commits that mention the
+              ticket key (e.g. WEB-12). Falls back to GITHUB_REPOS in .env.local
+              when empty.
+            </p>
           </div>
 
           <div className="form-group">
