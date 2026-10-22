@@ -293,7 +293,7 @@ export default function AppShell({
 
   function selectProject(id) {
     setSidebarOpen(false);
-    onProjectChange?.(id);
+    router.push(`/projects/${id}/summary`);
   }
 
   function toggleRowMenu(key) {
@@ -351,13 +351,14 @@ export default function AppShell({
 
   function renderProjectItem(p) {
     const menuKey = `project:${p.id}`;
+    const isActive =
+      projectId != null && String(projectId) === String(p.id);
     return (
       <div className="nav-item-wrap" key={p.id}>
-        <button
-          className={`nav-item${
-            projectId != null && String(projectId) === String(p.id) ? ' active' : ''
-          }`}
-          onClick={() => selectProject(p.id)}
+        <Link
+          href={`/projects/${p.id}/summary`}
+          className={`nav-item${isActive ? ' active' : ''}`}
+          onClick={() => setSidebarOpen(false)}
           title={p.name}
         >
           <span
@@ -369,7 +370,7 @@ export default function AppShell({
           <span className="nav-count">
             {projectCounts?.[p.id] ?? p.open_count ?? 0}
           </span>
-        </button>
+        </Link>
         {isAdmin && (
           <div className="nav-row-actions">
             <button
@@ -531,18 +532,27 @@ export default function AppShell({
             aria-expanded={menuOpen}
             aria-label="Account menu"
           >
-            <Avatar name={currentUser.name} assigned size={32} />
+            <Avatar name={currentUser.name} src={currentUser.avatar_url} assigned size={32} />
           </button>
           {menuOpen && (
             <div className="menu-popup account-menu" role="menu">
               <div className="account-head">
-                <Avatar name={currentUser.name} assigned size={32} />
+                <Avatar name={currentUser.name} src={currentUser.avatar_url} assigned size={32} />
                 <div className="account-text">
                   <span className="account-name">{currentUser.name}</span>
                   <span className="account-email">{currentUser.email}</span>
                 </div>
               </div>
               <div className="menu-sep" />
+              <Link
+                href="/profile"
+                className="menu-item"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                <PersonIcon />
+                Profile
+              </Link>
               <button className="menu-item" role="menuitem" onClick={handleLogout}>
                 <LogoutIcon />
                 Log out

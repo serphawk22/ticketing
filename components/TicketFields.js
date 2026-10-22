@@ -2,7 +2,7 @@
 
 import Avatar from './Avatar';
 import InlineDropdownField from './InlineDropdownField';
-import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, RESOLUTION_ORDER, STATUS_META, STATUS_ORDER, INCLUSION_META, INCLUSION_ORDER } from './meta';
+import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, RESOLUTION_ORDER, STATUS_META, STATUS_ORDER, TYPE_META, TYPE_ORDER, TypeIcon, INCLUSION_META, INCLUSION_ORDER } from './meta';
 
 /**
  * The editable fields of a work item, each one a thin wrapper that says what
@@ -17,7 +17,14 @@ import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityI
 
 const NONE = { value: '', label: 'None' };
 
-export function PriorityField({ value, onSelect, readOnly = false, className = '' }) {
+export function PriorityField({
+  value,
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+  searchable = false,
+}) {
   const meta = PRIORITY_META[value] || PRIORITY_META.medium;
 
   return (
@@ -26,7 +33,8 @@ export function PriorityField({ value, onSelect, readOnly = false, className = '
       onSelect={onSelect}
       readOnly={readOnly}
       label="Priority"
-      searchable={false}
+      searchable={searchable}
+      variant={variant}
       className={className}
       options={PRIORITY_ORDER.map((key) => {
         const m = PRIORITY_META[key];
@@ -40,6 +48,135 @@ export function PriorityField({ value, onSelect, readOnly = false, className = '
         <span className="list-priority">
           <PriorityIcon color={meta.color} arrow={meta.arrow} />
           <span>{meta.label}</span>
+        </span>
+      )}
+    />
+  );
+}
+
+export function IssueTypeField({
+  value,
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+  // The four issue types are a fixed list, so the field opens as a menu rather
+  // than a search box. Callers that want filtering can opt in.
+  searchable = false,
+}) {
+  const meta = TYPE_META[value] || TYPE_META.task;
+
+  return (
+    <InlineDropdownField
+      value={value}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Issue type"
+      searchable={searchable}
+      variant={variant}
+      className={className}
+      options={TYPE_ORDER.map((key) => ({
+        value: key,
+        label: TYPE_META[key].label,
+        leading: <TypeIcon type={key} size={14} />,
+      }))}
+      renderValue={() => (
+        <span className="idf-icon-value">
+          <TypeIcon type={value} size={14} />
+          <span className="idf-label">{meta.label}</span>
+        </span>
+      )}
+    />
+  );
+}
+
+/**
+ * Assignee, keyed on the employee id. Options carry the person's email as
+ * muted trailing text so two people with the same display name are still
+ * tellable apart, and so the field can be searched by either.
+ */
+export function AssigneeField({
+  value,
+  employees = [],
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+}) {
+  const avatar = (name) => (
+    <Avatar name={name} assigned={Boolean(name)} size={24} unassignedIcon showTitle={false} />
+  );
+
+  // "Unassigned" leads the list so a ticket can be handed back to the triage
+  // pool, the same option the quick-add select used to offer.
+  const options = [
+    { value: null, label: 'Unassigned', leading: avatar(null) },
+    ...employees.map((e) => ({
+      value: String(e.id),
+      label: e.name,
+      keywords: [e.email, e.title, e.role].filter(Boolean),
+      secondary: e.email,
+      leading: avatar(e.name),
+    })),
+  ];
+
+  return (
+    <InlineDropdownField
+      value={value == null || value === '' ? null : String(value)}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Assignee"
+      variant={variant}
+      className={`user-picker-trigger${className ? ` ${className}` : ''}`}
+      options={options}
+      renderValue={(option) => (
+        <span className="idf-user-value">
+          {option ? option.leading : avatar(null)}
+          <span className={`user-picker-name${option ? '' : ' is-empty'}`}>
+            {option ? option.label : 'Unassigned'}
+          </span>
+        </span>
+      )}
+    />
+  );
+}
+
+/**
+ * Project, keyed on the project id. The key is shown as muted trailing text so
+ * the dropdown reads like the project switcher in the top nav.
+ */
+export function ProjectField({
+  value,
+  projects = [],
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+}) {
+  // "No project" leads the list so a ticket can be filed outside any project,
+  // matching the option the quick-add select used to offer.
+  const options = [
+    { value: '', label: 'No project' },
+    ...projects.map((p) => ({
+      value: String(p.id),
+      label: p.name,
+      keywords: [p.key].filter(Boolean),
+      secondary: p.key,
+    })),
+  ];
+
+  return (
+    <InlineDropdownField
+      value={value == null ? '' : String(value)}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Project"
+      variant={variant}
+      className={className}
+      options={options}
+      renderValue={(option) => (
+        <span className={`idf-label${!option || option.value === '' ? ' is-empty' : ''}`}>
+          {option ? option.label : 'No project'}
         </span>
       )}
     />
@@ -108,7 +245,13 @@ export function StatusField({
   );
 }
 
-export function CategoryField({ value, onSelect, readOnly = false, className = '' }) {
+export function CategoryField({
+  value,
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+}) {
   const current = value || '';
 
   return (
@@ -118,6 +261,7 @@ export function CategoryField({ value, onSelect, readOnly = false, className = '
       readOnly={readOnly}
       label="Category"
       allowCustom
+      variant={variant}
       className={className}
       options={[NONE, ...CATEGORY_ORDER.map((c) => ({ value: c, label: c }))]}
       renderValue={() => (
@@ -127,7 +271,13 @@ export function CategoryField({ value, onSelect, readOnly = false, className = '
   );
 }
 
-export function ResolutionField({ value, onSelect, readOnly = false, className = '' }) {
+export function ResolutionField({
+  value,
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+}) {
   const current = value || '';
 
   return (
@@ -137,6 +287,7 @@ export function ResolutionField({ value, onSelect, readOnly = false, className =
       readOnly={readOnly}
       label="Resolution"
       allowCustom
+      variant={variant}
       className={className}
       options={[NONE, ...RESOLUTION_ORDER.map((c) => ({ value: c, label: c }))]}
       renderValue={() => (

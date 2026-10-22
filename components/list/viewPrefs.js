@@ -150,6 +150,23 @@ export function dueDays(ticket, today = new Date()) {
   return Math.round((start - end) / 86400000);
 }
 
+// Days ahead that still count as "reaching the deadline": due today through
+// this many days out warns amber, anything later reads green.
+export const DUE_SOON_DAYS = 3;
+
+/**
+ * Single tone for the Due date cell: 'none' is a finished ticket or no due
+ * date (plain grey), 'overdue' is past the date, 'soon' is due within
+ * DUE_SOON_DAYS, and 'future' still has good time.
+ */
+export function dueTone(ticket, today = new Date()) {
+  const days = dueDays(ticket, today);
+  if (days == null) return 'none';
+  if (days < 0) return 'overdue';
+  if (days <= DUE_SOON_DAYS) return 'soon';
+  return 'future';
+}
+
 /** Effects that apply to a row, in rule order. Later rules win on conflict. */
 export function matchRules(ticket, rules) {
   const hit = [];

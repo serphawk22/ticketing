@@ -6,7 +6,11 @@ import { PROJECT_COLORS } from './meta';
 export default function ProjectModal({
   project,
   workspaces = [],
-  clients = [],
+  // Callers that already have the client accounts (the Projects page) pass
+  // them in. Every other entry point (board, sidebar) leaves this undefined
+  // and the modal loads the list itself, so the picker is never empty
+  // just because of where it was opened from.
+  clients,
   initialWorkspaceId = null,
   onClose,
   onSave,
@@ -31,6 +35,7 @@ export default function ProjectModal({
   );
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [fetchedClients, setFetchedClients] = useState(null);
 
   useEffect(() => {
     function onKey(e) {
@@ -39,6 +44,30 @@ export default function ProjectModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Only client accounts can be picked, and only admins can read them. A
+  // non-admin (or a failed fetch) simply keeps the picker empty.
+  useEffect(() => {
+    if (clients !== undefined) return;
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (live) {
+          setFetchedClients((data.users || []).filter((u) => u.role === 'client'));
+        }
+      } catch {
+        // Picker stays on "No client".
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [clients]);
+
+  const clientOptions = clients !== undefined ? clients : fetchedClients || [];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -171,16 +200,16 @@ export default function ProjectModal({
               id="project-client"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
-              disabled={clients.length === 0}
+              disabled={clientOptions.length === 0}
             >
               <option value="">No client</option>
-              {clients.map((c) => (
+              {clientOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.email ? `${c.name} — ${c.email}` : c.name}
                 </option>
               ))}
             </select>
-            {clients.length === 0 && (
+            {clientOptions.length === 0 && (
               <p className="field-hint">
                 Add a client account from the Employees page to assign one here.
               </p>

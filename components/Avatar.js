@@ -6,6 +6,7 @@ export default function Avatar({
   size = 26,
   showTitle = true,
   unassignedIcon = false,
+  src = null,
 }) {
   const styleSize = {
     width: size,
@@ -38,6 +39,23 @@ export default function Avatar({
         ) : (
           '?'
         )}
+      </span>
+    );
+  }
+
+  if (src) {
+    return (
+      <span
+        className="avatar has-image"
+        style={{ ...styleSize, padding: 0, overflow: 'hidden' }}
+        title={showTitle ? name : undefined}
+        aria-label={name}
+      >
+        <img
+          src={src}
+          alt={name}
+          style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+        />
       </span>
     );
   }

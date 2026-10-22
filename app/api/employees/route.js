@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getEmployees, createEmployee, getEmployeeByEmail } from '@/lib/employees';
+import { getEmployees, createEmployee, getEmployeeByEmail, toSafeEmployee } from '@/lib/employees';
 import {
   createClientAccount,
   createUserWithTempPassword,
@@ -18,7 +18,12 @@ export async function GET() {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  return NextResponse.json({ employees: await getEmployees() });
+  const isAdmin = session.user.role === 'admin';
+  const allEmployees = await getEmployees();
+  // Safe filtering: non-admins NEVER receive base_salary, last_payment_date, payment_status
+  const employees = allEmployees.map((e) => toSafeEmployee(e, isAdmin));
+
+  return NextResponse.json({ employees });
 }
 
 export async function POST(request) {
@@ -32,18 +37,28 @@ export async function POST(request) {
     );
   }
 
-  const { name, email, role = 'developer', department = '', title = '' } =
-    await request.json();
+  const {
+    name,
+    email,
+    secondary_email,
+    role = 'developer',
+    department = '',
+    title = '',
+    base_salary = null,
+    salary_currency = 'USD',
+    last_payment_date = null,
+    payment_status = '',
+  } = await request.json();
 
   const cleanName = String(name ?? '').trim();
-  const cleanEmail = String(email ?? '').trim().toLowerCase();
+  const rawEmail = email !== undefined && email !== null ? String(email).trim() : '';
+  const cleanEmail = rawEmail ? rawEmail.toLowerCase() : null;
+
+  const rawSecondary = secondary_email !== undefined && secondary_email !== null ? String(secondary_email).trim() : '';
+  const cleanSecondaryEmail = rawSecondary ? rawSecondary.toLowerCase() : null;
 
   if (!cleanName) {
     return NextResponse.json({ error: 'Employee name is required.' }, { status: 400 });
-  }
-
-  if (!EMAIL_PATTERN.test(cleanEmail)) {
-    return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
   }
 
   if (!VALID_ROLES.includes(role)) {
@@ -53,53 +68,148 @@ export async function POST(request) {
     );
   }
 
-  // Both tables are keyed by email, so a clash in either one has to stop the
-  // insert. Otherwise the account is created with no matching directory entry,
-  // and the next boot's mirror step invents one with the wrong role.
-  if (await getEmployeeByEmail(cleanEmail)) {
+  const isClient = role === 'client';
+
+  // Secondary email is only permitted for client role
+  if (!isClient && cleanSecondaryEmail) {
     return NextResponse.json(
-      { error: `${cleanEmail} is already in the directory.` },
-      { status: 409 }
+      { error: 'Secondary email is only applicable for clients.' },
+      { status: 400 }
     );
   }
 
-  if (await getUserByEmail(cleanEmail)) {
-    return NextResponse.json(
-      { error: `${cleanEmail} already has a Ticket Manager login.` },
-      { status: 409 }
-    );
+  // Role-specific validation
+  if (!isClient) {
+    if (!cleanEmail) {
+      return NextResponse.json({ error: 'Email is required for employees.' }, { status: 400 });
+    }
+    if (!EMAIL_PATTERN.test(cleanEmail)) {
+      return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
+    }
+  } else {
+    // Client role: primary email is required and must be valid format
+    if (!cleanEmail) {
+      return NextResponse.json({ error: 'Primary email is required for clients.' }, { status: 400 });
+    }
+    if (!EMAIL_PATTERN.test(cleanEmail)) {
+      return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });
+    }
+    if (cleanSecondaryEmail && !EMAIL_PATTERN.test(cleanSecondaryEmail)) {
+      return NextResponse.json({ error: 'A valid secondary email address is required.' }, { status: 400 });
+    }
+    if (cleanEmail && cleanSecondaryEmail && cleanEmail === cleanSecondaryEmail) {
+      return NextResponse.json(
+        { error: 'Secondary email must be different from primary email.' },
+        { status: 400 }
+      );
+    }
+    // Prevent unauthorized assignment of compensation/employment data to clients
+    if (base_salary !== null && base_salary !== undefined && String(base_salary).trim() !== '') {
+      return NextResponse.json(
+        { error: 'Compensation cannot be assigned to clients.' },
+        { status: 400 }
+      );
+    }
+    if (payment_status && String(payment_status).trim() !== '') {
+      return NextResponse.json(
+        { error: 'Payment status cannot be assigned to clients.' },
+        { status: 400 }
+      );
+    }
+    if (last_payment_date && String(last_payment_date).trim() !== '') {
+      return NextResponse.json(
+        { error: 'Payment date cannot be assigned to clients.' },
+        { status: 400 }
+      );
+    }
+    if (department && String(department).trim() !== '') {
+      return NextResponse.json(
+        { error: 'Department cannot be assigned to clients.' },
+        { status: 400 }
+      );
+    }
+    if (title && String(title).trim() !== '') {
+      return NextResponse.json(
+        { error: 'Job title cannot be assigned to clients.' },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Duplicate email check (only when cleanEmail is provided)
+  if (cleanEmail) {
+    if (await getEmployeeByEmail(cleanEmail)) {
+      return NextResponse.json(
+        { error: `${cleanEmail} is already in the directory.` },
+        { status: 409 }
+      );
+    }
+
+    if (await getUserByEmail(cleanEmail)) {
+      return NextResponse.json(
+        { error: `${cleanEmail} already has a Ticket Manager login.` },
+        { status: 409 }
+      );
+    }
+  }
+
+  // Duplicate check for secondary email (against directory primary email and user logins)
+  if (cleanSecondaryEmail) {
+    if (await getEmployeeByEmail(cleanSecondaryEmail)) {
+      return NextResponse.json(
+        { error: `${cleanSecondaryEmail} is already in the directory.` },
+        { status: 409 }
+      );
+    }
+
+    if (await getUserByEmail(cleanSecondaryEmail)) {
+      return NextResponse.json(
+        { error: `${cleanSecondaryEmail} already has a Ticket Manager login.` },
+        { status: 409 }
+      );
+    }
   }
 
   // The account is created first: an employee with no way to sign in would be
   // a directory entry that does nothing.
-  if (role === 'client') {
+  if (isClient) {
     const account = await createClientAccount({ name: cleanName, email: cleanEmail });
 
     const employee = await createEmployee({
       name: cleanName,
       email: cleanEmail,
+      secondary_email: cleanSecondaryEmail,
       role,
-      department: String(department ?? '').trim(),
-      title: String(title ?? '').trim(),
+      department: '',
+      title: '',
+      base_salary: null,
+      salary_currency: 'USD',
+      last_payment_date: null,
+      payment_status: '',
+      user_id: account.id,
     });
 
-    // A client authenticates with one passkey, emailed to the address the admin
-    // just entered -- there is no temporary password to change at first login.
+    // A client authenticates with one passkey, emailed to the address if provided.
+    // There is no temporary password to change at first login.
     const passkey = await issueClientPasskey(account.id);
-    const mail = await sendClientPasskey({
-      client: employee,
-      passkey,
-      actorName: session.user.name,
-    });
+    let sent = false;
+    let mail = null;
 
-    const sent = mail?.status === 'sent';
+    if (cleanEmail) {
+      mail = await sendClientPasskey({
+        client: employee,
+        passkey,
+        actorName: session.user.name,
+      });
+      sent = mail?.status === 'sent';
 
-    if (!sent) {
-      console.error(
-        `[employees] client ${cleanEmail} created but passkey not delivered (${mail?.status || 'unknown'}): ${
-          mail?.error || 'SMTP is not configured'
-        }`
-      );
+      if (!sent) {
+        console.error(
+          `[employees] client ${cleanEmail} created but passkey not delivered (${mail?.status || 'unknown'}): ${
+            mail?.error || 'SMTP is not configured'
+          }`
+        );
+      }
     }
 
     return NextResponse.json(
@@ -107,13 +217,13 @@ export async function POST(request) {
         employee,
         invite: {
           sent,
-          status: mail?.status || 'unknown',
-          error: sent ? null : mail?.error || 'SMTP is not configured, so no email was sent.',
+          status: cleanEmail ? (mail?.status || 'unknown') : 'not_applicable',
+          error: sent
+            ? null
+            : cleanEmail
+            ? mail?.error || 'SMTP is not configured, so no email was sent.'
+            : 'No email address provided for this client.',
         },
-        // The passkey is a live credential, so it is not echoed back once the
-        // email is away. On a failed delivery the account would otherwise be
-        // unusable -- only a hash is stored -- so the admin who just created it
-        // gets the plaintext to relay by hand instead.
         passkey: sent ? null : passkey,
       },
       { status: 201 }
@@ -132,6 +242,11 @@ export async function POST(request) {
     role,
     department: String(department ?? '').trim(),
     title: String(title ?? '').trim(),
+    base_salary,
+    salary_currency,
+    last_payment_date,
+    payment_status,
+    user_id: account.id,
   });
 
   const invite = await sendEmployeeInvite({

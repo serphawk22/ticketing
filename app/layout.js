@@ -1,10 +1,17 @@
-import { Inter } from 'next/font/google';
+import { Inter, Sora } from 'next/font/google';
 import './globals.css';
 
 const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-inter',
+  display: 'swap',
+});
+
+const sora = Sora({
+  subsets: ['latin'],
+  weight: ['600', '700'],
+  variable: '--font-sora',
   display: 'swap',
 });
 
@@ -19,7 +26,11 @@ export default function RootLayout({ children }) {
     // React hydrates, which React reports as a mismatch it cannot patch. The
     // element carries nothing of ours that depends on the client, so the
     // difference is safe to ignore.
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} ${sora.variable}`}
+      suppressHydrationWarning
+    >
       <body>{children}</body>
     </html>
   );
