@@ -428,14 +428,29 @@ export default function ProfileView({
                 <label htmlFor="profile-email">Email (cannot be changed)</label>
                 <input
                   id="profile-email"
-                  type="email"
-                  value={profile?.email || currentUser.email}
+                  type="text"
+                  value={profile?.email || currentUser?.email || 'Not provided'}
                   readOnly
                   disabled
                   className="input-readonly"
                   title="Email cannot be changed"
                 />
               </div>
+
+              {currentUser.role === 'client' && Boolean(profile?.secondary_email) && (
+                <div className="form-group">
+                  <label htmlFor="profile-secondary-email">Secondary Email</label>
+                  <input
+                    id="profile-secondary-email"
+                    type="text"
+                    value={profile.secondary_email}
+                    readOnly
+                    disabled
+                    className="input-readonly"
+                    title="Secondary email cannot be changed"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="form-row">
@@ -520,50 +535,52 @@ export default function ProfileView({
         </div>
       </div>
 
-      {/* Middle Card: Salary & Department */}
-      <div className="profile-card profile-card-employment">
-        <div className="profile-card-header-row">
-          <div className="profile-card-title-icon">
-            <BriefcaseIcon />
-          </div>
-          <div>
-            <h2>Salary & Department</h2>
-            <p>Set by your administrator</p>
-          </div>
-        </div>
-
-        <div className="profile-employment-grid">
-          <div className="profile-employment-item">
-            <span className="profile-emp-label">Base Salary</span>
-            <span className="profile-emp-value">
-              {formatSalary(profile?.base_salary, profile?.salary_currency)}
-            </span>
+      {/* Middle Card: Salary & Department (Hidden for Clients) */}
+      {currentUser.role !== 'client' && (
+        <div className="profile-card profile-card-employment">
+          <div className="profile-card-header-row">
+            <div className="profile-card-title-icon">
+              <BriefcaseIcon />
+            </div>
+            <div>
+              <h2>Salary & Department</h2>
+              <p>Set by your administrator</p>
+            </div>
           </div>
 
-          <div className="profile-employment-item">
-            <span className="profile-emp-label">Department</span>
-            <span className="profile-emp-value">
-              {profile?.department || '—'}
-            </span>
-          </div>
-
-          <div className="profile-employment-item">
-            <span className="profile-emp-label">Last Payment Date</span>
-            <span className="profile-emp-value">
-              {profile?.last_payment_date ? formatDate(profile.last_payment_date) : '—'}
-            </span>
-          </div>
-
-          <div className="profile-employment-item">
-            <span className="profile-emp-label">Payment Status</span>
-            <span className="profile-emp-value">
-              <span className={`pill ${paymentStatusClass}`}>
-                {paymentStatusText}
+          <div className="profile-employment-grid">
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Base Salary</span>
+              <span className="profile-emp-value">
+                {formatSalary(profile?.base_salary, profile?.salary_currency)}
               </span>
-            </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Department</span>
+              <span className="profile-emp-value">
+                {profile?.department || '—'}
+              </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Last Payment Date</span>
+              <span className="profile-emp-value">
+                {profile?.last_payment_date ? formatDate(profile.last_payment_date) : '—'}
+              </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Payment Status</span>
+              <span className="profile-emp-value">
+                <span className={`pill ${paymentStatusClass}`}>
+                  {paymentStatusText}
+                </span>
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Bottom Card: Bank Details */}
       <div className="profile-card profile-card-bank">

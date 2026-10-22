@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BarChartIcon, ClipboardIcon } from './AppShellIcons';
@@ -213,6 +213,8 @@ export default function AppShell({
   // now shown to every developer as well; clients never reach this shell
   // because requireTeamUser sends them to their portal.
   const canReadSheets = isAdmin || currentUser.role === 'developer';
+  const canAccessAdminDashboard = isAdmin || Boolean(currentUser?.can_access_admin_dashboard);
+  const canAccessReports = isAdmin || currentUser.role === 'developer' || Boolean(currentUser?.can_access_reports);
 
   // The sidebar is the one place that groups projects by work space, and it
   // renders on every view, so it loads the list itself rather than adding a
@@ -338,9 +340,22 @@ export default function AppShell({
     const active = searchMenuRef.current.querySelector('[aria-selected="true"]');
     if (active) active.scrollIntoView({ block: 'nearest' });
   }, [searchActive, searchOpen]);
+  const topNavItems = useMemo(() => {
+    return [
+      isAdmin
+        ? { id: 'admin-dashboard', label: 'Admin Dashboard', href: '/dashboard' }
+        : { id: 'employee-dashboard', label: 'Dashboard', href: '/my-dashboard' },
+      { id: 'work', label: 'Your work', href: '/?filter=mine' },
+      { id: 'projects', label: 'Projects', href: '/projects' },
+      { id: 'reports', label: 'Reports', href: '/reports' },
+    ];
+  }, [isAdmin]);
 
   function isNavActive(item) {
+    if (item.id === 'admin-dashboard') return view === 'admin-dashboard';
+    if (item.id === 'employee-dashboard') return view === 'employee-dashboard';
     if (item.id === 'projects') return view === 'projects';
+    if (item.id === 'reports') return view === 'reports-hub' || view === 'section-reports' || view === 'report-detail';
     if (item.id === 'work') return view === 'dashboard' || (view === 'board' && filter === 'mine');
     return false;
   }
@@ -551,7 +566,7 @@ export default function AppShell({
         </Link>
 
         <nav className="topnav-items" aria-label="Primary">
-          {TOP_NAV.map((item) => (
+          {topNavItems.map((item) => (
             <Link
               key={item.id}
               href={item.href}
@@ -574,7 +589,7 @@ export default function AppShell({
             </button>
             {moreOpen && (
               <div className="menu-popup topnav-more-menu">
-                {TOP_NAV.map((item) => (
+                {topNavItems.map((item) => (
                   <Link
                     key={item.id}
                     href={item.href}
@@ -706,6 +721,39 @@ export default function AppShell({
 
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
           <div className="sidebar-scroll">
+            <div className="nav-label">Reporting & Analytics</div>
+            <nav className="nav">
+              {canAccessAdminDashboard ? (
+                <Link
+                  href="/dashboard"
+                  className={`nav-item${view === 'admin-dashboard' ? ' active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <GridIcon />
+                  <span className="nav-text">Admin Dashboard</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/my-dashboard"
+                  className={`nav-item${view === 'employee-dashboard' ? ' active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <PersonIcon />
+                  <span className="nav-text">My Dashboard</span>
+                </Link>
+              )}
+              {canAccessReports && (
+                <Link
+                  href="/reports"
+                  className={`nav-item${view === 'reports-hub' || view === 'section-reports' || view === 'report-detail' ? ' active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <BarChartIcon />
+                  <span className="nav-text">Reports Hub (76)</span>
+                </Link>
+              )}
+            </nav>
+
             <div className="nav-label">Issues</div>
             <nav className="nav">
               <button

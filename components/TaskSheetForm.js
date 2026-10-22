@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ChipSelect from '@/components/ChipSelect';
 import InlineDropdownField from '@/components/InlineDropdownField';
+import TaskSheetGithubActivity from '@/components/TaskSheetGithubActivity';
 import { CheckIcon } from '@/components/ticket/icons';
 import { STATUS_META } from '@/components/meta';
 
@@ -727,6 +728,13 @@ export default function TaskSheetForm({
                           )}
                         </div>
                       </div>
+                    )}
+
+                    {t.key && (
+                      <TaskSheetGithubActivity
+                        ticketKey={t.key}
+                        projectId={t.project_id || activeProject?.id || null}
+                      />
                     )}
                   </div>
                 </div>
