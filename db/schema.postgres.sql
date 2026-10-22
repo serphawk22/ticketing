@@ -229,28 +229,6 @@ CREATE TABLE IF NOT EXISTS project_docs (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS user_profiles (
-  user_id            integer     PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-  avatar_url         text        NOT NULL DEFAULT '',
-  avatar_storage_key text        NOT NULL DEFAULT '',
-  age                integer,
-  github_url         text        NOT NULL DEFAULT '',
-  linkedin_url       text        NOT NULL DEFAULT '',
-  created_at         timestamptz NOT NULL DEFAULT now(),
-  updated_at         timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS user_bank_details (
-  user_id                  integer     PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-  account_holder_name      text        NOT NULL DEFAULT '',
-  bank_name                text        NOT NULL DEFAULT '',
-  account_number_encrypted text        NOT NULL DEFAULT '',
-  account_number_last4     text        NOT NULL DEFAULT '',
-  ifsc_code                text        NOT NULL DEFAULT '',
-  created_at               timestamptz NOT NULL DEFAULT now(),
-  updated_at               timestamptz NOT NULL DEFAULT now()
-);
-
 -- Matches the indexes the application relies on for list and filter queries.
 CREATE INDEX IF NOT EXISTS tickets_status_idx    ON tickets (status);
 CREATE INDEX IF NOT EXISTS tickets_project_idx  ON tickets (project_id);

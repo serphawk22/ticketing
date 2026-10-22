@@ -10086,6 +10086,112 @@ input.inline-input.tm-title-edit {
   color: var(--danger, #ae2a19);
 }
 
+.ts-github {
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: rgba(9, 30, 66, 0.03);
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ts-github-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ts-github-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #172b4d);
+}
+
+.ts-github-key {
+  font-size: 12px;
+  color: var(--text-subtle, #626f86);
+}
+
+.ts-github-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-subtle, #626f86);
+  line-height: 1.4;
+}
+
+.ts-github-status.is-error {
+  color: var(--danger, #ae2a19);
+}
+
+.ts-github-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-github-item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+
+.ts-github-badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #ebecf0;
+  color: #44546f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.ts-github-badge.is-open {
+  background: #deebff;
+  color: #0747a6;
+}
+
+.ts-github-badge.is-merged {
+  background: #e3fcef;
+  color: #216e4e;
+}
+
+.ts-github-badge.is-closed {
+  background: #ffebe6;
+  color: #ae2a19;
+}
+
+.ts-github-badge.is-commit {
+  background: #f4f5f7;
+  color: #172b4d;
+}
+
+.ts-github-link {
+  color: var(--text-link, #0c66e4);
+  text-decoration: none;
+  font-weight: 600;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.ts-github-link:hover {
+  text-decoration: underline;
+}
+
+.ts-github-meta {
+  font-size: 12px;
+  color: var(--text-subtle, #626f86);
+}
+
 .ts-task-picker {
   display: flex;
   flex-direction: column;
@@ -11117,233 +11223,6 @@ input.inline-input.tm-title-edit {
   .att-view-toggle {
     margin-left: 0;
   }
-}
-
-/* ---------------- Create ticket modal ----------------
-   The one form with more fields than fit a single column: a fixed header, a
-   body that scrolls on its own, and a pinned action row, so nothing overflows
-   the viewport and the primary action never scrolls out of reach. */
-
-.create-ticket-overlay {
-  align-items: flex-start;
-}
-
-.create-ticket-modal {
-  display: flex;
-  flex-direction: column;
-  width: min(720px, 96vw);
-  max-width: 720px;
-  max-height: calc(100vh - 96px);
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.create-ticket-modal > header {
-  flex: none;
-}
-
-.create-ticket-modal form {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
-}
-
-.create-ticket-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.create-ticket-body .form-group {
-  margin-bottom: 0;
-}
-
-.create-ticket-modal .form-group > label,
-.raise-form-card .form-group > label {
-  color: var(--text);
-  font-size: var(--fs-13);
-  font-weight: 600;
-}
-
-.create-ticket-modal .form-parent {
-  margin: 0;
-}
-
-.create-ticket-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 20px;
-}
-
-.create-ticket-grid > .form-group {
-  min-width: 0;
-}
-
-.create-ticket-modal .error-text {
-  margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius);
-  background: var(--danger-bg);
-  font-size: var(--fs-13);
-}
-
-.create-ticket-actions {
-  flex: none;
-  padding: 12px 20px;
-}
-
-.create-ticket-modal .field-error {
-  color: var(--danger);
-  font-size: var(--fs-12);
-}
-
-/* Invalid fields keep the warning border through hover and focus. */
-.create-ticket-modal input.is-invalid,
-.create-ticket-modal textarea.is-invalid,
-.create-ticket-modal input.is-invalid:hover,
-.create-ticket-modal textarea.is-invalid:hover,
-.create-ticket-modal input.is-invalid:focus,
-.create-ticket-modal textarea.is-invalid:focus {
-  border-color: var(--danger);
-}
-
-.create-ticket-modal input.is-invalid:focus,
-.create-ticket-modal textarea.is-invalid:focus {
-  box-shadow: inset 0 0 0 1px var(--danger);
-}
-
-/* The date control is not in the app-wide input list, so it is dressed here to
-   match the text inputs and form-style dropdowns it sits beside. */
-.create-ticket-modal input[type='text'],
-.create-ticket-modal textarea,
-.create-ticket-modal input[type='date'] {
-  font-size: var(--fs-14);
-}
-
-.create-ticket-modal input[type='date'] {
-  width: 100%;
-  height: var(--control-h);
-  padding: 5px 8px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
-  line-height: var(--line-height);
-  transition: border-color var(--t-fast), box-shadow var(--t-fast);
-}
-
-.create-ticket-modal input[type='date']:hover:not(:disabled) {
-  border-color: var(--text-subtle);
-}
-
-.create-ticket-modal input[type='date']:focus {
-  outline: none;
-  border-color: var(--focus);
-  box-shadow: inset 0 0 0 1px var(--focus);
-}
-
-@media (max-width: 640px) {
-  .create-ticket-overlay {
-    padding: 16px;
-  }
-
-  .create-ticket-modal {
-    width: 100%;
-    max-height: calc(100vh - 32px);
-  }
-
-  .create-ticket-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* The inline dropdown wearing a form field: full width at input height, so it
-   lines up with the text inputs and the date field beside it. */
-.idf-trigger-form {
-  width: 100%;
-  height: var(--control-h);
-  gap: 8px;
-  justify-content: space-between;
-  margin-left: 0;
-  padding: 0 8px 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius);
-  background: var(--bg);
-  font-size: var(--fs-14);
-  font-weight: 400;
-}
-
-.idf-trigger-form:hover {
-  border-color: var(--text-subtle);
-  background: var(--bg);
-}
-
-.idf-trigger-form[aria-disabled='true'] {
-  background: var(--bg-hover);
-}
-
-.idf-trigger-form .idf-label,
-.idf-trigger-form .idf-icon-value,
-.idf-trigger-form .idf-user-value {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.idf-icon-value,
-.idf-user-value {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.idf-user-value .user-picker-name {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/* Editing in a form is a plain search box: no avatar/icon gutter, so the text
-   sits where it does in the inputs around it. */
-.idf-edit-form {
-  width: 100%;
-}
-
-.idf-edit-form > .idf-edit-leading {
-  display: none;
-}
-
-.create-ticket-modal .idf-edit-form > .idf-input,
-.raise-form-card .idf-edit-form > .idf-input {
-  height: var(--control-h);
-  padding: 0 10px;
-  font-size: var(--fs-14);
-  line-height: calc(var(--control-h) - 2px);
-}
-
-.idf-option-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.idf-option-secondary {
-  flex: none;
-  max-width: 50%;
-  overflow: hidden;
-  color: var(--text-subtle);
-  font-size: var(--fs-12);
-  text-overflow: ellipsis;
-}
-
-.idf-label.is-empty {
-  color: var(--text-subtle);
 }
 
 .docs-layout {

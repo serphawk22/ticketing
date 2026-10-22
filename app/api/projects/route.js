@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getAllProjects, createProject, getProjectByKey, clientExists } from '@/lib/projects';
+import { parseGithubRepos } from '@/lib/github';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
+
+function normalizeGithubRepo(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const repos = parseGithubRepos(raw);
+  if (!repos.length) {
+    return null;
+  }
+  return repos.join(', ');
+}
 
 export async function GET() {
   const session = await requireAuth();
@@ -22,8 +33,23 @@ export async function POST(request) {
     );
   }
 
-  const { key, name, description = '', color, workspace_id = null, client_id = null } = await request.json();
+  const {
+    key,
+    name,
+    description = '',
+    color,
+    workspace_id = null,
+    client_id = null,
+    github_repo = '',
+  } = await request.json();
   const projectKey = String(key ?? '').trim().toUpperCase();
+  const normalizedGithubRepo = normalizeGithubRepo(github_repo);
+  if (normalizedGithubRepo === null) {
+    return NextResponse.json(
+      { error: 'GitHub repo must look like owner/name (comma-separated for several).' },
+      { status: 400 }
+    );
+  }
 
   if (!isValidProjectKey(projectKey)) {
     return NextResponse.json(
@@ -68,6 +94,7 @@ export async function POST(request) {
     color,
     workspace_id: workspace_id == null ? null : Number(workspace_id),
     client_id: client_id == null ? null : Number(client_id),
+    github_repo: normalizedGithubRepo,
   });
 
   return NextResponse.json({ project }, { status: 201 });

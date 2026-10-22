@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getProject, updateProject, deleteProject, clientExists } from '@/lib/projects';
+import { parseGithubRepos } from '@/lib/github';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectColor } from '@/lib/projectValidation';
+
+function normalizeGithubRepo(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const repos = parseGithubRepos(raw);
+  if (!repos.length) return null;
+  return repos.join(', ');
+}
 
 export async function PATCH(request, { params }) {
   const session = await requireAuth();
@@ -21,7 +30,8 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
-  const { name, description, color, workspace_id, client_id } = await request.json();
+  const { name, description, color, workspace_id, client_id, github_repo } =
+    await request.json();
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: 'Project name is required.' }, { status: 400 });
@@ -41,6 +51,19 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Client not found.' }, { status: 400 });
   }
 
+  let nextGithubRepo =
+    existing.github_repo == null ? '' : String(existing.github_repo);
+  if (github_repo !== undefined) {
+    const normalized = normalizeGithubRepo(github_repo);
+    if (normalized === null) {
+      return NextResponse.json(
+        { error: 'GitHub repo must look like owner/name (comma-separated for several).' },
+        { status: 400 }
+      );
+    }
+    nextGithubRepo = normalized;
+  }
+
   const project = await updateProject(id, {
     name: name === undefined ? existing.name : name.trim(),
     description:
@@ -58,6 +81,7 @@ export async function PATCH(request, { params }) {
         : client_id === null
           ? null
           : Number(client_id),
+    github_repo: nextGithubRepo,
   });
 
   return NextResponse.json({ project });
