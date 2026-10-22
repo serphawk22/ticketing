@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getLoggedSeconds, getTimeLogs } from '@/lib/ticketDetail';
+import { logAuditEvent } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +121,20 @@ export async function POST(request, { params }) {
       'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, duration_minutes, note, work_date) VALUES (?, ?, ?, ?, ?, ?)'
     )
     .run(ticketId, session.user.id, valueInSeconds, durationMinutes, cleanNote, cleanWorkDate);
+
+  await logAuditEvent({
+    actorId: session.user.id,
+    actorName: session.user.name,
+    action: 'log_time',
+    entityType: 'ticket',
+    entityId: ticketId,
+    details: {
+      ticketId,
+      durationMinutes,
+      workDate: cleanWorkDate,
+      note: cleanNote,
+    },
+  });
 
   const timeLogs = await getTimeLogs(ticketId);
   const loggedSeconds = await getLoggedSeconds(ticketId);
