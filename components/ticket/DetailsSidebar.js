@@ -7,15 +7,16 @@ import {
   STATUS_META,
   STATUS_ORDER,
   formatDuration,
-  formatFullDateTime,
+  formatISTDateTime,
   formatShortDate,
   parseDuration,
   ticketKey,
 } from '../meta';
 import { CalendarIcon, ChevronRight, ClockIcon, GearIcon, LightningIcon, PersonOutlineIcon } from './icons';
 import { ChipInput, FieldRow, InlineText, Menu } from './parts';
+import { ActivityHistorySection } from './sections';
 import InlineDateField from '../InlineDateField';
-import { CategoryField, PriorityField, ReporterField, StatusField, ProductInclusionField, AssigneeField, IssueTypeField } from '../TicketFields';
+import { CategoryField, PriorityField, ReporterField, StatusField, ProductInclusionField, AssigneeField, IssueTypeField, TeamField } from '../TicketFields';
 
 function DateField({ label, value, onSave, canEdit, clickToEdit = false }) {
   // The due date opens on click: the value sits there until it is clicked, the
@@ -318,6 +319,7 @@ export default function DetailsSidebar({
 
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [automationOpen, setAutomationOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const labels = String(ticket.labels || '')
     .split(',')
     .map((l) => l.trim())
@@ -424,17 +426,21 @@ export default function DetailsSidebar({
                 <CategoryField
                   value={ticket.category}
                   onSelect={(v) => onPatch({ category: v })}
-                  readOnly={!isAdmin}
+                  readOnly={ticket.archived || currentUser?.role === 'client'}
                 />
               </div>
             </FieldRow>
-            <CustomField
-              label="Team"
-              value={ticket.team}
-              onSave={(v) => onPatch({ team: v })}
-              canEdit={isAdmin}
-              placeholder="Add team"
-            />
+            <FieldRow label="Team">
+              <div className="tm-person">
+                <TeamField
+                  value={ticket.team}
+                  employees={assignable}
+                  onSelect={(v) => onPatch({ team: v })}
+                  readOnly={ticket.archived || currentUser?.role === 'client'}
+                  variant="sidebar"
+                />
+              </div>
+            </FieldRow>
             <CustomField
               label="Budget"
               type="number"
@@ -484,9 +490,15 @@ export default function DetailsSidebar({
         )}
       </section>
 
+      <ActivityHistorySection
+        activity={detail?.activity || []}
+        collapsed={!historyOpen}
+        onToggle={() => setHistoryOpen((v) => !v)}
+      />
+
       <div className="tm-side-foot">
-        <p>Created {formatFullDateTime(ticket.created_at)}</p>
-        <p>Updated {formatFullDateTime(ticket.updated_at)}</p>
+        <p>Created {formatISTDateTime(ticket.created_at)}</p>
+        <p>Updated {formatISTDateTime(ticket.updated_at)}</p>
         <button type="button" className="tm-inline-link" onClick={onToggleConfigure}>
           {configureOpen ? 'Done' : 'Configure fields'}
         </button>

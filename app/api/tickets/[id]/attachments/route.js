@@ -64,10 +64,27 @@ export async function POST(request, { params }) {
     );
   }
 
-  const form = await request.formData().catch(() => null);
-  const file = form?.get('file');
+  let form;
+  try {
+    form = await request.formData();
+  } catch (err) {
+    // A malformed body (bad boundary, truncated multipart, oversized request)
+    // throws here. Report it instead of the misleading "no file supplied".
+    return NextResponse.json(
+      { error: `Could not read the upload: ${err.message}` },
+      { status: 400 }
+    );
+  }
+
+  const file = form.get('file');
   if (!file || typeof file === 'string') {
     return NextResponse.json({ error: 'No file supplied.' }, { status: 400 });
+  }
+  if (!String(file.name || '').trim()) {
+    return NextResponse.json({ error: 'The file needs a name.' }, { status: 400 });
+  }
+  if (!file.size) {
+    return NextResponse.json({ error: 'That file is empty.' }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
@@ -88,13 +105,23 @@ export async function POST(request, { params }) {
     );
   }
 
-  await db
-    .prepare(
-      `INSERT INTO ticket_attachments
-         (ticket_id, filename, storage_key, content_type, size_bytes, uploaded_by)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(ticketId, file.name, key, file.type || '', file.size, session.user.id);
+  try {
+    await db
+      .prepare(
+        `INSERT INTO ticket_attachments
+           (ticket_id, filename, storage_key, content_type, size_bytes, uploaded_by)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(ticketId, file.name, key, file.type || '', file.size, session.user.id);
+  } catch (err) {
+    // The bytes are already in the bucket, so do not leave them orphaned when
+    // the metadata row cannot be written. Drop the object and report why.
+    await deleteAttachment(key).catch(() => {});
+    return NextResponse.json(
+      { error: `Could not save the attachment: ${err.message}` },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ attachments: await getAttachments(ticketId) }, { status: 201 });
 }

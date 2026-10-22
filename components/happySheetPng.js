@@ -79,7 +79,7 @@ export default function downloadHappySheetPng(rows, { day = '' } = {}) {
   const list = (rows || []).filter(Boolean);
   if (list.length === 0) return;
 
-  const W = 1180;
+  const W = 1380;
   const scale = 2;
   const margin = 26;
   const tableW = W - margin * 2;
@@ -90,11 +90,12 @@ export default function downloadHappySheetPng(rows, { day = '' } = {}) {
     {
       key: 'happy_one',
       label: 'What made your day happy',
-      width: tableW - 100 - 60 - 150 - 170 - 190 - 160,
+      width: tableW - 100 - 60 - 150 - 170 - 190 - 160 - 200,
     },
     { key: 'happy_others', label: 'Made anybody else happy', width: 170 },
     { key: 'happy_goals', label: 'Goals & Self-Satisfaction', width: 190 },
     { key: 'happy_dreams', label: 'Dreams', width: 160 },
+    { key: 'happy_self_study', label: 'Self-study or personal project', width: 200 },
   ];
 
   const bodySize = 13;
@@ -121,6 +122,7 @@ export default function downloadHappySheetPng(rows, { day = '' } = {}) {
       happy_others: r.happy_others ? r.happy_others : '—',
       happy_goals: r.happy_goals ? r.happy_goals : '—',
       happy_dreams: r.happy_dreams ? r.happy_dreams : '—',
+      happy_self_study: r.happy_self_study ? r.happy_self_study : '—',
     };
     return cols.map((c) => ({
       isName: c.key === 'name',

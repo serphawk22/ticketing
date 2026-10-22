@@ -87,6 +87,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
       'Did you make anybody else happy',
       'Goals & Self-Satisfaction',
       'Dreams',
+      'Self-study or personal project',
     ];
     const lines = [
       header.map(csvCell).join(','),
@@ -100,6 +101,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
           r.happy_others,
           r.happy_goals,
           r.happy_dreams,
+          r.happy_self_study,
         ]
           .map(csvCell)
           .join(',');
@@ -228,6 +230,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
                 <th className="list-th">Made anybody else happy</th>
                 <th className="list-th">Goals &amp; Self-Satisfaction</th>
                 <th className="list-th">Dreams</th>
+                <th className="list-th">Self-study or personal project</th>
               </tr>
             </thead>
             <tbody>
@@ -251,6 +254,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
                     </td>
                     <td className="list-cell hs-answer">{row.happy_goals}</td>
                     <td className="list-cell hs-answer">{row.happy_dreams}</td>
+                    <td className="list-cell hs-answer">{row.happy_self_study}</td>
                   </tr>
                 );
               })}

@@ -6,11 +6,17 @@ import { getProject } from '@/lib/projects';
 import { ticketKey } from '@/lib/ticketMeta';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
+import { notifyTicketUpdated } from '@/lib/notifications';
+import { deleteAttachment } from '@/lib/storage';
 import { logActivityChanges } from '@/lib/ticketActivity';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
+// Category and team are ordinary editable metadata for the team, but a
+// requester only reads them: the sidebar hides them from clients, so the API
+// refuses them too rather than trusting the UI.
+const TEAM_ONLY_TEXT_FIELDS = ['category', 'team'];
 
 function badValue(field, value) {
   return NextResponse.json({ error: `Invalid ${FIELD_META[field].label.toLowerCase()}.` }, { status: 400 });
@@ -63,6 +69,12 @@ export async function PATCH(request, { params }) {
     if (!FIELD_META[field].open && !isAdmin) {
       return NextResponse.json(
         { error: `Only admins can edit ${FIELD_META[field].label.toLowerCase()}.` },
+        { status: 403 }
+      );
+    }
+    if (TEAM_ONLY_TEXT_FIELDS.includes(field) && session.user.role === 'client') {
+      return NextResponse.json(
+        { error: `Clients cannot edit ${FIELD_META[field].label.toLowerCase()}.` },
         { status: 403 }
       );
     }
@@ -376,6 +388,24 @@ export async function PATCH(request, { params }) {
     logged.delete('created_by');
   }
 
+  // Assignment is translated the same way, so a reassignment (or the auto-claim
+  // that happens when an unassigned ticket moves into a status) reads
+  // "changed Assignee Alice to Bob" rather than a pair of raw ids.
+  if (
+    logged.has('employee_id') &&
+    Number(ticket.employee_id || 0) !== Number(nextEmployeeId || 0)
+  ) {
+    const nextEmployee = nextEmployeeId ? await getEmployee(nextEmployeeId) : null;
+    await logActivityChanges(
+      ticketId,
+      session.user.id,
+      { employee_id: ticket.employee_name || '' },
+      { employee_id: nextEmployee?.name || '' },
+      ['employee_id']
+    );
+    logged.delete('employee_id');
+  }
+
   await logActivityChanges(
     ticketId,
     session.user.id,
@@ -387,29 +417,50 @@ export async function PATCH(request, { params }) {
   const updated = await getTicket(ticketId);
   const notifications = [];
 
-  if (reassigning && nextEmployeeId) {
-    const employee = await getEmployee(nextEmployeeId);
-    const notification = await notifyAssignment({
-      ticket: updated,
-      employee,
+  // The in-app feed records every kind of change -- status, priority, due date,
+  // resolution, assignment and a summary of the rest -- to every admin and
+  // developer. The email sends below stay targeted at the assignee, so the two
+  // layers have different audiences on purpose.
+  //
+  // Delivery is best-effort: it runs after the ticket row and the activity rows
+  // are already committed, so a mailing or notification failure must not fail
+  // the response. Activity logging above stays awaited and unguarded, so a real
+  // logging error still surfaces instead of being swallowed here.
+  try {
+    await notifyTicketUpdated({
+      before: ticket,
+      after: updated,
+      actorId: session.user.id,
       actorName: session.user.name,
-      trigger: 'reassignment',
+      fields: Object.keys(edits),
     });
-    if (notification) notifications.push(notification);
-  }
 
-  if (edits.status !== undefined && updated.status === 'in_progress' && nextEmployeeId) {
-    const employee = await getEmployee(nextEmployeeId);
-    const isSelf = employee?.email === session.user.email;
-    if (!isSelf) {
-      const notification = await notifyStatusChange({
+    if (reassigning && nextEmployeeId) {
+      const employee = await getEmployee(nextEmployeeId);
+      const notification = await notifyAssignment({
         ticket: updated,
         employee,
         actorName: session.user.name,
-        status: updated.status,
+        trigger: 'reassignment',
       });
       if (notification) notifications.push(notification);
     }
+
+    if (edits.status !== undefined && updated.status === 'in_progress' && nextEmployeeId) {
+      const employee = await getEmployee(nextEmployeeId);
+      const isSelf = employee?.email === session.user.email;
+      if (!isSelf) {
+        const notification = await notifyStatusChange({
+          ticket: updated,
+          employee,
+          actorName: session.user.name,
+          status: updated.status,
+        });
+        if (notification) notifications.push(notification);
+      }
+    }
+  } catch (err) {
+    console.error('Ticket updated, but notifications failed:', err);
   }
 
   // Child work items are a separate choice. The dialog asks, and only a checked

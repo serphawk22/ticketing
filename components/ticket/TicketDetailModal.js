@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../Avatar';
 import { TYPE_META, TypeIcon, RELATION_META, RELATION_ORDER, relationLabelFor, CHILD_RELATION, ticketKey } from '../meta';
+import { AssigneeField, IssueTypeField, PriorityField } from '../TicketFields';
 import {
   ChevronLeft,
   ChevronRight,
@@ -81,11 +82,29 @@ export default function TicketDetailModal({
   const [archivePrompt, setArchivePrompt] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [createChildOpen, setCreateChildOpen] = useState(false);
+  const [childTitle, setChildTitle] = useState('');
+  const [childDescription, setChildDescription] = useState('');
+  const [childType, setChildType] = useState('task');
+  const [childPriority, setChildPriority] = useState('medium');
+  const [childAssignee, setChildAssignee] = useState('');
+  const [childBusy, setChildBusy] = useState(false);
+  const [childError, setChildError] = useState('');
   const scrollMain = useRef(null);
   const scrollSide = useRef(null);
 
   const id = ticket?.id;
   const isAdmin = currentUser?.role === 'admin';
+  // Routing work -- naming an assignee or nesting it in the tree -- is the same
+  // team decision the create and edit routes make, so the child form follows it.
+  const canRoute = isAdmin || currentUser?.role === 'developer';
+  const assignableEmployees = useMemo(
+    () =>
+      (employees || [])
+        .filter((e) => e.active && e.role !== 'client')
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [employees]
+  );
   const key = ticket ? ticketKey(ticket) : '';
 
   const load = useCallback(async (signal) => {
@@ -115,6 +134,10 @@ export default function TicketDetailModal({
     setLinkOpen(false);
     setLinkQuery('');
     setExpanded(false);
+    setCreateChildOpen(false);
+    setChildTitle('');
+    setChildDescription('');
+    setChildError('');
     scrollMain.current?.scrollTo(0, 0);
     scrollSide.current?.scrollTo(0, 0);
   }, [id]);
@@ -334,6 +357,53 @@ export default function TicketDetailModal({
     },
     [id, load, onTicketChanged]
   );
+
+  // A brand-new child is an ordinary ticket that names this one as its parent,
+  // so it goes through the same POST the raise form uses. Only the team roles
+  // may nest work, matching the create route's own rule.
+  const createChild = useCallback(async () => {
+    const title = childTitle.trim();
+    const description = childDescription.trim();
+    if (!title || !description || childBusy) return;
+    setChildBusy(true);
+    setChildError('');
+    try {
+      const data = await call('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          type: childType,
+          priority: childPriority,
+          employee_id: childAssignee ? Number(childAssignee) : null,
+          parent_id: id,
+        }),
+      });
+      setChildTitle('');
+      setChildDescription('');
+      setChildType('task');
+      setChildPriority('medium');
+      setChildAssignee('');
+      setCreateChildOpen(false);
+      onTicketChanged?.(data.ticket);
+      await load();
+    } catch (err) {
+      setChildError(err.message);
+    } finally {
+      setChildBusy(false);
+    }
+  }, [
+    childTitle,
+    childDescription,
+    childType,
+    childPriority,
+    childAssignee,
+    childBusy,
+    id,
+    load,
+    onTicketChanged,
+  ]);
 
   const logTime = useCallback(
     async (seconds, note, workDate) => {
@@ -675,6 +745,16 @@ export default function TicketDetailModal({
                 >
                   Add child work item
                 </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setCreateChildOpen(true);
+                    setChildOpen(true);
+                  }}
+                  icon={<PlusIcon size={14} />}
+                >
+                  Create child work item
+                </MenuItem>
               </Menu>
             </div>
             <button
@@ -820,6 +900,11 @@ export default function TicketDetailModal({
                 setLinkType(CHILD_RELATION);
                 setChildOpen(true);
               }}
+              onCreateNew={() => {
+                setCreateChildOpen(true);
+                setChildOpen(true);
+              }}
+              createLabel="Create new child work item"
               onRemove={removeChild}
               onOpen={openLinked}
               collapsed={!childOpen}
@@ -932,6 +1017,87 @@ export default function TicketDetailModal({
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {createChildOpen && (
+              <div className="tm-link-picker tm-create-child">
+                <div className="tm-create-child-head">
+                  <span className="tm-create-child-title">New child work item</span>
+                  <button
+                    type="button"
+                    className="tm-icon-btn"
+                    aria-label="Cancel new child"
+                    onClick={() => setCreateChildOpen(false)}
+                  >
+                    <CloseIcon size={14} />
+                  </button>
+                </div>
+
+                <div className="tm-create-child-field">
+                  <input
+                    className="tm-input"
+                    autoFocus
+                    placeholder="Child work item title"
+                    value={childTitle}
+                    onChange={(e) => setChildTitle(e.target.value)}
+                    aria-label="Child work item title"
+                  />
+                </div>
+
+                <div className="tm-create-child-field">
+                  <textarea
+                    className="tm-textarea"
+                    rows={3}
+                    placeholder="Describe the child work item"
+                    value={childDescription}
+                    onChange={(e) => setChildDescription(e.target.value)}
+                    aria-label="Child work item description"
+                  />
+                </div>
+
+                <div className="tm-create-child-fields">
+                  <label className="tm-create-child-label">
+                    <span>Issue type</span>
+                    <IssueTypeField value={childType} onSelect={setChildType} variant="form" />
+                  </label>
+                  <label className="tm-create-child-label">
+                    <span>Priority</span>
+                    <PriorityField value={childPriority} onSelect={setChildPriority} variant="form" />
+                  </label>
+                  {canRoute && (
+                    <label className="tm-create-child-label">
+                      <span>Assignee</span>
+                      <AssigneeField
+                        value={childAssignee}
+                        employees={assignableEmployees}
+                        onSelect={(v) => setChildAssignee(v == null ? '' : String(v))}
+                        variant="form"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {childError && <p className="tm-error">{childError}</p>}
+
+                <div className="tm-create-child-foot">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={childBusy}
+                    onClick={() => setCreateChildOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={childBusy || !childTitle.trim() || !childDescription.trim()}
+                    onClick={createChild}
+                  >
+                    {childBusy ? 'Creating…' : 'Create child'}
+                  </button>
+                </div>
               </div>
             )}
 

@@ -9,6 +9,10 @@ import WorkspaceModal from './WorkspaceModal';
 import ProjectModal from './ProjectModal';
 import ConfirmModal from './ConfirmModal';
 import AnchoredMenu from './AnchoredMenu';
+import { useInitialWorkspaces } from './WorkspacesProvider';
+import { ticketKey } from './meta';
+import ThemeToggle from './ThemeToggle';
+import NotificationBell from './NotificationBell';
 
 /* ---------------- Icons ---------------- */
 
@@ -51,15 +55,6 @@ function SearchIcon() {
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="11" cy="11" r="7" />
       <path d="M21 21l-4.35-4.35" />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
     </svg>
   );
 }
@@ -143,7 +138,7 @@ function LogoutIcon() {
 
 const TOP_NAV = [
   { id: 'work', label: 'Your work', href: '/?filter=mine' },
-  { id: 'projects', label: 'Projects', href: '/projects' },
+  { id: 'projects', label: 'Work Spaces', href: '/projects' },
 ];
 
 export default function AppShell({
@@ -165,7 +160,14 @@ export default function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [navSearch, setNavSearch] = useState('');
-  const [workspaces, setWorkspaces] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchActive, setSearchActive] = useState(0);
+  const seededWorkspaces = useInitialWorkspaces();
+  const [workspaces, setWorkspaces] = useState(seededWorkspaces);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   // Views that mount AppShell copy the projects prop into their own state, so a
   // router.refresh() after a create would not reach the sidebar. The sidebar
   // therefore keeps its own list and refetches it after a change.
@@ -187,6 +189,8 @@ export default function AppShell({
   const [editingProject, setEditingProject] = useState(null);
   const [deleteError, setDeleteError] = useState('');
   const menuRef = useRef(null);
+  const searchRef = useRef(null);
+  const searchMenuRef = useRef(null);
   const router = useRouter();
 
   // Client requests waiting to be routed to somebody. Fetched by the sidebar
@@ -219,6 +223,7 @@ export default function AppShell({
       if (!res.ok) return;
       const data = await res.json();
       setWorkspaces(data.workspaces || []);
+      setWorkspacesLoaded(true);
     } catch {
       // A failed sidebar fetch should not take the page down; projects still
       // render under an empty work space list.
@@ -226,6 +231,7 @@ export default function AppShell({
   }
 
   useEffect(() => {
+    if (seededWorkspaces.length > 0) setWorkspacesLoaded(true);
     loadWorkspaces();
     loadClientRequests();
   }, []);
@@ -272,6 +278,66 @@ export default function AppShell({
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    const q = navSearch.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      setSearchFailed(false);
+      setSearchOpen(false);
+      setSearchActive(0);
+      return;
+    }
+    setSearchOpen(true);
+    setSearchLoading(true);
+    setSearchFailed(false);
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/tickets/search?q=${encodeURIComponent(q)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`search failed: ${res.status}`);
+        const data = await res.json();
+        setSearchResults(data.tickets || []);
+        setSearchActive(0);
+        setSearchLoading(false);
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        setSearchResults([]);
+        setSearchActive(0);
+        setSearchFailed(true);
+        setSearchLoading(false);
+      }
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [navSearch]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    function onDocClick(e) {
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setSearchOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!searchOpen || !searchMenuRef.current) return;
+    const active = searchMenuRef.current.querySelector('[aria-selected="true"]');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  }, [searchActive, searchOpen]);
 
   function isNavActive(item) {
     if (item.id === 'projects') return view === 'projects';
@@ -422,10 +488,38 @@ export default function AppShell({
     window.location.href = '/login';
   }
 
+  function openTicketFromSearch(ticket) {
+    if (!ticket) return;
+    setSearchOpen(false);
+    setNavSearch('');
+    setSearchResults([]);
+    setSearchActive(0);
+    const key = ticketKey(ticket);
+    const dest = ticket.project_id
+      ? `/projects/${ticket.project_id}/list?selectedIssue=${encodeURIComponent(key)}`
+      : `/work-items?selectedIssue=${encodeURIComponent(key)}`;
+    if (/^\/work-items$|^\/projects\/[^/]+\/list$/.test(window.location.pathname)) {
+      window.location.assign(dest);
+      return;
+    }
+    router.push(dest);
+  }
+
   function handleNavSearch(e) {
     e.preventDefault();
-    const q = navSearch.trim();
-    if (q) router.push(`/?q=${encodeURIComponent(q)}`);
+    if (!searchOpen || searchLoading) return;
+    openTicketFromSearch(searchResults[searchActive]);
+  }
+
+  function handleSearchKeyDown(e) {
+    if (!searchOpen || searchResults.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchActive((i) => Math.min(i + 1, searchResults.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchActive((i) => Math.max(i - 1, 0));
+    }
   }
 
   return (
@@ -504,19 +598,57 @@ export default function AppShell({
 
         <div className="topnav-spacer" />
 
-        <form className="topnav-search" onSubmit={handleNavSearch} role="search">
+        <form className="topnav-search" onSubmit={handleNavSearch} role="search" ref={searchRef}>
           <SearchIcon />
           <input
             value={navSearch}
             onChange={(e) => setNavSearch(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            onFocus={() => {
+              if (navSearch.trim()) setSearchOpen(true);
+            }}
             placeholder="Search"
             aria-label="Search tickets"
+            autoComplete="off"
           />
+          {searchOpen && (
+            <div
+              className="menu-popup topnav-search-menu"
+              role="listbox"
+              aria-label="Ticket suggestions"
+              ref={searchMenuRef}
+            >
+              {searchLoading && searchResults.length === 0 ? (
+                <div className="topnav-search-note">Searching…</div>
+              ) : searchFailed ? (
+                <div className="topnav-search-note">Search is unavailable right now.</div>
+              ) : searchResults.length === 0 ? (
+                <div className="topnav-search-note">No matching tickets found</div>
+              ) : (
+                searchResults.map((ticket, index) => (
+                  <button
+                    type="button"
+                    key={ticket.id}
+                    className={`menu-item topnav-search-item${index === searchActive ? ' is-active' : ''}`}
+                    role="option"
+                    aria-selected={index === searchActive}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setSearchActive(index)}
+                    onClick={() => openTicketFromSearch(ticket)}
+                    title={`${ticketKey(ticket)} ${ticket.title}`}
+                  >
+                    <span className="topnav-search-key">{ticketKey(ticket)}</span>
+                    <span className="menu-item-text">{ticket.title}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </form>
 
-        <button className="icon-btn" aria-label="Notifications" title="Notifications">
-          <BellIcon />
-        </button>
+        <ThemeToggle />
+
+        <NotificationBell currentUser={currentUser} />
         <button className="icon-btn" aria-label="Help" title="Help">
           <HelpIcon />
         </button>
@@ -661,7 +793,7 @@ export default function AppShell({
               </span>
             </div>
             <nav className="nav">
-              {workspaces.map((w) => {
+              {workspacesLoaded && workspaces.map((w) => {
                 const members = sidebarProjects.filter(
                   (p) => String(p.workspace_id) === String(w.id)
                 );
@@ -736,7 +868,7 @@ export default function AppShell({
                 );
               })}
 
-              {ungrouped.map(renderProjectItem)}
+              {workspacesLoaded && ungrouped.map(renderProjectItem)}
             </nav>
           </div>
 

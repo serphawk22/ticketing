@@ -21,6 +21,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
   const [happyOthers, setHappyOthers] = useState('');
   const [happyGoals, setHappyGoals] = useState('');
   const [happyDreams, setHappyDreams] = useState('');
+  const [happySelfStudy, setHappySelfStudy] = useState('');
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
@@ -67,6 +68,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           happyOthers: happyOthers.trim(),
           happyGoals: happyGoals.trim(),
           happyDreams: happyDreams.trim(),
+          happySelfStudy: happySelfStudy.trim(),
         }),
       });
       const data = await res.json();
@@ -87,6 +89,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
     setHappyOthers('');
     setHappyGoals('');
     setHappyDreams('');
+    setHappySelfStudy('');
     setErrors({});
     setConfirmation(null);
   }
@@ -205,6 +208,20 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           value={happyDreams}
           placeholder="The dream you are slowly, surely making real…"
           onChange={(e) => setHappyDreams(e.target.value)}
+        />
+        <p className="field-hint">Optional.</p>
+      </div>
+
+      <div className="form-group ts-field">
+        <label htmlFor="hs-self-study">
+          What self-study or personal project are you currently working on?
+        </label>
+        <textarea
+          id="hs-self-study"
+          rows={3}
+          value={happySelfStudy}
+          placeholder="Describe any self-study, personal project, or topic you are exploring..."
+          onChange={(e) => setHappySelfStudy(e.target.value)}
         />
         <p className="field-hint">Optional.</p>
       </div>

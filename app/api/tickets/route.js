@@ -4,6 +4,8 @@ import { requireAuth } from '@/lib/auth';
 import { getAllTickets, getTicket, getTicketsForClient, getTicketsForProject } from '@/lib/tickets';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
+import { notifyTicketAssigned, notifyTicketCreated } from '@/lib/notifications';
+import { logCreated } from '@/lib/ticketActivity';
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
@@ -170,15 +172,43 @@ export async function POST(request) {
 
   const ticket = await getTicket(info.lastInsertRowid);
 
+  // The history opens with the creation itself, so the timeline has a start
+  // even before anything is edited.
+  await logCreated(ticket.id, session.user.id);
+
+  // Every admin and developer hears about the new ticket, regardless of who
+  // raised it or which project it landed in. The assignment is its own event on
+  // top, the same split the email layer makes.
+  //
+  // Best-effort for the same reason as above: the ticket row and its creation
+  // activity row are committed, so a delivery failure must not turn the create
+  // into a 500 and leave the client without its new ticket.
   let notification = null;
-  if (assignee) {
-    const employee = await getEmployee(assignee);
-    notification = await notifyAssignment({
+  try {
+    await notifyTicketCreated({
       ticket,
-      employee,
+      actorId: session.user.id,
       actorName: session.user.name,
-      trigger: 'assignment',
     });
+
+    if (assignee) {
+      const employee = await getEmployee(assignee);
+      notification = await notifyAssignment({
+        ticket,
+        employee,
+        actorName: session.user.name,
+        trigger: 'assignment',
+      });
+      await notifyTicketAssigned({
+        ticket,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        employeeName: employee?.name,
+        trigger: 'assignment',
+      });
+    }
+  } catch (err) {
+    console.error('Ticket created, but notifications failed:', err);
   }
 
   return NextResponse.json({ ticket, notification }, { status: 201 });

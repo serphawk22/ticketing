@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { formatShortDate, ticketKey, STATUS_META, TYPE_META, TypeIcon } from '../meta';
+import { formatShortDate, formatFullDateTime, FIELD_META, ticketKey, STATUS_META, TYPE_META, TypeIcon } from '../meta';
 import {
+  ArrowRightIcon,
   ChevronRight,
+  HistoryIcon,
   PaperclipIcon,
   PlusIcon,
   SlackIcon,
@@ -14,6 +16,12 @@ import {
   WebLinkIcon,
 } from './icons';
 import Avatar from '../Avatar';
+import { ActivityValue } from './ActivityFeed';
+
+// created_by is logged translated to a name, but it has no FIELD_META entry
+// because that map describes the editable columns. Same override ActivityFeed
+// uses, kept in step here.
+const FIELD_LABELS = { created_by: 'Reporter' };
 
 export function AttachmentsSection({ attachments, onUpload, onDelete, onOpen, canEdit, collapsed, onToggle }) {
   const inputRef = useRef(null);
@@ -112,6 +120,54 @@ export function AttachmentsSection({ attachments, onUpload, onDelete, onOpen, ca
   );
 }
 
+export function ActivityHistorySection({ activity = [], collapsed, onToggle }) {
+  return (
+    <section className="tm-section">
+      <button type="button" className="tm-section-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+        {collapsed ? <ChevronRight size={14} /> : <ChevronRight size={14} className="tm-rot90" />}
+        <HistoryIcon size={14} />
+        <h3 className="tm-section-title">Activity history</h3>
+        {activity.length ? <span className="tm-count">{activity.length}</span> : null}
+      </button>
+
+      {!collapsed &&
+        (activity.length === 0 ? (
+          <p className="tm-empty">No changes recorded yet.</p>
+        ) : (
+          <ul className="tm-activity-list">
+            {activity.map((entry) => {
+              const label = FIELD_META[entry.field]?.label || FIELD_LABELS[entry.field] || entry.field;
+              return (
+                <li key={`${entry.id}-${entry.field}`} className="tm-activity-row">
+                  <div className="tm-activity-body">
+                    <p className="tm-activity-text">
+                      <strong>{entry.actor_name || 'Someone'}</strong>{' '}
+                      {entry.field === 'created' ? (
+                        'created this work item'
+                      ) : (
+                        <>
+                          changed the <span className="tm-activity-field">{label}</span>
+                        </>
+                      )}
+                    </p>
+                    {entry.field !== 'created' && (
+                      <div className="tm-activity-change">
+                        <ActivityValue field={entry.field} value={entry.from_value} />
+                        <ArrowRightIcon size={12} className="tm-arrow" />
+                        <ActivityValue field={entry.field} value={entry.to_value} />
+                      </div>
+                    )}
+                    <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
+    </section>
+  );
+}
+
 export function RelationsSection({
   title,
   items,
@@ -129,6 +185,11 @@ export function RelationsSection({
   // parent at a glance. Linked rows instead name the kind of link.
   showChildMeta = false,
   removeLabel,
+  // A second way in: instead of linking a work item that already exists, start
+  // a brand-new one under this ticket. Optional, because only the child
+  // section offers it.
+  onCreateNew,
+  createLabel = 'Create new child work item',
 }) {
   return (
     <section className="tm-section">
@@ -141,9 +202,16 @@ export function RelationsSection({
       {!collapsed && (
         <>
           {canEdit && showAdd && (
-            <button type="button" className="tm-add-link" onClick={onAdd}>
-              {addLabel}
-            </button>
+            <div className="tm-add-links">
+              <button type="button" className="tm-add-link" onClick={onAdd}>
+                {addLabel}
+              </button>
+              {onCreateNew && (
+                <button type="button" className="tm-add-link" onClick={onCreateNew}>
+                  {createLabel}
+                </button>
+              )}
+            </div>
           )}
           {items.length === 0 ? (
             <p className="tm-empty">{emptyHint}</p>

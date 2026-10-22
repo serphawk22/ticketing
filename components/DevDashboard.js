@@ -124,7 +124,11 @@ export default function DevDashboard({
   const [projects] = useState(initialProjects);
   const [employees] = useState(initialEmployees);
   const [search, setSearch] = useState('');
-  const [projectId, setProjectId] = useState('all');
+  // Each ownership group has its own project filter so "Assigned to me" and
+  // "Assigned by me" can be narrowed independently. "all" is the default and
+  // keeps the previous behavior (every project) untouched.
+  const [toMeProjectId, setToMeProjectId] = useState('all');
+  const [byMeProjectId, setByMeProjectId] = useState('all');
   const [priority, setPriority] = useState('all');
   const [error, setError] = useState('');
   const [draggingId, setDraggingId] = useState(null);
@@ -202,10 +206,12 @@ export default function DevDashboard({
   );
 
   const applyFilters = useCallback(
-    (list) => {
+    (list, projectFilter) => {
       const q = search.trim().toLowerCase();
       return list.filter((t) => {
-        if (projectId !== 'all' && String(t.project_id) !== String(projectId)) return false;
+        if (projectFilter !== 'all' && String(t.project_id) !== String(projectFilter)) {
+          return false;
+        }
         if (priority !== 'all' && t.priority !== priority) return false;
         if (!q) return true;
         return (
@@ -216,7 +222,7 @@ export default function DevDashboard({
         );
       });
     },
-    [projectId, priority, search]
+    [priority, search]
   );
 
   const makeBuckets = useCallback(
@@ -255,14 +261,17 @@ export default function DevDashboard({
     [today]
   );
 
-  const toMeBuckets = useMemo(
-    () => makeBuckets(applyFilters(assignedToMe)),
-    [makeBuckets, applyFilters, assignedToMe]
+  const toMeVisible = useMemo(
+    () => applyFilters(assignedToMe, toMeProjectId),
+    [applyFilters, assignedToMe, toMeProjectId]
   );
-  const byMeBuckets = useMemo(
-    () => makeBuckets(applyFilters(assignedByMe)),
-    [makeBuckets, applyFilters, assignedByMe]
+  const byMeVisible = useMemo(
+    () => applyFilters(assignedByMe, byMeProjectId),
+    [applyFilters, assignedByMe, byMeProjectId]
   );
+
+  const toMeBuckets = useMemo(() => makeBuckets(toMeVisible), [makeBuckets, toMeVisible]);
+  const byMeBuckets = useMemo(() => makeBuckets(byMeVisible), [makeBuckets, byMeVisible]);
 
   const ordered = useMemo(
     () => [
@@ -457,6 +466,31 @@ export default function DevDashboard({
     );
   }
 
+  // One project filter per ownership group. Rendered inside that group so the
+  // two filters stay independent, with "All projects" as the no-op default.
+  function renderProjectFilter(id, value, onChange, label) {
+    return (
+      <div className="dash-group-filter">
+        <label htmlFor={id}>Project</label>
+        <div className="select-field">
+          <select
+            id={id}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label={label}
+          >
+            <option value="all">All projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AppShell
       currentUser={currentUser}
@@ -527,21 +561,6 @@ export default function DevDashboard({
 
             <div className="select-field">
               <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                aria-label="Filter by project"
-              >
-                <option value="all">All projects</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="select-field">
-              <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 aria-label="Filter by priority"
@@ -573,8 +592,14 @@ export default function DevDashboard({
             <header className="dash-group-head">
               <h2 className="dash-group-title">Assigned to me</h2>
               <span className="dash-group-hint">Work handed to you</span>
-              <span className="dash-group-count">{assignedToMe.length}</span>
+              <span className="dash-group-count">{toMeVisible.length}</span>
             </header>
+            {renderProjectFilter(
+              'to-me-project',
+              toMeProjectId,
+              setToMeProjectId,
+              'Filter assigned to me by project'
+            )}
             {renderDashSections('to', toMeBuckets)}
           </section>
 
@@ -582,8 +607,14 @@ export default function DevDashboard({
             <header className="dash-group-head">
               <h2 className="dash-group-title">Assigned by me</h2>
               <span className="dash-group-hint">Tickets you raised</span>
-              <span className="dash-group-count">{assignedByMe.length}</span>
+              <span className="dash-group-count">{byMeVisible.length}</span>
             </header>
+            {renderProjectFilter(
+              'by-me-project',
+              byMeProjectId,
+              setByMeProjectId,
+              'Filter assigned by me by project'
+            )}
             {renderDashSections('by', byMeBuckets)}
           </section>
         </div>
@@ -609,7 +640,6 @@ export default function DevDashboard({
         <CreateTicketModal
           employees={employees}
           projects={projects}
-          defaultProjectId={projectId === 'all' ? '' : projectId}
           onClose={() => setShowCreate(false)}
           onCreate={handleCreate}
         />
