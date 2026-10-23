@@ -55,6 +55,10 @@ export default function TaskSheetForm({
   const [customHours, setCustomHours] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
+  // Two optional questions, answered below the task description. Nothing is
+  // required of them, so they start empty and are simply sent along as typed.
+  const [learningProject, setLearningProject] = useState('');
+  const [otherActivities, setOtherActivities] = useState('');
   const [taskState, setTaskState] = useState('');
   // Only asked for when the state is Not Completed: a completed task has
   // nothing holding it up, so the field appears the moment it is relevant.
@@ -382,6 +386,8 @@ export default function TaskSheetForm({
           hoursWorked: resolvedHours(),
           taskTitle: taskTitle.trim(),
           taskDescription: taskDescription.trim(),
+          learningProject: learningProject.trim(),
+          otherActivities: otherActivities.trim(),
           taskState: effectiveTaskState,
           blocker: effectiveTaskState === 'not_completed' ? (selectedTickets.length === 0 ? blocker.trim() : null) : null,
           linkedTicketId: linked ? linked.id : null,
@@ -418,6 +424,8 @@ export default function TaskSheetForm({
     setCustomHours('');
     setTaskTitle('');
     setTaskDescription('');
+    setLearningProject('');
+    setOtherActivities('');
     setTaskState('');
     setBlocker('');
     setErrors({});
@@ -746,7 +754,7 @@ export default function TaskSheetForm({
 
       <div className="ts-grid">
         <div
-          className={`form-group ts-field ts-field-wide${
+          className={`form-group ts-field ts-field-wide ts-field-full${
             errors.taskDescription ? ' has-error' : ''
           }`}
           id="ts-taskDescription"
@@ -763,6 +771,42 @@ export default function TaskSheetForm({
           {errors.taskDescription ? (
             <span className="error-text">{errors.taskDescription}</span>
           ) : null}
+        </div>
+      </div>
+
+      <div className="ts-grid">
+        <div
+          className="form-group ts-field ts-field-wide ts-field-full"
+          id="ts-learningProject"
+        >
+          <label htmlFor="ts-learning-project">
+            What learning or other project are you working on?
+          </label>
+          <textarea
+            id="ts-learning-project"
+            rows={4}
+            value={learningProject}
+            placeholder="Describe any learning or other project you are working on..."
+            onChange={(e) => setLearningProject(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="ts-grid">
+        <div
+          className="form-group ts-field ts-field-wide ts-field-full"
+          id="ts-otherActivities"
+        >
+          <label htmlFor="ts-other-activities">
+            What new or different thing did you do today apart from work?
+          </label>
+          <textarea
+            id="ts-other-activities"
+            rows={4}
+            value={otherActivities}
+            placeholder="Describe anything new or different you did today outside of work..."
+            onChange={(e) => setOtherActivities(e.target.value)}
+          />
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllTickets } from '@/lib/tickets';
 import { getAllProjects } from '@/lib/projects';
+import { getAllWorkspaces } from '@/lib/workspaces';
 import ProjectsView from '@/components/ProjectsView';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,7 @@ export default async function ProjectsPage() {
   const session = await requireTeamUser();
 
   const projects = await getAllProjects();
+  const workspaces = await getAllWorkspaces();
   const tickets = await getAllTickets();
   const userId = session.user.id;
 
@@ -19,6 +21,7 @@ export default async function ProjectsPage() {
   return (
     <ProjectsView
       initialProjects={projects}
+      initialWorkspaces={workspaces}
       currentUser={session.user}
       myIssuesCount={myIssuesCount}
     />

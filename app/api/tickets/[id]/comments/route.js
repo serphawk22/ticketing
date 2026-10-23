@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getComments } from '@/lib/ticketDetail';
+import { findMentionedNames, notifyTicketCommented } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,19 @@ export async function POST(request, { params }) {
        RETURNING id`
     )
     .run(ticketId, session.user.id, text);
+
+  // One notification per comment, fanned out to every admin and developer. A
+  // comment that names teammates is recorded as a mention instead of a plain
+  // comment, so the same message never appears twice in the bell.
+  const mentioned = await findMentionedNames(text);
+  await notifyTicketCommented({
+    ticket,
+    commentId: result.lastInsertRowid,
+    actorId: session.user.id,
+    actorName: session.user.name,
+    excerpt: text.length > 140 ? `${text.slice(0, 137)}…` : text,
+    mentioned,
+  });
 
   return NextResponse.json(
     { comments: await getComments(ticketId) },

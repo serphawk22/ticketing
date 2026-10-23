@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AssigneeField,
   CategoryField,
@@ -8,6 +8,26 @@ import {
   PriorityField,
   ProjectField,
 } from './TicketFields';
+
+/**
+ * One labelled control in the modal. The label, the control and the error
+ * message travel together, so a field is a single entry in the grid list
+ * below rather than three separate pieces of markup that can drift apart.
+ */
+function FormField({ id, label, error, hint, children }) {
+  return (
+    <div className="form-group">
+      <label htmlFor={id}>{label}</label>
+      {children}
+      {hint}
+      {error && (
+        <span className="field-error" id={id ? `${id}-error` : undefined} role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function CreateTicketModal({
   employees = [],
@@ -38,6 +58,12 @@ export default function CreateTicketModal({
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
+  // The two text fields keep a handle on themselves so a rejected submit can
+  // put the caret on the field that stopped it: the body scrolls on its own,
+  // so the offending field is not always on screen.
+  const summaryRef = useRef(null);
+  const descriptionRef = useRef(null);
+
   // Same rule as the ticket detail sidebar: clients request work, they do not
   // receive it.
   const assignable = employees.filter((e) => e.active && e.role !== 'client');
@@ -51,12 +77,37 @@ export default function CreateTicketModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Editing a field clears the last failure, so a message from the server
+  // does not sit under a form the user has already corrected.
+  function pick(setter) {
+    return (value) => {
+      setError('');
+      setter(value);
+    };
+  }
+
+  function onSummaryChange(e) {
+    setTitle(e.target.value);
+    setError('');
+    if (fieldErrors.summary) {
+      setFieldErrors((prev) => ({ ...prev, summary: '' }));
+    }
+  }
+
+  function onDescriptionChange(e) {
+    setDescription(e.target.value);
+    setError('');
+    if (fieldErrors.description) {
+      setFieldErrors((prev) => ({ ...prev, description: '' }));
+    }
+  }
+
   function validate() {
     const errs = {};
     if (!title.trim()) errs.summary = 'Summary is required.';
     if (!description.trim()) errs.description = 'Description is required.';
     setFieldErrors(errs);
-    return Object.keys(errs).length === 0;
+    return errs;
   }
 
   async function handleSubmit(e) {
@@ -64,7 +115,12 @@ export default function CreateTicketModal({
     if (submitting) return;
     setError('');
 
-    if (!validate()) return;
+    const errs = validate();
+    if (Object.keys(errs).length > 0) {
+      if (errs.summary) summaryRef.current?.focus();
+      else descriptionRef.current?.focus();
+      return;
+    }
 
     setSubmitting(true);
 
@@ -97,6 +153,78 @@ export default function CreateTicketModal({
       setSubmitting(false);
     }
   }
+
+  // The grid reads as three rows of two: priority and issue type, category
+  // and assignee, project and due date. Keeping it as one list means a new
+  // field is one entry here instead of another block of markup to copy.
+  const gridFields = [
+    {
+      key: 'priority',
+      label: 'Priority',
+      control: (
+        <PriorityField value={priority} onSelect={pick(setPriority)} variant="form" searchable />
+      ),
+    },
+    {
+      key: 'type',
+      label: 'Issue type',
+      control: <IssueTypeField value={type} onSelect={pick(setType)} variant="form" />,
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      control: <CategoryField value={category} onSelect={pick(setCategory)} variant="form" />,
+    },
+    {
+      key: 'assignee',
+      label: 'Assign to',
+      control: (
+        <AssigneeField
+          value={employeeId}
+          employees={assignable}
+          onSelect={pick((v) => setEmployeeId(v == null ? '' : String(v)))}
+          variant="form"
+        />
+      ),
+      hint: assigneeEmail ? (
+        <span className="field-hint">
+          {assigneeEmail} will be emailed when this ticket is assigned.
+        </span>
+      ) : null,
+    },
+    {
+      key: 'project',
+      label: 'Project',
+      control: (
+        <ProjectField
+          value={projectId}
+          projects={projects}
+          onSelect={pick((v) => setProjectId(v == null ? '' : String(v)))}
+          variant="form"
+        />
+      ),
+    },
+    {
+      key: 'due-date',
+      label: 'Due date',
+      id: 'ticket-due-date',
+      control: (
+        <input
+          id="ticket-due-date"
+          type="date"
+          value={dueDate}
+          // A ticket drawn on the timeline already has a start, and the create
+          // route refuses a due date before it, so the picker stops the
+          // contradiction instead of letting the server reject it.
+          min={defaultStartDate || undefined}
+          onChange={(e) => {
+            setDueDate(e.target.value);
+            setError('');
+          }}
+        />
+      ),
+    },
+  ];
 
   return (
     <div className="modal-overlay create-ticket-overlay" onMouseDown={onClose}>
@@ -162,102 +290,59 @@ export default function CreateTicketModal({
               </p>
             )}
 
-            <div className="form-group">
-              <label htmlFor="summary">Summary</label>
+            <FormField id="summary" label="Summary" error={fieldErrors.summary}>
               <input
                 id="summary"
+                ref={summaryRef}
                 type="text"
                 value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (fieldErrors.summary) {
-                    setFieldErrors((prev) => ({ ...prev, summary: '' }));
-                  }
-                }}
+                onChange={onSummaryChange}
                 placeholder="What needs to be done?"
                 className={fieldErrors.summary ? 'is-invalid' : ''}
                 aria-invalid={fieldErrors.summary ? 'true' : undefined}
+                aria-describedby={fieldErrors.summary ? 'summary-error' : undefined}
                 autoFocus
               />
-              {fieldErrors.summary && (
-                <span className="field-error">{fieldErrors.summary}</span>
-              )}
-            </div>
+            </FormField>
 
-            <div className="form-group">
-              <label htmlFor="ticket-description">Description</label>
+            <FormField
+              id="ticket-description"
+              label="Description"
+              error={fieldErrors.description}
+            >
               <textarea
                 id="ticket-description"
+                ref={descriptionRef}
                 rows={4}
                 value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  if (fieldErrors.description) {
-                    setFieldErrors((prev) => ({ ...prev, description: '' }));
-                  }
-                }}
+                onChange={onDescriptionChange}
                 placeholder="Add a description…"
                 className={fieldErrors.description ? 'is-invalid' : ''}
                 aria-invalid={fieldErrors.description ? 'true' : undefined}
+                aria-describedby={
+                  fieldErrors.description ? 'ticket-description-error' : undefined
+                }
               />
-              {fieldErrors.description && (
-                <span className="field-error">{fieldErrors.description}</span>
-              )}
-            </div>
+            </FormField>
 
             <div className="create-ticket-grid">
-              <div className="form-group">
-                <label>Priority</label>
-                <PriorityField value={priority} onSelect={setPriority} variant="form" searchable />
-              </div>
-
-              <div className="form-group">
-                <label>Issue type</label>
-                <IssueTypeField value={type} onSelect={setType} variant="form" />
-              </div>
-
-              <div className="form-group">
-                <label>Category</label>
-                <CategoryField value={category} onSelect={setCategory} variant="form" />
-              </div>
-
-              <div className="form-group">
-                <label>Assign to</label>
-                <AssigneeField
-                  value={employeeId}
-                  employees={assignable}
-                  onSelect={(v) => setEmployeeId(v == null ? '' : String(v))}
-                  variant="form"
-                />
-                {assigneeEmail && (
-                  <span className="field-hint">
-                    {assigneeEmail} will be emailed when this ticket is assigned.
-                  </span>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label>Project</label>
-                <ProjectField
-                  value={projectId}
-                  projects={projects}
-                  onSelect={(v) => setProjectId(v == null ? '' : String(v))}
-                  variant="form"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="ticket-due-date">Due date</label>
-                <input
-                  id="ticket-due-date"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
-              </div>
+              {gridFields.map((field) => (
+                <FormField
+                  key={field.key}
+                  id={field.id}
+                  label={field.label}
+                  hint={field.hint}
+                >
+                  {field.control}
+                </FormField>
+              ))}
             </div>
 
-            {error && <div className="error-text">{error}</div>}
+            {error && (
+              <div className="error-text" role="alert">
+                {error}
+              </div>
+            )}
           </div>
 
           <div className="modal-actions create-ticket-actions">

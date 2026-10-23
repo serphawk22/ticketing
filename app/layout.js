@@ -1,5 +1,10 @@
 import { Inter, Sora } from 'next/font/google';
 import './globals.css';
+import { getSession } from '@/lib/auth';
+import { getAllWorkspaces } from '@/lib/workspaces';
+import WorkspacesProvider from '@/components/WorkspacesProvider';
+import ThemeProvider from '@/components/ThemeProvider';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -20,7 +25,11 @@ export const metadata = {
   description: 'Internal ticketing system',
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const session = await getSession();
+  const workspaces =
+    session && session.user.role !== 'client' ? await getAllWorkspaces() : [];
+
   return (
     // Browser extensions stamp their own data-* attributes onto <html> before
     // React hydrates, which React reports as a mismatch it cannot patch. The
@@ -31,7 +40,14 @@ export default function RootLayout({ children }) {
       className={`${inter.variable} ${sora.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <ThemeProvider>
+          <WorkspacesProvider workspaces={workspaces}>
+            {children}
+          </WorkspacesProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

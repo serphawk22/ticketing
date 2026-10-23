@@ -30,6 +30,11 @@ export async function POST(request) {
   const blocker = String(body.blocker ?? '').trim();
   const hoursWorked = Number(body.hoursWorked);
 
+  // Two optional questions added later. Free text and never required, so an
+  // empty answer is stored as NULL rather than failing the submission.
+  const learningProject = String(body.learningProject ?? '').trim() || null;
+  const otherActivities = String(body.otherActivities ?? '').trim() || null;
+
   if (!name) return NextResponse.json({ error: 'Please select your name.' }, { status: 400 });
   if (!project) {
     return NextResponse.json({ error: 'Please select a project.' }, { status: 400 });
@@ -195,6 +200,15 @@ export async function POST(request) {
 
           const { logActivity } = await import('@/lib/ticketActivity');
           await logActivity(tid, submittedBy, 'status', exists.status, targetDbStatus);
+
+          const { notifyTicketStatusChanged } = await import('@/lib/notifications');
+          await notifyTicketStatusChanged({
+            ticketId: tid,
+            from: exists.status,
+            to: targetDbStatus,
+            actorId: submittedBy,
+            actorName: name,
+          });
         }
 
         // Record time log against the ticket if submitted by a registered user
@@ -249,6 +263,15 @@ export async function POST(request) {
 
               const { logActivity } = await import('@/lib/ticketActivity');
               await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
+
+              const { notifyTicketStatusChanged } = await import('@/lib/notifications');
+              await notifyTicketStatusChanged({
+                ticketId: linkedTicketId,
+                from: exists.status,
+                to: 'resolved',
+                actorId: submittedBy,
+                actorName: name,
+              });
             }
           }
 
@@ -284,6 +307,8 @@ export async function POST(request) {
     blocker: blockerText,
     linkedTicketId,
     ticketsDetail,
+    learningProject,
+    otherActivities,
   });
 
   return NextResponse.json({ submission }, { status: 201 });

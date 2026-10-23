@@ -42,6 +42,12 @@ function relativeTime(value) {
   return formatShortDate(value);
 }
 
+function RelativeTime({ value }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return <>{mounted ? relativeTime(value) : ''}</>;
+}
+
 function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -501,7 +507,7 @@ export default function ProjectSummary({
                         updated <span className="activity-key">{`${data.project?.key || 'TM'}-${item.id}`}</span> {item.title}
                       </p>
                       <span className="activity-time">
-                        {relativeTime(item.updated_at)} · {STATUS_META[item.status]?.label}
+                        <RelativeTime value={item.updated_at} /> · {STATUS_META[item.status]?.label}
                       </span>
                     </div>
                     <span

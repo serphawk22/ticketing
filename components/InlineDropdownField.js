@@ -69,6 +69,10 @@ export default function InlineDropdownField({
   const inputRef = useRef(null);
   const panelRef = useRef(null);
   const listRef = useRef(null);
+  // Whether the user actually reached for a row (typed to filter, or arrowed
+  // to highlight one). Distinguishes "picked a row" from "opened and pressed
+  // Enter", which has to mean "leave it alone" rather than "take row one".
+  const navigatedRef = useRef(false);
   const listId = useId();
 
   const current = useMemo(
@@ -166,6 +170,7 @@ export default function InlineDropdownField({
     setOpen(false);
     setQuery('');
     setActive(0);
+    navigatedRef.current = false;
     if (focusTrigger) triggerRef.current?.focus();
   }
 
@@ -189,10 +194,16 @@ export default function InlineDropdownField({
     close({ focusTrigger: true });
   }
 
-  // allowCustom fields (Category) take free text: Enter commits whatever is in
-  // the box verbatim instead of the highlighted option, so a custom value is
-  // saved exactly as typed rather than swallowed by a dropdown match. Opening
-  // and pressing Enter with no change just cancels, matching Escape.
+  // allowCustom fields (Category, Team) take free text: a value the list has
+  // never heard of is saved exactly as typed rather than swallowed by a
+  // dropdown match. Opening and pressing Enter with no change just cancels,
+  // matching Escape.
+  //
+  // But free text must not overrule a row the user actually reached for. Typing
+  // filters and Arrow keys highlight, and in both cases the highlighted row is
+  // the selection, so Enter commits it. Without this, a partial search such as
+  // "ali" is written verbatim as the team name instead of the employee it
+  // filtered to.
   function commitTyped() {
     const text = String(draft ?? '').trim();
     if (draft !== currentLabel && text !== String(value ?? '')) {
@@ -204,6 +215,7 @@ export default function InlineDropdownField({
   function onKeyDown(e) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
+      navigatedRef.current = true;
       setActive((a) => {
         const next = e.key === 'ArrowDown' ? a + 1 : a - 1;
         return Math.max(0, Math.min(next, visible.length - 1));
@@ -212,11 +224,12 @@ export default function InlineDropdownField({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (allowCustom) {
+      const picked = visible[active];
+      if (allowCustom && (!navigatedRef.current || !picked)) {
         commitTyped();
         return;
       }
-      commit(visible[active]);
+      commit(picked);
       return;
     }
     if (e.key === 'Escape') {
@@ -245,6 +258,7 @@ export default function InlineDropdownField({
         onClick={() => {
           if (readOnly) return;
           setDraft(currentLabel);
+          navigatedRef.current = false;
           // Land the keyboard cursor on the value already in the field, not the
           // top of the list, so opening and pressing Enter confirms the current
           // choice instead of silently jumping to the first option.
@@ -363,6 +377,9 @@ export default function InlineDropdownField({
           onChange={(e) => {
             setDraft(e.target.value);
             setQuery(e.target.value);
+            // Filtering is how the user walks to a row, so it counts as
+            // reaching for the list just as the Arrow keys do.
+            navigatedRef.current = true;
             setActive(0);
           }}
           onKeyDown={onKeyDown}

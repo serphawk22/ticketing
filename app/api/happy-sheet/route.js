@@ -18,6 +18,7 @@ export async function POST(request) {
   const happyOthers = String(body.happyOthers ?? '').trim();
   const happyGoals = String(body.happyGoals ?? '').trim();
   const happyDreams = String(body.happyDreams ?? '').trim();
+  const happySelfStudy = String(body.happySelfStudy ?? '').trim();
 
   if (!name) return NextResponse.json({ error: 'Please select your name.' }, { status: 400 });
   if (!happyOne) {
@@ -33,6 +34,7 @@ export async function POST(request) {
     happyOthers,
     happyGoals,
     happyDreams,
+    happySelfStudy,
   });
 
   return NextResponse.json({ submission }, { status: 201 });

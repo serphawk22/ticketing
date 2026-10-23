@@ -16,7 +16,7 @@ const TABS = [
 // rather than the columns, so its name lives here.
 const FIELD_LABELS = { created_by: 'Reporter' };
 
-function ValueChip({ field, value }) {
+export function ActivityValue({ field, value }) {
   if (!value) return <span className="tm-chip-empty">empty</span>;
   if (field === 'status' && STATUS_META[value]) {
     const meta = STATUS_META[value];
@@ -46,7 +46,13 @@ function ValueChip({ field, value }) {
     return <span className="tm-chip-plain">{value}</span>;
   }
   if (field === 'employee_id') {
-    return <span className="tm-chip-plain">user {value}</span>;
+    // Assignment is logged translated to a name, but an older row may still
+    // hold the raw id, so fall back to "user N" when the value is numeric.
+    return /^\d+$/.test(String(value)) ? (
+      <span className="tm-chip-plain">user {value}</span>
+    ) : (
+      <span className="tm-chip-plain">{value}</span>
+    );
   }
   // Already a name: the reporter change is logged translated, not by id.
   if (field === 'created_by') {
@@ -64,6 +70,19 @@ function ValueChip({ field, value }) {
 }
 
 function ActivityRow({ entry }) {
+  if (entry.field === 'created') {
+    return (
+      <li className="tm-activity-row">
+        <Avatar name={entry.actor_name} assigned size={24} />
+        <div className="tm-activity-body">
+          <p className="tm-activity-text">
+            <strong>{entry.actor_name || 'Someone'}</strong> created this work item
+          </p>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
   const meta = FIELD_META[entry.field];
   const label = meta?.label || FIELD_LABELS[entry.field] || entry.field;
   return (
@@ -75,9 +94,9 @@ function ActivityRow({ entry }) {
           <span className="tm-activity-field">{label}</span>
         </p>
         <div className="tm-activity-change">
-          <ValueChip field={entry.field} value={entry.from_value} />
+          <ActivityValue field={entry.field} value={entry.from_value} />
           <ArrowRightIcon size={12} className="tm-arrow" />
-          <ValueChip field={entry.field} value={entry.to_value} />
+          <ActivityValue field={entry.field} value={entry.to_value} />
         </div>
         <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
       </div>

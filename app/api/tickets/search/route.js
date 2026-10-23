@@ -4,6 +4,9 @@ import { requireAuth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+const SEARCH_CONDITION =
+  "LOWER(t.title) LIKE LOWER(?) OR LOWER(t.description) LIKE LOWER(?) OR LOWER(p.key) LIKE LOWER(?) OR LOWER(p.key || '-' || t.id) LIKE LOWER(?)";
+
 const SEARCH_QUERY = `
   SELECT t.id, t.title, t.status, t.priority, t.type, t.project_id,
     p.key AS project_key, p.name AS project_name, p.color AS project_color,
@@ -12,9 +15,9 @@ const SEARCH_QUERY = `
   LEFT JOIN projects p ON p.id = t.project_id
   LEFT JOIN employees e ON e.id = t.employee_id
   LEFT JOIN users a ON a.id = t.assigned_to
-  WHERE t.title LIKE ? OR p.key LIKE ? OR (p.key || '-' || t.id) LIKE ?
+  WHERE ${SEARCH_CONDITION}
   ORDER BY
-    CASE WHEN (p.key || '-' || t.id) LIKE ? THEN 0 ELSE 1 END,
+    CASE WHEN LOWER(p.key || '-' || t.id) LIKE LOWER(?) THEN 0 ELSE 1 END,
     t.id DESC
   LIMIT ?
 `;
@@ -39,7 +42,7 @@ export async function GET(request) {
   const excludeClosed = params.get('excludeClosed') === 'true' || params.get('excludeClosed') === '1';
   const userName = (params.get('userName') || params.get('user') || '').trim();
 
-  if (q.length < 2) {
+  if (q.length < 1) {
     return NextResponse.json({ tickets: [] });
   }
 
@@ -54,8 +57,8 @@ export async function GET(request) {
   const closedFilter = excludeClosed ? " AND t.status != 'closed'" : '';
   const userFilter = userName ? ' AND (e.name = ? OR a.name = ?)' : '';
   const sql = SEARCH_QUERY.replace(
-    "WHERE t.title LIKE ? OR p.key LIKE ? OR (p.key || '-' || t.id) LIKE ?",
-    `WHERE t.archived = 0${scoped}${closedFilter}${userFilter} AND (t.title LIKE ? OR p.key LIKE ? OR (p.key || '-' || t.id) LIKE ?)`
+    `WHERE ${SEARCH_CONDITION}`,
+    `WHERE t.archived = 0${scoped}${closedFilter}${userFilter} AND (${SEARCH_CONDITION})`
   );
   const extra = [];
   if (scopeProject) extra.push(Number(scopeProject));
@@ -63,7 +66,15 @@ export async function GET(request) {
 
   const rows = await db
     .prepare(sql)
-    .all(...extra, like, like, keyLike, exactKeyLike, Math.min(Number(params.get('limit')) || 20, 50));
+    .all(
+      ...extra,
+      like,
+      like,
+      like,
+      keyLike,
+      exactKeyLike,
+      Math.min(Number(params.get('limit')) || 20, 50)
+    );
 
   let tickets = Number.isInteger(exclude) ? rows.filter((r) => r.id !== exclude) : rows;
   if (excludeClosed) {

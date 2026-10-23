@@ -7,9 +7,9 @@ import AppShell from '@/components/AppShell';
 import ProjectModal from '@/components/ProjectModal';
 import ConfirmModal from '@/components/ConfirmModal';
 
-export default function ProjectsView({ initialProjects, currentUser, myIssuesCount }) {
+export default function ProjectsView({ initialProjects, initialWorkspaces, currentUser, myIssuesCount }) {
   const [projects, setProjects] = useState(initialProjects);
-  const [workspaces, setWorkspaces] = useState([]);
+  const [workspaces, setWorkspaces] = useState(initialWorkspaces || []);
   const [clients, setClients] = useState([]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -73,6 +73,99 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
       setDeleting(null);
       setError(e.message);
     }
+  }
+
+  // Group projects by the work space they belong to so the page reads as one
+  // section per work space. A project with no work space (or one that no longer
+  // exists) still shows up in its own trailing section so nothing disappears.
+  const workspaceIds = new Set(workspaces.map((w) => String(w.id)));
+  const ungrouped = projects.filter(
+    (p) => p.workspace_id == null || !workspaceIds.has(String(p.workspace_id))
+  );
+
+  function renderProjectCard(p) {
+    return (
+      <article key={p.id} className="project-card">
+        <header className="project-card-head">
+          <span
+            className="project-dot project-dot-lg"
+            style={{ background: p.color }}
+            aria-hidden="true"
+          />
+          <div className="project-card-title">
+            <h2>
+              <Link href={`/projects/${p.id}/summary`}>{p.name}</Link>
+            </h2>
+            <span className="project-key">{p.key}</span>
+          </div>
+        </header>
+
+        {p.description && <p className="project-card-desc">{p.description}</p>}
+
+        {p.client_name && (
+          <p className="project-card-client">
+            <span className="project-card-client-label">Client</span>
+            {p.client_name}
+          </p>
+        )}
+
+        <div className="project-stats">
+          <div className="project-stat">
+            <span className="project-stat-value">{p.open_count}</span>
+            <span className="project-stat-label">Open</span>
+          </div>
+          <div className="project-stat">
+            <span className="project-stat-value">{p.ticket_count}</span>
+            <span className="project-stat-label">Total</span>
+          </div>
+        </div>
+
+        <footer className="project-card-foot">
+          <button className="btn-ghost" onClick={() => router.push(`/projects/${p.id}/summary`)}>
+            View summary
+          </button>
+          <button className="btn-ghost" onClick={() => router.push(`/?project=${p.id}`)}>
+            View board
+          </button>
+          {isAdmin && (
+            <div className="project-card-actions">
+              <button className="btn-ghost" onClick={() => setEditing(p)}>
+                Edit
+              </button>
+              <button className="btn-ghost btn-danger" onClick={() => setDeleting(p)}>
+                Delete
+              </button>
+            </div>
+          )}
+        </footer>
+      </article>
+    );
+  }
+
+  function renderGroup(key, title, items, color) {
+    const isEmpty = items.length === 0;
+    return (
+      <section className="workspace-group" key={key}>
+        <header className="workspace-group-head">
+          {color ? (
+            <span
+              className="workspace-dot"
+              style={{ background: color }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <h2 className="workspace-group-title">{title}</h2>
+          <span className="workspace-group-count">
+            {items.length} {items.length === 1 ? 'project' : 'projects'}
+          </span>
+        </header>
+        {isEmpty ? (
+          <p className="workspace-group-empty">No projects in this work space yet.</p>
+        ) : (
+          <div className="project-grid">{items.map(renderProjectCard)}</div>
+        )}
+      </section>
+    );
   }
 
   return (
@@ -140,75 +233,16 @@ export default function ProjectsView({ initialProjects, currentUser, myIssuesCou
               {isAdmin ? 'Create one to group tickets.' : 'Ask an admin to create one.'}
             </div>
           ) : (
-            <div className="project-grid">
-              {projects.map((p) => (
-                <article key={p.id} className="project-card">
-                  <header className="project-card-head">
-                    <span
-                      className="project-dot project-dot-lg"
-                      style={{ background: p.color }}
-                      aria-hidden="true"
-                    />
-                    <div className="project-card-title">
-                      <h2>
-                        <Link href={`/projects/${p.id}/summary`}>{p.name}</Link>
-                      </h2>
-                      <span className="project-key">{p.key}</span>
-                    </div>
-                  </header>
-
-                  {p.description && <p className="project-card-desc">{p.description}</p>}
-
-                  {p.client_name && (
-                    <p className="project-card-client">
-                      <span className="project-card-client-label">Client</span>
-                      {p.client_name}
-                    </p>
-                  )}
-
-                  <div className="project-stats">
-                    <div className="project-stat">
-                      <span className="project-stat-value">{p.open_count}</span>
-                      <span className="project-stat-label">Open</span>
-                    </div>
-                    <div className="project-stat">
-                      <span className="project-stat-value">{p.ticket_count}</span>
-                      <span className="project-stat-label">Total</span>
-                    </div>
-                  </div>
-
-                  <footer className="project-card-foot">
-                    <button
-                      className="btn-ghost"
-                      onClick={() => router.push(`/projects/${p.id}/summary`)}
-                    >
-                      View summary
-                    </button>
-                    <button
-                      className="btn-ghost"
-                      onClick={() => router.push(`/?project=${p.id}`)}
-                    >
-                      View board
-                    </button>
-                    {isAdmin && (
-                      <div className="project-card-actions">
-                        <button
-                          className="btn-ghost"
-                          onClick={() => setEditing(p)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn-ghost btn-danger"
-                          onClick={() => setDeleting(p)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </footer>
-                </article>
-              ))}
+            <div className="workspace-groups">
+              {workspaces.map((w) =>
+                renderGroup(
+                  w.id,
+                  w.name,
+                  projects.filter((p) => String(p.workspace_id) === String(w.id)),
+                  w.color
+                )
+              )}
+              {ungrouped.length > 0 && renderGroup('ungrouped', 'Other projects', ungrouped, null)}
             </div>
           )}
         </div>

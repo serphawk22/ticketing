@@ -142,6 +142,49 @@ export function AssigneeField({
 }
 
 /**
+ * Team, a person field stored as the chosen name in the free-text `team`
+ * column. The options come from the live employee directory, and allowCustom
+ * keeps a value that is not one of those people (an imported team name, say)
+ * intact and lets it be retyped.
+ */
+export function TeamField({
+  value,
+  employees = [],
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+}) {
+  const options = employees.map((e) => ({
+    value: e.name,
+    label: e.name,
+    keywords: [e.email, e.title, e.role].filter(Boolean),
+    secondary: e.email,
+  }));
+
+  const current = String(value ?? '').trim();
+
+  return (
+    <InlineDropdownField
+      value={current}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Team"
+      allowCustom
+      variant={variant}
+      className={className}
+      options={options}
+      emptyText="Add team"
+      renderValue={() => (
+        <span className={`idf-label${current ? '' : ' is-empty'}`}>
+          {current || 'Add team'}
+        </span>
+      )}
+    />
+  );
+}
+
+/**
  * Project, keyed on the project id. The key is shown as muted trailing text so
  * the dropdown reads like the project switcher in the top nav.
  */

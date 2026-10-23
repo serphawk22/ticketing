@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ThemeToggle from './ThemeToggle';
 
 /**
  * The chrome every client page shares.
@@ -51,6 +52,7 @@ export default function ClientShell({ currentUser, single = false, children }) {
         </nav>
 
         <div className="client-topbar-right">
+          <ThemeToggle />
           <span className="client-who">{currentUser.name}</span>
           <button type="button" className="btn-secondary" onClick={handleLogout}>
             Sign out
