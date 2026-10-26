@@ -6,6 +6,16 @@ import { buildReportCsv, buildExcelXml } from '../lib/exportUtils.js';
 import { DASHBOARD_PROFILES, getProfileConfig, filterSectionsForProfile } from '../lib/roleDashboardConfig.js';
 import { runDueReportSchedules, checkAndSendExceptionAlerts, createReportSchedule } from '../lib/reportScheduler.js';
 import { logAuditEvent, getAuditLogs } from '../lib/audit.js';
+import { parseDuration, formatDuration } from '../lib/ticketMeta.js';
+import {
+  calculateBusinessSeconds,
+  calculateSlaDeadline,
+  getEffectiveSlaDeadline,
+  parseExplicitDueDate,
+  parseUtcDate,
+  calculateCycleTimeFromActivities,
+  toKolkata,
+} from '../lib/businessHours.js';
 
 let passedCount = 0;
 let failedCount = 0;
@@ -440,6 +450,140 @@ async function runComprehensiveAudit() {
   const dashToday = await getAdminDashboardSummary({ preset: 'today' });
   assert(dashMonth.kpis.totalTickets === 10, `Admin dashboard summary this_month has 10 total scoped tickets (got ${dashMonth.kpis.totalTickets})`);
   assert(dashToday.kpis.totalTickets === 4, `Admin dashboard summary today has 4 in-flight active tickets (got ${dashToday.kpis.totalTickets})`);
+
+  // ================================================================
+  // Test Suite 12: Business Hours Engine, SLA Deadlines & Time Tracking
+  // ================================================================
+  console.log('\n--- Test Suite 12: Business Hours Engine, SLA Deadlines & Time Tracking ---');
+
+  // 1. Duration Parsing & Display Formatting (1d = 8h = 28,800s)
+  assert(parseDuration('1d') === 28800, 'Duration parsing: 1d parses to 28,800 seconds (8 working hours)');
+  assert(parseDuration('1d 2h') === 36000, 'Duration parsing: 1d 2h parses to 36,000 seconds (10 hours)');
+  assert(parseDuration('4h') === 14400, 'Duration parsing: 4h parses to 14,400 seconds');
+  assert(parseDuration('30m') === 1800, 'Duration parsing: 30m parses to 1,800 seconds');
+  assert(parseDuration('0.5d') === 14400, 'Duration parsing: 0.5d parses to 14,400 seconds (4 hours)');
+  assert(parseDuration('45') === 2700, 'Duration parsing: numeric 45 parses as 45 minutes (2,700 seconds)');
+  assert(formatDuration(28800) === '1d', 'Duration formatting: 28,800 seconds formats as 1d');
+  assert(formatDuration(36000) === '1d 2h', 'Duration formatting: 36,000 seconds formats as 1d 2h');
+  assert(formatDuration(1800) === '30m', 'Duration formatting: 1,800 seconds formats as 30m');
+  assert(formatDuration(0) === '0m', 'Duration formatting: 0 seconds formats as 0m');
+
+  // 2. Working Hours Boundaries & Asia/Kolkata Timezone Clipping (9:00 AM - 5:00 PM, Sunday off)
+  // Monday 2026-10-19: 10:00 AM to 1:00 PM Asia/Kolkata (UTC 04:30 to 07:30)
+  const intradaySec = calculateBusinessSeconds('2026-10-19T04:30:00Z', '2026-10-19T07:30:00Z');
+  assert(intradaySec === 10800, `Intraday calculation: 10:00 AM to 1:00 PM Asia/Kolkata is exactly 3.0 business hours (${intradaySec / 3600}h)`);
+
+  // Overnight clipping: Monday 4:00 PM to Tuesday 11:00 AM Asia/Kolkata (Mon 10:30 UTC to Tue 05:30 UTC)
+  // Monday: 16:00 to 17:00 = 1h; Tuesday: 09:00 to 11:00 = 2h. Total = 3h (10,800s)
+  const overnightSec = calculateBusinessSeconds('2026-10-19T10:30:00Z', '2026-10-20T05:30:00Z');
+  assert(overnightSec === 10800, `Overnight clipping: Mon 4:00 PM to Tue 11:00 AM Asia/Kolkata is exactly 3.0 business hours (got ${overnightSec / 3600}h)`);
+
+  // Sunday exclusion: Saturday 4:00 PM to Monday 10:00 AM Asia/Kolkata (Sat 10:30 UTC to Mon 04:30 UTC)
+  // Saturday: 16:00 to 17:00 = 1h; Sunday = 0h; Monday: 09:00 to 10:00 = 1h. Total = 2h (7,200s)
+  const weekendSec = calculateBusinessSeconds('2026-10-24T10:30:00Z', '2026-10-26T04:30:00Z');
+  assert(weekendSec === 7200, `Sunday exclusion: Sat 4:00 PM to Mon 10:00 AM Asia/Kolkata excludes Sunday (got ${weekendSec / 3600}h, expected 2.0h)`);
+
+  // 3. SLA Deadline Calculations & Working Hour Resumption
+  // Urgent (4 business hours): Created Saturday 3:00 PM Asia/Kolkata (Sat 09:30 UTC)
+  // Sat: 15:00 to 17:00 = 2h remaining. Sun: skipped. Mon: 09:00 + 2h = Mon 11:00 AM Asia/Kolkata (05:30 UTC)
+  const urgentDeadline = calculateSlaDeadline('2026-10-24T09:30:00Z', 4);
+  const urgentKolkata = toKolkata(urgentDeadline);
+  assert(
+    urgentDeadline.toISOString() === '2026-10-26T05:30:00.000Z' &&
+    urgentKolkata.getUTCDay() === 1 &&
+    urgentKolkata.getUTCHours() === 11 &&
+    urgentKolkata.getUTCMinutes() === 0,
+    `Urgent SLA (4h) created Saturday 3 PM pauses overnight and Sunday, resuming Monday to finish at 11 AM Asia/Kolkata (${urgentDeadline.toISOString()})`
+  );
+
+  // High (8 business hours = 1 working day): Created Friday 3:00 PM Asia/Kolkata (Fri 09:30 UTC)
+  // Fri: 15:00 to 17:00 = 2h. Remaining 6h on Saturday: 09:00 + 6h = Sat 15:00 (09:30 UTC)
+  const highDeadline = calculateSlaDeadline('2026-10-23T09:30:00Z', 8);
+  const highKolkata = toKolkata(highDeadline);
+  assert(
+    highDeadline.toISOString() === '2026-10-24T09:30:00.000Z' &&
+    highKolkata.getUTCDay() === 6 &&
+    highKolkata.getUTCHours() === 15,
+    `High SLA (8h) created Friday 3 PM rolls 6 remaining hours to Saturday 3 PM Asia/Kolkata (${highDeadline.toISOString()})`
+  );
+
+  // Ticket created directly on Sunday (e.g. Sunday 2:00 PM): clock starts Monday 9:00 AM
+  const sundayCreatedDeadline = calculateSlaDeadline('2026-10-25T08:30:00Z', 4);
+  assert(
+    sundayCreatedDeadline.toISOString() === '2026-10-26T07:30:00.000Z',
+    `Ticket created on Sunday starts SLA clock Monday 9:00 AM (Monday 1:00 PM deadline: ${sundayCreatedDeadline.toISOString()})`
+  );
+
+  // 4. Explicit Due Date Precedence & 5:00 PM Asia/Kolkata Default
+  const explicitDate = parseExplicitDueDate('2026-10-27');
+  assert(
+    explicitDate.toISOString() === '2026-10-27T11:30:00.000Z',
+    `Explicit date-only due date (2026-10-27) is interpreted as 5:00 PM Asia/Kolkata (11:30 UTC: ${explicitDate.toISOString()})`
+  );
+
+  // Stricter deadline wins: if priority deadline is sooner than explicit due date, priority wins
+  const mockTicket1 = {
+    created_at: '2026-10-23T09:30:00Z', // Friday 3 PM
+    priority: 'urgent', // 4h -> Saturday 11 AM
+    due_date: '2026-10-27', // Tuesday 5 PM
+  };
+  const effectiveDeadline1 = getEffectiveSlaDeadline(mockTicket1);
+  assert(effectiveDeadline1.toISOString() === '2026-10-24T05:30:00.000Z', 'Effective SLA deadline picks earlier priority deadline when due_date is later');
+
+  // If explicit due date is sooner than priority SLA deadline, explicit due date wins
+  const mockTicket2 = {
+    created_at: '2026-10-23T04:00:00Z', // Friday 9:30 AM
+    priority: 'medium', // 24h -> Wednesday
+    due_date: '2026-10-23', // Friday 5:00 PM Asia/Kolkata (11:30 UTC)
+  };
+  const effectiveDeadline2 = getEffectiveSlaDeadline(mockTicket2);
+  assert(effectiveDeadline2.toISOString() === '2026-10-23T11:30:00.000Z', 'Effective SLA deadline picks earlier explicit due_date when priority target is later');
+
+  // 5. Cycle Time Status History Verification & Incomplete History Handling
+  const mockActivities = [
+    { ticket_id: 999, field: 'status', from_value: 'open', to_value: 'in_progress', created_at: '2026-10-19T04:30:00Z' }, // Mon 10:00 AM
+    { ticket_id: 999, field: 'status', from_value: 'in_progress', to_value: 'resolved', created_at: '2026-10-19T07:30:00Z' }, // Mon 1:00 PM (3h)
+  ];
+  const mockTicketVerified = { id: 999, status: 'resolved', created_at: '2026-10-19T03:30:00Z', updated_at: '2026-10-19T07:30:00Z' };
+  const verifiedCycle = calculateCycleTimeFromActivities(mockTicketVerified, mockActivities);
+  assert(verifiedCycle.hasVerifiedHistory === true, 'Cycle Time recognizes valid status transitions into and out of in_progress');
+  assert(verifiedCycle.businessSeconds === 10800, `Cycle Time verified duration is exactly 3.0 business hours (${verifiedCycle.businessSeconds / 3600}h)`);
+
+  const mockTicketUnverified = { id: 888, status: 'resolved', created_at: '2026-10-10 10:00:00', updated_at: '2026-10-14 10:00:00' };
+  const unverifiedCycle = calculateCycleTimeFromActivities(mockTicketUnverified, []);
+  assert(unverifiedCycle.hasVerifiedHistory === false, 'Cycle Time flags tickets lacking status transition history as unverified');
+  assert(unverifiedCycle.status === 'unavailable', 'Cycle Time assigns unavailable status when transition logs are missing');
+
+  // 6. Time Tracking Report #15 Missing Estimates & Variance Formatting
+  const timeTrackingData = await getReportExecutionData({
+    reportSlug: 'time-tracking',
+    filters: { preset: 'this_month' },
+    currentUser: adminUser,
+  });
+  const unestimatedRows = timeTrackingData.rows.filter((r) => r.estimate === 'Not Estimated' || r.estimate === '—');
+  const allUnestimatedHaveDashVariance = unestimatedRows.every((r) => r.variance === '—');
+  assert(unestimatedRows.length > 0, `Time Tracking report contains unestimated tickets (${unestimatedRows.length} found)`);
+  assert(allUnestimatedHaveDashVariance, 'All unestimated tickets in Time Tracking display "—" for both estimate and variance');
+
+  // 6b. Dual-Clock Architecture in Report #15 (Turnaround Business Time)
+  const hasTurnaroundCol = timeTrackingData.columns.some((c) => c.key === 'turnaround_time');
+  assert(hasTurnaroundCol, 'Time Tracking Report #15 contains Turnaround (Business Hours) column');
+
+  const ongoingRows = timeTrackingData.rows.filter((r) => r.turnaround_time && r.turnaround_time.includes('(Ongoing)'));
+  assert(ongoingRows.length > 0, `Unresolved tickets in Time Tracking report are explicitly flagged with (Ongoing) (${ongoingRows.length} found)`);
+
+  const resolvedRows = timeTrackingData.rows.filter((r) => ['resolved', 'closed'].includes(r.status));
+  const resolvedHaveTurnaround = resolvedRows.every((r) => Boolean(r.turnaround_time));
+  assert(resolvedHaveTurnaround, 'Resolved tickets compute dedicated Turnaround Business Time');
+
+  // 7. SLA and Compliance Report #83 Live Calculation
+  const slaReportData = await getReportExecutionData({
+    reportSlug: 'sla-and-compliance',
+    filters: { preset: 'this_month' },
+    currentUser: adminUser,
+  });
+  assert(Array.isArray(slaReportData.rows), 'SLA and Compliance report returns calculated rows');
+  assert(slaReportData.kpis.some((k) => k.key === 'sla_compliance_rate_pct'), 'SLA and Compliance report computes sla_compliance_rate_pct KPI');
 
   // ================================================================
   // FINAL AUDIT SUMMARY

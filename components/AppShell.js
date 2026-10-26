@@ -787,6 +787,24 @@ export default function AppShell({
                   <span className="nav-text">Sheet History</span>
                 </Link>
               )}
+              <Link
+                href="/my-attendance"
+                className={`nav-item${view === 'my-attendance' ? ' active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <ClipboardIcon />
+                <span className="nav-text">My Attendance</span>
+              </Link>
+              {isAdmin && (
+                <Link
+                  href="/attendance"
+                  className={`nav-item${view === 'attendance-management' ? ' active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <BarChartIcon />
+                  <span className="nav-text">Attendance</span>
+                </Link>
+              )}
             </nav>
 
             <div className="nav-label">People</div>

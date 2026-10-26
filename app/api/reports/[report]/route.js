@@ -22,6 +22,7 @@ export async function GET(request, { params }) {
     department: searchParams.get('department') || 'all',
     status: searchParams.get('status') || 'all',
     priority: searchParams.get('priority') || 'all',
+    clientId: searchParams.get('clientId') || 'all',
     search: searchParams.get('search') || '',
   };
 
@@ -39,4 +40,3 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: err.message }, { status });
   }
 }
-

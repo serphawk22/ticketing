@@ -4,19 +4,17 @@ import { getAllTickets } from '@/lib/tickets';
 import { getActiveEmployees } from '@/lib/employees';
 import TaskSheetView from '@/components/TaskSheetView';
 import PublicTaskSheetView from '@/components/PublicTaskSheetView';
+import { getTodayAttendance, getAttendanceSettings, checkHoliday, isSundayWeeklyOff } from '@/lib/attendance';
+import { toKolkata } from '@/lib/businessHours';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * The daily task sheet.
  *
- * The whole point of the sheet is that it can be handed to someone without
- * setting up an account first -- the link that used to go to Microsoft Forms
- * has to keep working for the person it was sent to. So the route is public:
- * a signed-in team member gets the in-app page with the sidebar, and everyone
- * else (signed out, or in the client portal) gets the standalone card. The row
- * their answers save as is anonymous on the server; the name in the dropdown is
- * the person's own pick, the way the external form filled in.
+ * The route is public:
+ * A signed-in team member gets the in-app page with the sidebar and the attendance card,
+ * and public/anonymous visitors get the standalone card.
  */
 export default async function TaskSheetPage() {
   const session = await getSession();
@@ -30,10 +28,6 @@ export default async function TaskSheetPage() {
       ? { name: session.user.name }
       : {};
 
-  // The sheet files work against the same projects the board does, so the
-  // dropdown is read from the database rather than a hardcoded list that
-  // drifts away from it. Public visitors get it too: the link is meant to
-  // reach someone who has no account here yet.
   const projects = await getAllProjects();
   const projectNames = projects.map((p) => p.name);
 
@@ -61,6 +55,28 @@ export default async function TaskSheetPage() {
     (t) => t.created_by === userId || t.assigned_to === userId
   ).length;
 
+  let initialAttendance = null;
+  if (session.user.employee_id) {
+    try {
+      const now = new Date();
+      const todayStr = toKolkata(now).toISOString().slice(0, 10);
+      const [att, settings, holiday] = await Promise.all([
+        getTodayAttendance(session.user.employee_id),
+        getAttendanceSettings(),
+        checkHoliday(now),
+      ]);
+      initialAttendance = {
+        todayStr,
+        isSunday: isSundayWeeklyOff(now),
+        holiday,
+        settings,
+        attendance: att,
+      };
+    } catch {
+      // Fallback
+    }
+  }
+
   return (
     <TaskSheetView
       currentUser={session.user}
@@ -70,6 +86,7 @@ export default async function TaskSheetPage() {
       people={people}
       projectNames={projectNames}
       defaults={defaults}
+      initialAttendance={initialAttendance}
     />
   );
 }

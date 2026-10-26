@@ -6,16 +6,16 @@ import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import TaskSheetForm from '@/components/TaskSheetForm';
 import HappySheetForm from '@/components/HappySheetForm';
+import AttendanceControl from '@/components/AttendanceControl';
 import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
 
 /**
  * The daily sheets as a page.
  *
- * Two cards, one page: the task sheet for the day's work and, right under it,
- * the happy sheet for the day's mood. They file independently so a person can
- * answer one without being dragged through the other, but they live together
- * because the habit is a daily one and a routine is easier to keep when it is
- * one place.
+ * Three cards:
+ * 1. Attendance card (Check In / Check Out)
+ * 2. Task Sheet for the day's work
+ * 3. Happy Sheet for the day's mood
  */
 export default function TaskSheetView({
   currentUser,
@@ -25,6 +25,7 @@ export default function TaskSheetView({
   people,
   projectNames,
   defaults,
+  initialAttendance = null,
 }) {
   const router = useRouter();
   const [submittedAt, setSubmittedAt] = useState(null);
@@ -49,9 +50,12 @@ export default function TaskSheetView({
           subtitle={
             submittedAt
               ? `Submitted just now · ${submittedAt}`
-              : 'One row per day: what you worked on, on which project, for how long.'
+              : 'One row per day: record your attendance, what you worked on, and task blockers.'
           }
         />
+
+        {/* Attendance Check In / Check Out Control Banner */}
+        <AttendanceControl initialData={initialAttendance} />
 
         <div className="list-frame ts-frame">
           <div className="ts-card">
