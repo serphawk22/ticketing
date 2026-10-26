@@ -4,6 +4,7 @@ import { getAllProjects } from '@/lib/projects';
 import { getEmployees } from '@/lib/employees';
 import { getSectionBySlug, getReportBySlug } from '@/lib/reportMasterCatalog';
 import { getReportExecutionData } from '@/lib/analytics';
+import { db } from '@/lib/db';
 import ReportDetailClient from '@/components/reports/ReportDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -36,10 +37,11 @@ export default async function ReportDetailPage({ params, searchParams }) {
     department: query?.department || 'all',
     status: query?.status || 'all',
     priority: query?.priority || 'all',
+    clientId: query?.clientId || 'all',
     search: query?.search || '',
   };
 
-  const [initialData, projects, employees] = await Promise.all([
+  const [initialData, projects, employees, clients] = await Promise.all([
     getReportExecutionData({
       reportSlug,
       filters,
@@ -47,6 +49,7 @@ export default async function ReportDetailPage({ params, searchParams }) {
     }),
     getAllProjects(),
     getEmployees(),
+    db.prepare("SELECT id, name, email FROM users WHERE role = 'client' ORDER BY name ASC").all(),
   ]);
 
   return (
@@ -56,8 +59,8 @@ export default async function ReportDetailPage({ params, searchParams }) {
       initialData={initialData}
       projects={projects}
       employees={employees}
+      clients={clients}
       currentUser={session.user}
     />
   );
 }
-

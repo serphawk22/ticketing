@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { runDueReportSchedules, checkAndSendExceptionAlerts } from '@/lib/reportScheduler';
+import { reconcileUnclosedAttendance } from '@/lib/attendance';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Server-side cron runner for scheduled reports and exception alerts.
+ * Server-side cron runner for scheduled reports, exception alerts, and attendance reconciliation.
  * Can be invoked by external cron triggers, Vercel cron, or internal schedule runners.
  */
 export async function GET(request) {
@@ -18,19 +19,20 @@ export async function GET(request) {
   }
 
   try {
-    const [schedulesResult, alertsResult] = await Promise.all([
+    const [schedulesResult, alertsResult, attendanceResult] = await Promise.all([
       runDueReportSchedules(),
       checkAndSendExceptionAlerts(),
+      reconcileUnclosedAttendance(),
     ]);
 
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       schedulesExecuted: schedulesResult,
       alertsResult,
+      attendanceReconciliation: attendanceResult,
     });
   } catch (err) {
     console.error('Cron report execution failed:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

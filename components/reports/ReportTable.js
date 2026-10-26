@@ -3,6 +3,57 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
+function getColumnAlignment(key = '') {
+  const k = key.toLowerCase();
+  if (
+    [
+      'estimate',
+      'actual',
+      'time_spent',
+      'turnaround_time',
+      'turnaround',
+      'variance',
+      'duration',
+      'budget',
+      'actual_cost',
+      'cost',
+      'amount',
+      'salary',
+      'current_salary',
+      'revenue',
+      'expense',
+      'days_delayed',
+      'logged_time',
+    ].includes(k) ||
+    k.endsWith('_hours') ||
+    k.endsWith('_count') ||
+    k.endsWith('_amount') ||
+    k.endsWith('_days')
+  ) {
+    return 'right';
+  }
+  if (['status', 'priority', 'rank', 'payment_status'].includes(k)) {
+    return 'center';
+  }
+  return 'left';
+}
+
+function getColumnClass(key = '') {
+  const k = key.toLowerCase();
+  if (['key', 'id'].includes(k)) return 'rpt-col-key';
+  if (['title', 'ticket_title', 'task_title', 'defect_summary', 'summary', 'item', 'ticket'].includes(k)) return 'rpt-col-title';
+  if (['project', 'project_name'].includes(k)) return 'rpt-col-project';
+  if (['assignee', 'user_name', 'actor_name', 'name', 'employee_name', 'employee'].includes(k)) return 'rpt-col-person';
+  if (['estimate', 'original_estimate', 'planned'].includes(k)) return 'rpt-col-estimate';
+  if (['actual', 'time_spent', 'duration'].includes(k)) return 'rpt-col-actual';
+  if (['turnaround_time', 'turnaround'].includes(k)) return 'rpt-col-turnaround';
+  if (['variance'].includes(k)) return 'rpt-col-variance';
+  if (['status', 'payment_status'].includes(k)) return 'rpt-col-status';
+  if (['priority'].includes(k)) return 'rpt-col-priority';
+  if (['due_date', 'created', 'created_at', 'updated_at', 'work_date', 'date', 'timestamp', 'last_revision'].includes(k)) return 'rpt-col-date';
+  return 'rpt-col-default';
+}
+
 export default function ReportTable({
   columns = [],
   rows = [],
@@ -64,7 +115,7 @@ export default function ReportTable({
     // Drill down links to source records
     if (c.drillDown === 'ticket' && row.key) {
       return (
-        <Link href={`/t/${encodeURIComponent(row.key)}`} className="rpt-drilldown-link" title="Open ticket">
+        <Link href={`/t/${encodeURIComponent(row.key)}`} className="rpt-drilldown-link" title={String(row.title || row.key)}>
           {val || row.key}
         </Link>
       );
@@ -73,7 +124,9 @@ export default function ReportTable({
     if (c.drillDown === 'project' && row.id) {
       return (
         <Link href={`/projects/${row.id}/summary`} className="rpt-drilldown-link" title="Open project summary">
-          {val}
+          <span className="rpt-cell-truncate" title={String(val || '')}>
+            {val}
+          </span>
         </Link>
       );
     }
@@ -81,18 +134,22 @@ export default function ReportTable({
     if (c.drillDown === 'employee') {
       return (
         <Link href="/employees" className="rpt-drilldown-link" title="View in employee roster">
-          {val}
+          <span className="rpt-cell-truncate" title={String(val || '')}>
+            {val}
+          </span>
         </Link>
       );
     }
 
     // Status / Priority badge rendering
-    if (c.key === 'status') {
+    if (c.key === 'status' || c.key === 'payment_status') {
       const s = String(val).toLowerCase();
       let colorClass = 'badge-neutral';
       if (s === 'open') colorClass = 'badge-open';
       if (s === 'in_progress') colorClass = 'badge-in-progress';
-      if (s === 'resolved' || s === 'closed' || s === 'completed' || s === 'paid') colorClass = 'badge-resolved';
+      if (['resolved', 'closed', 'completed', 'paid', 'operational', 'healthy', 'green'].includes(s)) colorClass = 'badge-resolved';
+      if (['overdue', 'failed', 'blocked', 'red'].includes(s)) colorClass = 'badge-danger';
+      if (['pending', 'yellow'].includes(s)) colorClass = 'badge-warning';
       return <span className={`rpt-badge ${colorClass}`}>{val}</span>;
     }
 
@@ -103,6 +160,42 @@ export default function ReportTable({
       if (p === 'high') colorClass = 'priority-high';
       if (p === 'low') colorClass = 'priority-low';
       return <span className={`rpt-priority ${colorClass}`}>{val}</span>;
+    }
+
+    // Variance formatting
+    if (c.key === 'variance') {
+      const sVal = String(val || '');
+      if (sVal === '—' || !sVal) return <span className="rpt-cell-dim">—</span>;
+      if (sVal.startsWith('+')) return <span className="rpt-var-tag var-over">{sVal}</span>;
+      if (sVal.startsWith('-')) return <span className="rpt-var-tag var-under">{sVal}</span>;
+      return <span className="rpt-var-tag var-on-track">{sVal}</span>;
+    }
+
+    // Turnaround time formatting
+    if (c.key === 'turnaround_time' || c.key === 'turnaround') {
+      const sVal = String(val || '');
+      if (!sVal || sVal === '—') return <span className="rpt-cell-dim">—</span>;
+      if (sVal.includes('(Ongoing)')) return <span className="rpt-turnaround-pill ongoing">{sVal}</span>;
+      return <span className="rpt-turnaround-pill completed">{sVal}</span>;
+    }
+
+    // Original Estimate "Not Estimated" formatting
+    if (c.key === 'estimate' && val === 'Not Estimated') {
+      return (
+        <span className="rpt-cell-dim" title="Original estimate not specified">
+          Not Estimated
+        </span>
+      );
+    }
+
+    // Text truncation for long strings (titles, projects, notes, etc.)
+    const colClass = getColumnClass(c.key);
+    if (['rpt-col-title', 'rpt-col-project', 'rpt-col-person'].includes(colClass)) {
+      return (
+        <span className="rpt-cell-truncate" title={String(val || '')}>
+          {val ?? '—'}
+        </span>
+      );
     }
 
     return val ?? '—';
@@ -128,22 +221,28 @@ export default function ReportTable({
     );
   }
 
+  // Calculate dynamic minimum width to ensure every column has sufficient breathing room
+  const calculatedMinWidth = Math.max(860, columns.length * 125);
+
   return (
     <div className="rpt-table-container">
       <div className="rpt-table-wrapper">
-        <table className="rpt-table">
+        <table className="rpt-table" style={{ minWidth: calculatedMinWidth }}>
           <thead>
             <tr>
               {columns.map((c) => {
                 const isSorted = sortKey === c.key;
+                const align = getColumnAlignment(c.key);
+                const colClass = getColumnClass(c.key);
+
                 return (
                   <th
                     key={c.key}
                     onClick={() => c.sortable && handleSort(c.key)}
-                    className={c.sortable ? 'sortable' : ''}
+                    className={`${colClass} align-${align} ${c.sortable ? 'sortable' : ''}`}
                     title={c.sortable ? 'Click to sort' : undefined}
                   >
-                    <div className="rpt-th-content">
+                    <div className={`rpt-th-content justify-${align}`}>
                       <span>{c.label}</span>
                       {c.sortable && (
                         <span className="rpt-sort-indicator" aria-hidden="true">
@@ -159,9 +258,15 @@ export default function ReportTable({
           <tbody>
             {pagedRows.map((row, idx) => (
               <tr key={row.id || idx}>
-                {columns.map((c) => (
-                  <td key={c.key}>{renderCell(c, row)}</td>
-                ))}
+                {columns.map((c) => {
+                  const align = getColumnAlignment(c.key);
+                  const colClass = getColumnClass(c.key);
+                  return (
+                    <td key={c.key} className={`${colClass} align-${align}`}>
+                      {renderCell(c, row)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -202,4 +307,3 @@ export default function ReportTable({
     </div>
   );
 }
-

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import AppShell from '../AppShell';
 import ScheduleModal from './ScheduleModal';
 import {
   DASHBOARD_PROFILES,
   getProfileConfig,
-  isReportPermittedForProfile,
+  filterSectionsForProfile,
 } from '@/lib/roleDashboardConfig';
 
 export default function ReportsHubClient({
@@ -23,28 +23,72 @@ export default function ReportsHubClient({
   const [alertNotice, setAlertNotice] = useState('');
   const [runningAlert, setRunningAlert] = useState(false);
 
+  // All sections start in collapsed mode by default on page open
+  const [expandedSections, setExpandedSections] = useState({});
+
   const isAdmin = currentUser.role === 'admin';
+  const effectiveProfile = isAdmin ? selectedProfile : 'developer';
   const activeProfile = useMemo(() => getProfileConfig(selectedProfile), [selectedProfile]);
 
-  // Filter reports
+  // Dynamically filter visible sections based on role profile
+  const visibleSections = useMemo(() => {
+    if (!isAdmin) {
+      return sections.filter(
+        (sec) => sec.slug !== 'salary-payroll-and-cost' && sec.slug !== 'finance-and-startup-expense'
+      );
+    }
+    return filterSectionsForProfile(sections, effectiveProfile);
+  }, [sections, isAdmin, effectiveProfile]);
+
+  // Automatically reset selectedSection filter to 'all' if the active section is excluded in the new profile
+  useEffect(() => {
+    if (selectedSection !== 'all' && !visibleSections.some((s) => s.slug === selectedSection)) {
+      setSelectedSection('all');
+    }
+  }, [selectedSection, visibleSections]);
+
+  const toggleSection = (slug) => {
+    setExpandedSections((prev) => {
+      const isCurrentlyExpanded = Boolean(prev[slug]);
+      if (isCurrentlyExpanded) {
+        // User is closing this section
+        const next = { ...prev };
+        delete next[slug];
+        return next;
+      } else {
+        // When expanding one report section, all other sections close automatically
+        return { [slug]: true };
+      }
+    });
+  };
+
+  const expandAll = () => {
+    const allExpanded = {};
+    visibleSections.forEach((sec) => {
+      allExpanded[sec.slug] = true;
+    });
+    setExpandedSections(allExpanded);
+  };
+
+  const collapseAll = () => {
+    setExpandedSections({});
+  };
+
+  // Filter reports according to visible sections and search query
   const filteredReports = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const effectiveProfile = isAdmin ? selectedProfile : 'developer';
+    const allowedSlugsSet = new Set(visibleSections.map((s) => s.slug));
 
     return reports.filter((r) => {
-      // Permission check: Developers cannot access Section 4 (salary) or Section 6 (finance)
-      if (!isAdmin && (r.sectionSlug === 'salary-payroll-and-cost' || r.sectionSlug === 'finance-and-startup-expense')) {
-        return false;
-      }
-
-      // Check role profile permission
-      if (isAdmin && !isReportPermittedForProfile(r.slug, r.sectionSlug, effectiveProfile)) {
+      // Must be part of a visible section for the active role
+      if (!allowedSlugsSet.has(r.sectionSlug)) {
         return false;
       }
 
       if (selectedSection !== 'all' && r.sectionSlug !== selectedSection) {
         return false;
       }
+
       if (!q) return true;
       return (
         String(r.id).includes(q) ||
@@ -53,7 +97,7 @@ export default function ReportsHubClient({
         r.importantInfo.toLowerCase().includes(q)
       );
     });
-  }, [reports, search, selectedSection, isAdmin, selectedProfile]);
+  }, [reports, search, selectedSection, visibleSections]);
 
   // Group filtered reports by section
   const reportsBySection = useMemo(() => {
@@ -84,6 +128,8 @@ export default function ReportsHubClient({
     }
   }
 
+  const isSearching = Boolean(search.trim());
+
   return (
     <AppShell currentUser={currentUser} projects={projects} projectCounts={{}} view="reports-hub">
       <div className="rpt-hub-page">
@@ -93,7 +139,7 @@ export default function ReportsHubClient({
             <div className="rpt-page-subtitle">Serp Hawk Analytics Catalogue</div>
             <h1 className="rpt-page-title">Enterprise Reporting Hub</h1>
             <p className="rpt-page-desc">
-              Centralized access to all 76 organizational, engineering, delivery, and financial reports across 7 key business functions.
+              Centralized access to organizational, engineering, delivery, and financial reports across key business functions.
             </p>
           </div>
           <div className="rpt-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -146,7 +192,7 @@ export default function ReportsHubClient({
               <div>
                 <div className="rpt-preview-tagline">{activeProfile.tagline}</div>
                 <div className="rpt-preview-desc">
-                  Showing only reports permitted for the {activeProfile.name} profile ({filteredReports.length} reports visible).
+                  Showing only reports permitted for the {activeProfile.name} profile ({filteredReports.length} reports across {visibleSections.length} sections visible).
                 </div>
               </div>
             </div>
@@ -201,17 +247,16 @@ export default function ReportsHubClient({
             )}
           </div>
 
-          <div className="rpt-section-filter-pills">
-            <button
-              type="button"
-              className={`rpt-sec-filter-btn${selectedSection === 'all' ? ' active' : ''}`}
-              onClick={() => setSelectedSection('all')}
-            >
-              All Sections (76)
-            </button>
-            {sections
-              .filter((sec) => isAdmin || (sec.slug !== 'salary-payroll-and-cost' && sec.slug !== 'finance-and-startup-expense'))
-              .map((sec) => (
+          <div className="rpt-section-filter-row">
+            <div className="rpt-section-filter-pills">
+              <button
+                type="button"
+                className={`rpt-sec-filter-btn${selectedSection === 'all' ? ' active' : ''}`}
+                onClick={() => setSelectedSection('all')}
+              >
+                All Sections ({filteredReports.length})
+              </button>
+              {visibleSections.map((sec) => (
                 <button
                   key={sec.slug}
                   type="button"
@@ -221,35 +266,109 @@ export default function ReportsHubClient({
                   Sec {sec.id}: {sec.shortTitle}
                 </button>
               ))}
+            </div>
+
+            <div className="rpt-hub-accordion-actions">
+              <button
+                type="button"
+                className="rpt-sec-action-btn"
+                onClick={expandAll}
+                title="Expand all sections"
+              >
+                Expand All
+              </button>
+              <button
+                type="button"
+                className="rpt-sec-action-btn"
+                onClick={collapseAll}
+                title="Collapse all sections"
+              >
+                Collapse All
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Report Listing Grouped by Section */}
+        {/* Report Listing Grouped by Permitted Visible Sections */}
         <div className="rpt-sections-container">
-          {sections
-            .filter((sec) => isAdmin || (sec.slug !== 'salary-payroll-and-cost' && sec.slug !== 'finance-and-startup-expense'))
-            .map((sec) => {
-              const list = reportsBySection[sec.slug] || [];
-              if (selectedSection !== 'all' && selectedSection !== sec.slug) return null;
-              if (list.length === 0 && search) return null;
+          {visibleSections.map((sec) => {
+            const list = reportsBySection[sec.slug] || [];
+            if (selectedSection !== 'all' && selectedSection !== sec.slug) return null;
+            if (list.length === 0 && search) return null;
 
-              return (
-                <div key={sec.slug} className="rpt-section-block">
-                  <div className="rpt-section-head">
+            // Collapsed by default unless searched or expanded by user
+            const isExpanded = isSearching || Boolean(expandedSections[sec.slug]);
+            const isCollapsed = !isExpanded;
+
+            return (
+              <div key={sec.slug} className={`rpt-section-block${isCollapsed ? ' is-collapsed' : ''}`}>
+                <div className="rpt-section-head">
+                  <div
+                    className="rpt-section-head-clickable"
+                    onClick={() => toggleSection(sec.slug)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleSection(sec.slug);
+                      }
+                    }}
+                    title={isCollapsed ? `Click to expand Section ${sec.id}` : `Click to collapse Section ${sec.id}`}
+                  >
+                    <button
+                      type="button"
+                      className="rpt-section-chevron"
+                      aria-expanded={!isCollapsed}
+                      aria-label={isCollapsed ? `Expand ${sec.title}` : `Collapse ${sec.title}`}
+                      tabIndex={-1}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease',
+                        }}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
                     <div className="rpt-sec-badge-large" style={{ backgroundColor: sec.color }}>
                       Section {sec.id}
                     </div>
                     <div className="rpt-section-title-wrap">
-                      <Link href={`/reports/${sec.slug}`} className="rpt-section-title-link">
-                        <h2>{sec.title}</h2>
-                      </Link>
+                      <h2>{sec.title}</h2>
                       <p className="rpt-section-desc">{sec.description}</p>
                     </div>
-                    <Link href={`/reports/${sec.slug}`} className="rpt-section-view-all">
-                      View Section ({list.length} reports) →
-                    </Link>
                   </div>
 
+                  <div className="rpt-section-head-actions">
+                    <span className="rpt-section-count-badge">
+                      {list.length} {list.length === 1 ? 'report' : 'reports'}
+                    </span>
+                    <Link href={`/reports/${sec.slug}`} className="rpt-section-view-all">
+                      View Section →
+                    </Link>
+                    <button
+                      type="button"
+                      className="rpt-section-toggle-btn"
+                      onClick={() => toggleSection(sec.slug)}
+                      aria-expanded={!isCollapsed}
+                      title={isCollapsed ? `Expand Section ${sec.id}` : `Collapse Section ${sec.id}`}
+                    >
+                      {isCollapsed ? 'Expand' : 'Collapse'}
+                    </button>
+                  </div>
+                </div>
+
+                {!isCollapsed ? (
                   <div className="rpt-reports-grid">
                     {list.map((r) => (
                       <Link
@@ -275,9 +394,29 @@ export default function ReportsHubClient({
                       </Link>
                     ))}
                   </div>
-                </div>
-              );
-            })}
+                ) : (
+                  <div
+                    className="rpt-section-collapsed-summary"
+                    onClick={() => toggleSection(sec.slug)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleSection(sec.slug);
+                      }
+                    }}
+                    title="Click to expand this section"
+                  >
+                    <span className="rpt-collapsed-info">
+                      📁 <strong>{list.length} reports</strong> collapsed in Section {sec.id} ({sec.shortTitle})
+                    </span>
+                    <span className="rpt-collapsed-prompt">Click anywhere to expand ↓</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Schedule Modal */}
@@ -292,4 +431,3 @@ export default function ReportsHubClient({
     </AppShell>
   );
 }
-
