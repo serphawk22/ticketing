@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getProject, updateProject, deleteProject, clientExists } from '@/lib/projects';
-import { parseGithubRepos } from '@/lib/github';
+import {
+  getProject,
+  updateProject,
+  deleteProject,
+  clientExists,
+  getProjectGithubAuth,
+} from '@/lib/projects';
+import { isPlausibleGithubToken, parseGithubRepos } from '@/lib/github';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectColor } from '@/lib/projectValidation';
 
@@ -30,8 +36,16 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
-  const { name, description, color, workspace_id, client_id, github_repo } =
-    await request.json();
+  const {
+    name,
+    description,
+    color,
+    workspace_id,
+    client_id,
+    github_repo,
+    github_token,
+    clear_github_token,
+  } = await request.json();
 
   if (name !== undefined && !name?.trim()) {
     return NextResponse.json({ error: 'Project name is required.' }, { status: 400 });
@@ -64,6 +78,21 @@ export async function PATCH(request, { params }) {
     nextGithubRepo = normalized;
   }
 
+  const auth = await getProjectGithubAuth(id);
+  let nextGithubToken = String(auth?.github_token || '');
+  if (typeof github_token === 'string' && github_token.trim()) {
+    const trimmed = github_token.trim();
+    if (!isPlausibleGithubToken(trimmed)) {
+      return NextResponse.json(
+        { error: 'GitHub token looks invalid. Paste a personal access token.' },
+        { status: 400 }
+      );
+    }
+    nextGithubToken = trimmed;
+  } else if (clear_github_token) {
+    nextGithubToken = '';
+  }
+
   const project = await updateProject(id, {
     name: name === undefined ? existing.name : name.trim(),
     description:
@@ -82,6 +111,7 @@ export async function PATCH(request, { params }) {
           ? null
           : Number(client_id),
     github_repo: nextGithubRepo,
+    github_token: nextGithubToken,
   });
 
   return NextResponse.json({ project });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getAllProjects, createProject, getProjectByKey, clientExists } from '@/lib/projects';
-import { parseGithubRepos } from '@/lib/github';
+import { isPlausibleGithubToken, parseGithubRepos } from '@/lib/github';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
 
@@ -41,12 +41,20 @@ export async function POST(request) {
     workspace_id = null,
     client_id = null,
     github_repo = '',
+    github_token = '',
   } = await request.json();
   const projectKey = String(key ?? '').trim().toUpperCase();
   const normalizedGithubRepo = normalizeGithubRepo(github_repo);
   if (normalizedGithubRepo === null) {
     return NextResponse.json(
       { error: 'GitHub repo must look like owner/name (comma-separated for several).' },
+      { status: 400 }
+    );
+  }
+  const nextGithubToken = String(github_token ?? '').trim();
+  if (nextGithubToken && !isPlausibleGithubToken(nextGithubToken)) {
+    return NextResponse.json(
+      { error: 'GitHub token looks invalid. Paste a personal access token.' },
       { status: 400 }
     );
   }
@@ -95,6 +103,7 @@ export async function POST(request) {
     workspace_id: workspace_id == null ? null : Number(workspace_id),
     client_id: client_id == null ? null : Number(client_id),
     github_repo: normalizedGithubRepo,
+    github_token: nextGithubToken,
   });
 
   return NextResponse.json({ project }, { status: 201 });

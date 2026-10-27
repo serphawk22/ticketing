@@ -20,6 +20,9 @@ export default function ProjectModal({
     project?.client_id != null ? String(project.client_id) : ''
   );
   const [githubRepo, setGithubRepo] = useState(project?.github_repo || '');
+  const [githubToken, setGithubToken] = useState('');
+  const [clearGithubToken, setClearGithubToken] = useState(false);
+  const tokenSaved = Number(project?.github_token_set) === 1;
   // A project created from inside a work space starts there rather than in the
   // "No work space" default, so the picker agrees with where the user clicked.
   const [workspaceId, setWorkspaceId] = useState(
@@ -59,6 +62,8 @@ export default function ProjectModal({
             workspace_id: workspaceId === '' ? null : Number(workspaceId),
             client_id: clientId === '' ? null : Number(clientId),
             github_repo: githubRepo.trim(),
+            ...(githubToken.trim() ? { github_token: githubToken.trim() } : {}),
+            ...(isEdit && clearGithubToken ? { clear_github_token: true } : {}),
           }),
         }
       );
@@ -188,7 +193,7 @@ export default function ProjectModal({
           </div>
 
           <div className="form-group">
-            <label htmlFor="project-github-repo">GitHub repo (optional)</label>
+            <label htmlFor="project-github-repo">GitHub repo</label>
             <input
               id="project-github-repo"
               type="text"
@@ -199,10 +204,47 @@ export default function ProjectModal({
               spellCheck={false}
             />
             <p className="field-hint">
-              Used on the task sheet to find PRs and commits that mention the
-              ticket key (e.g. WEB-12). Falls back to GITHUB_REPOS in .env.local
-              when empty.
+              Task-sheet activity for this project is searched only in these
+              repos. Example: serphawk22/ticketing
             </p>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="project-github-token">GitHub token</label>
+            <input
+              id="project-github-token"
+              type="password"
+              value={githubToken}
+              onChange={(e) => {
+                setGithubToken(e.target.value);
+                if (e.target.value.trim()) setClearGithubToken(false);
+              }}
+              placeholder={
+                tokenSaved
+                  ? 'Token saved — paste a new one to replace it'
+                  : 'github_pat_… or ghp_…'
+              }
+              autoComplete="new-password"
+              spellCheck={false}
+              disabled={clearGithubToken}
+            />
+            <p className="field-hint">
+              Used only on the server to read this project&apos;s pull requests
+              and commits. It is not shown again after you save.
+            </p>
+            {isEdit && tokenSaved && (
+              <label className="field-hint" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={clearGithubToken}
+                  onChange={(e) => {
+                    setClearGithubToken(e.target.checked);
+                    if (e.target.checked) setGithubToken('');
+                  }}
+                />
+                Remove the saved token
+              </label>
+            )}
           </div>
 
           <div className="form-group">
