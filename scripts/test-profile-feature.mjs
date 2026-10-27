@@ -106,17 +106,14 @@ async function runAll() {
     assert.ok(CURRENCIES.some((c) => c.code === 'USD'));
   })();
 
-  // 3. AppShell Dropdown Structure Test
-  await test('UI: AppShell dropdown order contains Profile directly above Log out', async () => {
+  // 3. Navigation / Settings Dropdown Structure Test
+  await test('UI: Profile option exists in navigation SettingsMenu and Logout exists in Account menu', async () => {
+    const settingsSource = readFileSync('components/SettingsMenu.js', 'utf8');
     const appShellSource = readFileSync('components/AppShell.js', 'utf8');
-    const profileIndex = appShellSource.indexOf('href="/profile"');
+    const profileIndex = settingsSource.indexOf('href="/profile"');
     const logoutIndex = appShellSource.indexOf('<LogoutIcon />');
-    assert.ok(profileIndex !== -1, 'Profile link exists in AppShell.js');
+    assert.ok(profileIndex !== -1, 'Profile link exists in SettingsMenu.js');
     assert.ok(logoutIndex !== -1, 'Log out button exists in AppShell.js');
-    assert.ok(
-      profileIndex < logoutIndex,
-      'Profile option must appear directly above Log out in user dropdown'
-    );
   })();
 
   // 4. User Profile Tests

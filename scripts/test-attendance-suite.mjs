@@ -213,7 +213,7 @@ async function runSuite() {
     const testDate = '2026-10-24';
     // Clean any existing test record for today
     await db.prepare('DELETE FROM attendance_audit_logs WHERE employee_id = ?').run(testEmp.id);
-    await db.prepare('DELETE FROM employee_attendance WHERE employee_id = ? AND work_date = ?').run(testEmp.id, testDate);
+    await db.prepare('DELETE FROM employee_attendance WHERE employee_id = ?').run(testEmp.id);
 
     const record = await recordCheckIn({ employeeId: testEmp.id, userId: testDevUser.id });
     assert.strictEqual(record.employee_id, testEmp.id);

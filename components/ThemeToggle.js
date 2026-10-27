@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { useTheme } from './ThemeProvider';
 
 function SunIcon() {
@@ -20,86 +19,25 @@ function MoonIcon() {
   );
 }
 
-function SystemIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <path d="M8 20h8M12 16v4" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg className="theme-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-const OPTIONS = [
-  { value: 'light', label: 'Light', Icon: SunIcon },
-  { value: 'dark', label: 'Dark', Icon: MoonIcon },
-  { value: 'system', label: 'System', Icon: SystemIcon },
-];
-
 export default function ThemeToggle() {
-  const { mode, resolved, setMode } = useTheme();
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const { resolved, setMode } = useTheme();
 
-  useEffect(() => {
-    if (!open) return undefined;
-    function onDocClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    function onKey(e) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  function handleToggle() {
+    const next = resolved === 'dark' ? 'light' : 'dark';
+    setMode(next);
+  }
 
-  const CurrentIcon = resolved === 'dark' ? MoonIcon : SunIcon;
+  const CurrentIcon = resolved === 'dark' ? SunIcon : MoonIcon;
 
   return (
-    <div className="theme-toggle-wrap" ref={ref}>
-      <button
-        type="button"
-        className="icon-btn theme-toggle-btn"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={`Change theme (currently ${mode})`}
-        aria-haspopup="true"
-        aria-expanded={open}
-        title="Theme"
-      >
-        <CurrentIcon />
-      </button>
-      {open && (
-        <div className="menu-popup theme-menu" role="menu" aria-label="Choose theme">
-          {OPTIONS.map(({ value, label, Icon }) => (
-            <button
-              key={value}
-              type="button"
-              role="menuitemradio"
-              aria-checked={mode === value}
-              className={`menu-item theme-menu-item${mode === value ? ' is-selected' : ''}`}
-              onClick={() => {
-                setMode(value);
-                setOpen(false);
-              }}
-            >
-              <Icon />
-              <span className="menu-item-text">{label}</span>
-              {mode === value ? <CheckIcon /> : null}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      className="icon-btn theme-toggle-btn"
+      onClick={handleToggle}
+      aria-label={`Switch to ${resolved === 'dark' ? 'light' : 'dark'} mode`}
+      title={`Switch to ${resolved === 'dark' ? 'light' : 'dark'} mode`}
+    >
+      <CurrentIcon />
+    </button>
   );
 }
