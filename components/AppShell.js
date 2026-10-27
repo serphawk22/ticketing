@@ -13,6 +13,9 @@ import { useInitialWorkspaces } from './WorkspacesProvider';
 import { ticketKey } from './meta';
 import ThemeToggle from './ThemeToggle';
 import NotificationBell from './NotificationBell';
+import SettingsMenu from './SettingsMenu';
+import HelpMenu from './HelpMenu';
+import { useToasts, Toaster } from './Toaster';
 
 /* ---------------- Icons ---------------- */
 
@@ -155,6 +158,7 @@ export default function AppShell({
   onCreate,
   children,
 }) {
+  const { toasts, push: pushToast, dismiss: dismissToast, pause: pauseToast, resume: resumeToast } = useToasts();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -664,12 +668,8 @@ export default function AppShell({
         <ThemeToggle />
 
         <NotificationBell currentUser={currentUser} />
-        <button className="icon-btn" aria-label="Help" title="Help">
-          <HelpIcon />
-        </button>
-        <button className="icon-btn" aria-label="Settings" title="Settings">
-          <SettingsIcon />
-        </button>
+        <HelpMenu onToast={pushToast} />
+        <SettingsMenu onToast={pushToast} />
 
         <div className="topnav-avatar-wrap" ref={menuRef}>
           <button
@@ -691,15 +691,6 @@ export default function AppShell({
                 </div>
               </div>
               <div className="menu-sep" />
-              <Link
-                href="/profile"
-                className="menu-item"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                <PersonIcon />
-                Profile
-              </Link>
               <button className="menu-item" role="menuitem" onClick={handleLogout}>
                 <LogoutIcon />
                 Log out
@@ -1036,6 +1027,7 @@ export default function AppShell({
 
         {children}
       </div>
+      <Toaster toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
     </div>
   );
 }

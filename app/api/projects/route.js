@@ -19,7 +19,14 @@ export async function GET() {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  return NextResponse.json({ projects: await getAllProjects() });
+  const all = await getAllProjects();
+  if (session.user.role === 'client') {
+    return NextResponse.json({
+      projects: all.filter((p) => p.client_id === session.user.id),
+    });
+  }
+
+  return NextResponse.json({ projects: all });
 }
 
 export async function POST(request) {
