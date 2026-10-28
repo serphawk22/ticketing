@@ -107,11 +107,15 @@ export function AssigneeField({
     <Avatar name={name} assigned={Boolean(name)} size={24} unassignedIcon showTitle={false} />
   );
 
+  const assignableEmployees = Array.isArray(employees)
+    ? employees.filter((e) => e && e.active !== false && e.active !== 0)
+    : [];
+
   // "Unassigned" leads the list so a ticket can be handed back to the triage
   // pool, the same option the quick-add select used to offer.
   const options = [
     { value: null, label: 'Unassigned', leading: avatar(null) },
-    ...employees.map((e) => ({
+    ...assignableEmployees.map((e) => ({
       value: String(e.id),
       label: e.name,
       keywords: [e.email, e.title, e.role].filter(Boolean),

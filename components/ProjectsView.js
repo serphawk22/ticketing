@@ -60,6 +60,19 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
     router.refresh();
   }
 
+  async function handleWorkspaceCreated() {
+    try {
+      const res = await fetch('/api/workspaces');
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspaces(data.workspaces || []);
+      }
+    } catch {
+      // The modal keeps the newly created workspace in its own list.
+    }
+    router.refresh();
+  }
+
   async function handleDelete() {
     setError('');
     try {
@@ -160,7 +173,7 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
           </span>
         </header>
         {isEmpty ? (
-          <p className="workspace-group-empty">No projects in this work space yet.</p>
+          <p className="workspace-group-empty">No projects in this workspace yet.</p>
         ) : (
           <div className="project-grid">{items.map(renderProjectCard)}</div>
         )}
@@ -194,11 +207,11 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Projects</Link>
+              <Link href="/projects">Workspaces</Link>
             </nav>
-            <h1>Projects</h1>
+            <h1>Workspaces</h1>
             <p className="board-subtitle">
-              {projects.length} {projects.length === 1 ? 'project' : 'projects'}
+              {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
             </p>
           </div>
 
@@ -255,6 +268,7 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
           clients={clients}
           onClose={() => setEditing(null)}
           onSave={handleSave}
+          onWorkspaceCreated={handleWorkspaceCreated}
         />
       )}
 

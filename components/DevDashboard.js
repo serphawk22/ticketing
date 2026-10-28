@@ -129,6 +129,7 @@ export default function DevDashboard({
   // keeps the previous behavior (every project) untouched.
   const [toMeProjectId, setToMeProjectId] = useState('all');
   const [byMeProjectId, setByMeProjectId] = useState('all');
+  const [groupTab, setGroupTab] = useState('to');
   const [priority, setPriority] = useState('all');
   const [error, setError] = useState('');
   const [draggingId, setDraggingId] = useState(null);
@@ -514,7 +515,7 @@ export default function DevDashboard({
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/">Projects</Link>
+              <Link href="/projects">Workspaces</Link>
               <span className="breadcrumb-sep" aria-hidden="true">
                 /
               </span>
@@ -587,36 +588,75 @@ export default function DevDashboard({
           </div>
         )}
 
-        <div className="dash-groups">
-          <section className="dash-group" aria-label="Assigned to me">
-            <header className="dash-group-head">
-              <h2 className="dash-group-title">Assigned to me</h2>
-              <span className="dash-group-hint">Work handed to you</span>
-              <span className="dash-group-count">{toMeVisible.length}</span>
-            </header>
-            {renderProjectFilter(
-              'to-me-project',
-              toMeProjectId,
-              setToMeProjectId,
-              'Filter assigned to me by project'
-            )}
-            {renderDashSections('to', toMeBuckets)}
-          </section>
+        <div className="dash-tabs" role="tablist" aria-label="Ticket ownership">
+          <button
+            type="button"
+            role="tab"
+            id="dash-tab-to"
+            aria-selected={groupTab === 'to'}
+            aria-controls="dash-panel-to"
+            className={`dash-tab${groupTab === 'to' ? ' is-active' : ''}`}
+            onClick={() => setGroupTab('to')}
+          >
+            Assigned to me
+            <span className="dash-tab-count">{toMeVisible.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="dash-tab-by"
+            aria-selected={groupTab === 'by'}
+            aria-controls="dash-panel-by"
+            className={`dash-tab${groupTab === 'by' ? ' is-active' : ''}`}
+            onClick={() => setGroupTab('by')}
+          >
+            Assigned by me
+            <span className="dash-tab-count">{byMeVisible.length}</span>
+          </button>
+        </div>
 
-          <section className="dash-group" aria-label="Assigned by me">
-            <header className="dash-group-head">
-              <h2 className="dash-group-title">Assigned by me</h2>
-              <span className="dash-group-hint">Tickets you raised</span>
-              <span className="dash-group-count">{byMeVisible.length}</span>
-            </header>
-            {renderProjectFilter(
-              'by-me-project',
-              byMeProjectId,
-              setByMeProjectId,
-              'Filter assigned by me by project'
-            )}
-            {renderDashSections('by', byMeBuckets)}
-          </section>
+        <div className="dash-groups">
+          {groupTab === 'to' ? (
+            <section
+              className="dash-group"
+              id="dash-panel-to"
+              role="tabpanel"
+              aria-labelledby="dash-tab-to"
+            >
+              <header className="dash-group-head">
+                <h2 className="dash-group-title">Assigned to me</h2>
+                <span className="dash-group-hint">Work handed to you</span>
+                <span className="dash-group-count">{toMeVisible.length}</span>
+              </header>
+              {renderProjectFilter(
+                'to-me-project',
+                toMeProjectId,
+                setToMeProjectId,
+                'Filter assigned to me by project'
+              )}
+              {renderDashSections('to', toMeBuckets)}
+            </section>
+          ) : (
+            <section
+              className="dash-group"
+              id="dash-panel-by"
+              role="tabpanel"
+              aria-labelledby="dash-tab-by"
+            >
+              <header className="dash-group-head">
+                <h2 className="dash-group-title">Assigned by me</h2>
+                <span className="dash-group-hint">Tickets you raised</span>
+                <span className="dash-group-count">{byMeVisible.length}</span>
+              </header>
+              {renderProjectFilter(
+                'by-me-project',
+                byMeProjectId,
+                setByMeProjectId,
+                'Filter assigned by me by project'
+              )}
+              {renderDashSections('by', byMeBuckets)}
+            </section>
+          )}
         </div>
       </div>
 

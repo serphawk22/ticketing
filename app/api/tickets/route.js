@@ -148,6 +148,16 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Parent ticket not found.' }, { status: 400 });
   }
 
+  let resolvedProjectId = project_id || null;
+  if (parent && !resolvedProjectId) {
+    try {
+      const parentTicket = await getTicket(parent);
+      if (parentTicket?.project_id) {
+        resolvedProjectId = parentTicket.project_id;
+      }
+    } catch {}
+  }
+
   const info = await db
     .prepare(
       `INSERT INTO tickets (title, description, priority, type, created_by, project_id, employee_id, parent_id, start_date, due_date, labels, category)
@@ -159,7 +169,7 @@ export async function POST(request) {
       priority,
       type,
       session.user.id,
-      project_id || null,
+      resolvedProjectId || null,
       // assignee/parent are the gated forms of employee_id/parent_id,
       // so a requester cannot self-assign or nest work by naming it directly.
       assignee || null,
@@ -193,6 +203,18 @@ export async function POST(request) {
 
     if (assignee) {
       const employee = await getEmployee(assignee);
+      if (employee) {
+        try {
+          const { notifyTicketCreatedEmail } = await import('@/lib/mail');
+          await notifyTicketCreatedEmail({
+            ticket,
+            employee,
+            actorName: session.user.name,
+          });
+        } catch (e) {
+          console.error('Ticket created email failed:', e);
+        }
+      }
       notification = await notifyAssignment({
         ticket,
         employee,

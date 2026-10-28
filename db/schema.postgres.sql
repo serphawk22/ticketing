@@ -714,6 +714,28 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS employees_user_idx ON employees (user_id);
 
+-- A report date is unique, which lets cron retries safely converge on one
+-- delivery without storing response content or generated attachments.
+CREATE TABLE IF NOT EXISTS daily_sheet_report_deliveries (
+  report_date text PRIMARY KEY,
+  run_token text NOT NULL,
+  status text NOT NULL DEFAULT 'running',
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS daily_sheet_report_recipient_deliveries (
+  report_date text NOT NULL REFERENCES daily_sheet_report_deliveries(report_date),
+  recipient_email text NOT NULL,
+  recipient_name text NOT NULL DEFAULT '',
+  run_token text NOT NULL,
+  status text NOT NULL DEFAULT 'running',
+  error text,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (report_date, recipient_email)
+);
+
 UPDATE employees
 SET user_id = (SELECT u.id FROM users u WHERE u.email = employees.email)
 WHERE user_id IS NULL AND email IS NOT NULL;

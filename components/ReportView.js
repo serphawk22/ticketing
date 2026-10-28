@@ -250,7 +250,7 @@ export default function ReportView({
       subtitle={report.description}
       projectPath={(id) => `/projects/${id}/reports/${report.slug}`}
       breadcrumb={[
-        { label: 'Projects', href: '/projects' },
+        { label: 'Workspaces', href: '/projects' },
         { label: project.name, href: `/projects/${project.id}/summary` },
         { label: 'Reports', href: `/projects/${project.id}/reports` },
         { label: report.title },

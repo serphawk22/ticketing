@@ -46,7 +46,7 @@ export function DonutChart({ data = [], size = 180, innerRadius = 55 }) {
     <div className="rpt-donut-wrap">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rpt-donut-svg">
         <g transform={`rotate(-90 ${radius} ${radius})`}>{segments}</g>
-        <text x="50%" y="48%" textAnchor="middle" dy=".3em" fontSize="22" fontWeight="700" fill="#172b4d">
+        <text x="50%" y="48%" textAnchor="middle" dy=".3em" fontSize="22" fontWeight="700" fill="currentColor">
           {total}
         </text>
         <text x="50%" y="62%" textAnchor="middle" fontSize="11" fill="#626f86">
@@ -129,7 +129,7 @@ export function TrendChart({ data = [], height = 200 }) {
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="rpt-trend-svg" style={{ width: '100%', height }}>
       {/* Grid line */}
-      <line x1={pad.l} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke="#dfe1e6" />
+      <line x1={pad.l} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke="var(--border, #dfe1e6)" />
       {/* Path line */}
       <path d={pathD} fill="none" stroke="#0c66e4" strokeWidth="2.5" />
       {/* Dots */}

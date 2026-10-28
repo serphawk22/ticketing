@@ -35,7 +35,7 @@ export default function WorkspaceModal({ workspace, onClose, onSave }) {
         }
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save work space.');
+      if (!res.ok) throw new Error(data.error || 'Failed to save workspace.');
       onSave(data.workspace);
     } catch (err) {
       setError(err.message);
@@ -49,7 +49,7 @@ export default function WorkspaceModal({ workspace, onClose, onSave }) {
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={isEdit ? 'Edit work space' : 'Create work space'}
+        aria-label={isEdit ? 'Edit workspace' : 'Create workspace'}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header>
@@ -68,7 +68,7 @@ export default function WorkspaceModal({ workspace, onClose, onSave }) {
               <rect x="3" y="4" width="18" height="16" rx="2" />
               <path d="M3 10h18" />
             </svg>
-            {isEdit ? 'Edit work space' : 'New work space'}
+            {isEdit ? 'Edit workspace' : 'New workspace'}
           </h3>
           <button
             type="button"
@@ -116,7 +116,7 @@ export default function WorkspaceModal({ workspace, onClose, onSave }) {
               id="workspace-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this work space cover?"
+              placeholder="What does this workspace cover?"
             />
           </div>
 
@@ -153,7 +153,7 @@ export default function WorkspaceModal({ workspace, onClose, onSave }) {
                 ? 'Saving…'
                 : isEdit
                   ? 'Save changes'
-                  : 'Create work space'}
+                  : 'Create workspace'}
             </button>
           </div>
         </form>

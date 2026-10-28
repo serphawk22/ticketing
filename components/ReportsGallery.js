@@ -112,7 +112,7 @@ export default function ReportsGallery({
       title="Reports"
       subtitle="Charts for how work is created, resolved, and shared across this project."
       breadcrumb={[
-        { label: 'Projects', href: '/projects' },
+        { label: 'Workspaces', href: '/projects' },
         { label: project.name, href: `/projects/${project.id}/summary` },
         { label: 'Reports' },
       ]}

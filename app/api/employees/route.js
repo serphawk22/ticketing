@@ -19,7 +19,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const isAdmin = session.user.role === 'admin';
-  const allEmployees = await getEmployees();
+  const allEmployees = await getEmployees({ includeInactive: true });
   // Safe filtering: non-admins NEVER receive base_salary, last_payment_date, payment_status
   const employees = allEmployees.map((e) => toSafeEmployee(e, isAdmin));
 

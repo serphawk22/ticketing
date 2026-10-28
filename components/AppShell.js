@@ -13,6 +13,11 @@ import { useInitialWorkspaces } from './WorkspacesProvider';
 import { ticketKey } from './meta';
 import ThemeToggle from './ThemeToggle';
 import NotificationBell from './NotificationBell';
+import {
+  SIDEBAR_SECTION_IDS,
+  createDefaultSidebarPreferences,
+  normalizeSidebarPreferences,
+} from '@/lib/sidebarPreferences';
 
 /* ---------------- Icons ---------------- */
 
@@ -55,25 +60,6 @@ function SearchIcon() {
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="11" cy="11" r="7" />
       <path d="M21 21l-4.35-4.35" />
-    </svg>
-  );
-}
-
-function HelpIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.2 2.4c-.7.2-1.2.9-1.2 1.6v.3" />
-      <path d="M12 17h.01" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
     </svg>
   );
 }
@@ -124,6 +110,36 @@ function PeopleIcon() {
   );
 }
 
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+      <circle cx="9" cy="6" r="1.4" />
+      <circle cx="15" cy="6" r="1.4" />
+      <circle cx="9" cy="12" r="1.4" />
+      <circle cx="15" cy="12" r="1.4" />
+      <circle cx="9" cy="18" r="1.4" />
+      <circle cx="15" cy="18" r="1.4" />
+    </svg>
+  );
+}
+
+function StarIcon({ filled = false }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9Z" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -138,8 +154,49 @@ function LogoutIcon() {
 
 const TOP_NAV = [
   { id: 'work', label: 'Your work', href: '/?filter=mine' },
-  { id: 'projects', label: 'Work Spaces', href: '/projects' },
+  { id: 'workspaces', label: 'Workspaces', href: '/projects' },
 ];
+
+function sortWithFavorites(items, order, isFavorite) {
+  const position = new Map(order.map((id, index) => [id, index]));
+  return [...items].sort((a, b) => {
+    const favoriteDiff = Number(isFavorite(b)) - Number(isFavorite(a));
+    if (favoriteDiff) return favoriteDiff;
+    const aIndex = position.has(a) ? position.get(a) : Number.MAX_SAFE_INTEGER;
+    const bIndex = position.has(b) ? position.get(b) : Number.MAX_SAFE_INTEGER;
+    return aIndex - bIndex;
+  });
+}
+
+function orderSectionIds(prefs, isAdmin) {
+  const visible = SIDEBAR_SECTION_IDS.filter(
+    (id) => id !== 'client-requests' || isAdmin
+  );
+  return sortWithFavorites(
+    visible,
+    prefs.sectionOrder,
+    (id) => prefs.sections[id]?.favorite
+  );
+}
+
+function orderWorkspaceList(workspaces, prefs) {
+  return sortWithFavorites(
+    workspaces,
+    prefs.workspaceOrder,
+    (w) => prefs.workspaces[String(w.id)]?.favorite
+  );
+}
+
+function moveListItem(list, source, target) {
+  if (source === target) return list;
+  const from = list.indexOf(source);
+  const to = list.indexOf(target);
+  if (from < 0 || to < 0) return list;
+  const next = [...list];
+  next.splice(from, 1);
+  next.splice(to, 0, source);
+  return next;
+}
 
 export default function AppShell({
   currentUser,
@@ -188,6 +245,11 @@ export default function AppShell({
   const [editingWorkspace, setEditingWorkspace] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
   const [deleteError, setDeleteError] = useState('');
+  const [sidebarPrefs, setSidebarPrefs] = useState(createDefaultSidebarPreferences);
+  const [draggingSection, setDraggingSection] = useState(null);
+  const [draggingWorkspace, setDraggingWorkspace] = useState(null);
+  const prefsLoadedRef = useRef(false);
+  const prefsSaveTimer = useRef(null);
   const menuRef = useRef(null);
   const searchRef = useRef(null);
   const searchMenuRef = useRef(null);
@@ -232,11 +294,39 @@ export default function AppShell({
     }
   }
 
+  async function loadSidebarPreferences() {
+    try {
+      const res = await fetch('/api/user-preferences');
+      if (res.ok) {
+        const data = await res.json();
+        setSidebarPrefs(normalizeSidebarPreferences(data.preferences));
+      }
+    } catch {
+      // The defaults keep the sidebar usable when preferences cannot load.
+    } finally {
+      prefsLoadedRef.current = true;
+    }
+  }
+
   useEffect(() => {
     if (seededWorkspaces.length > 0) setWorkspacesLoaded(true);
     loadWorkspaces();
+    loadSidebarPreferences();
     loadClientRequests();
   }, []);
+
+  useEffect(() => {
+    if (!prefsLoadedRef.current) return undefined;
+    clearTimeout(prefsSaveTimer.current);
+    prefsSaveTimer.current = setTimeout(() => {
+      fetch('/api/user-preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferences: sidebarPrefs }),
+      }).catch(() => {});
+    }, 500);
+    return () => clearTimeout(prefsSaveTimer.current);
+  }, [sidebarPrefs]);
 
   useEffect(() => {
     setSidebarProjects(projects);
@@ -346,7 +436,7 @@ export default function AppShell({
         ? { id: 'admin-dashboard', label: 'Admin Dashboard', href: '/dashboard' }
         : { id: 'employee-dashboard', label: 'Dashboard', href: '/my-dashboard' },
       { id: 'work', label: 'Your work', href: '/?filter=mine' },
-      { id: 'projects', label: 'Projects', href: '/projects' },
+      { id: 'workspaces', label: 'Workspaces', href: '/projects' },
       { id: 'reports', label: 'Reports', href: '/reports' },
     ];
   }, [isAdmin]);
@@ -354,7 +444,7 @@ export default function AppShell({
   function isNavActive(item) {
     if (item.id === 'admin-dashboard') return view === 'admin-dashboard';
     if (item.id === 'employee-dashboard') return view === 'employee-dashboard';
-    if (item.id === 'projects') return view === 'projects';
+    if (item.id === 'workspaces') return view === 'projects';
     if (item.id === 'reports') return view === 'reports-hub' || view === 'section-reports' || view === 'report-detail';
     if (item.id === 'work') return view === 'dashboard' || (view === 'board' && filter === 'mine');
     return false;
@@ -420,6 +510,100 @@ export default function AppShell({
     router.refresh();
   }
 
+  function toggleSectionFavorite(id) {
+    setSidebarPrefs((prev) => ({
+      ...prev,
+      sections: {
+        ...prev.sections,
+        [id]: {
+          ...prev.sections[id],
+          favorite: !prev.sections[id]?.favorite,
+        },
+      },
+    }));
+  }
+
+  function toggleSectionCollapsed(id) {
+    setSidebarPrefs((prev) => ({
+      ...prev,
+      sections: {
+        ...prev.sections,
+        [id]: {
+          ...prev.sections[id],
+          collapsed: !prev.sections[id]?.collapsed,
+        },
+      },
+    }));
+  }
+
+  function moveSection(id, delta) {
+    setSidebarPrefs((prev) => {
+      const order = orderSectionIds(prev, isAdmin);
+      const index = order.indexOf(id);
+      const target = order[index + delta];
+      if (!target) return prev;
+      return {
+        ...prev,
+        sectionOrder: moveListItem(order, id, target),
+      };
+    });
+  }
+
+  function dropSection(source, target) {
+    if (!source || !target) return;
+    setSidebarPrefs((prev) => ({
+      ...prev,
+      sectionOrder: moveListItem(
+        orderSectionIds(prev, isAdmin),
+        source,
+        target
+      ),
+    }));
+  }
+
+  function workspacePref(id) {
+    return sidebarPrefs.workspaces[String(id)] || {};
+  }
+
+  function updateWorkspacePref(id, key) {
+    const keyId = String(id);
+    setSidebarPrefs((prev) => ({
+      ...prev,
+      workspaces: {
+        ...prev.workspaces,
+        [keyId]: {
+          ...prev.workspaces[keyId],
+          [key]: !prev.workspaces[keyId]?.[key],
+        },
+      },
+    }));
+  }
+
+  function moveWorkspace(id, delta) {
+    setSidebarPrefs((prev) => {
+      const order = orderWorkspaceList(workspaces, prev).map((w) => String(w.id));
+      const index = order.indexOf(String(id));
+      const target = order[index + delta];
+      if (!target) return prev;
+      return {
+        ...prev,
+        workspaceOrder: moveListItem(order, String(id), target),
+      };
+    });
+  }
+
+  function dropWorkspace(source, target) {
+    if (!source || !target) return;
+    setSidebarPrefs((prev) => ({
+      ...prev,
+      workspaceOrder: moveListItem(
+        orderWorkspaceList(workspaces, prev).map((w) => String(w.id)),
+        String(source),
+        String(target)
+      ),
+    }));
+  }
+
   const groupedIds = new Set(
     workspaces.map((w) => String(w.id))
   );
@@ -429,6 +613,17 @@ export default function AppShell({
   const ungrouped = sidebarProjects.filter(
     (p) => p.workspace_id == null || !groupedIds.has(String(p.workspace_id))
   );
+
+  const orderedSections = orderSectionIds(sidebarPrefs, isAdmin);
+  const orderedWorkspaces = orderWorkspaceList(workspaces, sidebarPrefs);
+
+  const SECTION_LABELS = {
+    reports: 'Reporting & Analytics',
+    issues: 'Issues',
+    people: 'People',
+    'client-requests': 'Client requests',
+    workspaces: 'Workspaces',
+  };
 
   function renderProjectItem(p) {
     const menuKey = `project:${p.id}`;
@@ -495,6 +690,333 @@ export default function AppShell({
           </div>
         )}
       </div>
+    );
+  }
+
+  function renderSectionBody(id) {
+    if (id === 'reports') {
+      return (
+        <>
+          {canAccessAdminDashboard ? (
+            <Link
+              href="/dashboard"
+              className={`nav-item${view === 'admin-dashboard' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <GridIcon />
+              <span className="nav-text">Admin Dashboard</span>
+            </Link>
+          ) : (
+            <Link
+              href="/my-dashboard"
+              className={`nav-item${view === 'employee-dashboard' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <PersonIcon />
+              <span className="nav-text">My Dashboard</span>
+            </Link>
+          )}
+          {canAccessReports && (
+            <Link
+              href="/reports"
+              className={`nav-item${view === 'reports-hub' || view === 'section-reports' || view === 'report-detail' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChartIcon />
+              <span className="nav-text">Reports Hub (76)</span>
+            </Link>
+          )}
+        </>
+      );
+    }
+
+    if (id === 'issues') {
+      return (
+        <>
+          <button
+            className={`nav-item${view === 'dashboard' || (view === 'board' && filter === 'mine') ? ' active' : ''}`}
+            onClick={() => selectFilter('mine')}
+          >
+            <PersonIcon />
+            <span className="nav-text">My tickets</span>
+            <span className="nav-count">{myIssuesCount}</span>
+          </button>
+          <Link
+            href="/task-sheet"
+            className={`nav-item${view === 'task-sheet' ? ' active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <ClipboardIcon />
+            <span className="nav-text">Task Sheet</span>
+          </Link>
+          {canReadSheets && (
+            <Link
+              href="/task-sheet/history"
+              className={`nav-item${view === 'task-sheet-history' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChartIcon />
+              <span className="nav-text">Sheet History</span>
+            </Link>
+          )}
+        </>
+      );
+    }
+
+    if (id === 'people') {
+      return (
+        <Link
+          href="/employees"
+          className={`nav-item${view === 'employees' ? ' active' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        >
+          <PeopleIcon />
+          <span className="nav-text">Employees</span>
+          {employeeCount != null && (
+            <span className="nav-count">{employeeCount}</span>
+          )}
+        </Link>
+      );
+    }
+
+    if (id === 'client-requests') {
+      return (
+        <Link
+          href="/client-requests"
+          className={`nav-item${view === 'client-requests' ? ' active' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        >
+          <InboxIcon />
+          <span className="nav-text">All client requests</span>
+          <span className="nav-count">{clientRequests.length}</span>
+        </Link>
+      );
+    }
+
+    if (id === 'workspaces') {
+      return (
+        <>
+          {workspacesLoaded &&
+            orderedWorkspaces.map((w) => {
+              const members = sidebarProjects.filter(
+                (p) => String(p.workspace_id) === String(w.id)
+              );
+              const prefs = workspacePref(w.id);
+              return (
+                <div
+                  className={`nav-workspace${prefs.favorite ? ' is-favorite' : ''}`}
+                  key={w.id}
+                >
+                  <div
+                    className={`nav-workspace-head${isAdmin ? ' has-actions' : ''}`}
+                    title={w.name}
+                    onDragOver={(e) => {
+                      if (draggingWorkspace != null) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      dropWorkspace(draggingWorkspace, w.id);
+                      setDraggingWorkspace(null);
+                    }}
+                  >
+                    <span
+                      className="nav-drag-handle"
+                      draggable
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Reorder ${w.name}`}
+                      title="Drag to reorder. Alt+Arrow up or down to move."
+                      onDragStart={(e) => {
+                        setDraggingWorkspace(String(w.id));
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', String(w.id));
+                      }}
+                      onDragEnd={() => setDraggingWorkspace(null)}
+                      onKeyDown={(e) => {
+                        if (!e.altKey) return;
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          moveWorkspace(w.id, -1);
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          moveWorkspace(w.id, 1);
+                        }
+                      }}
+                    >
+                      <GripIcon />
+                    </span>
+                    <button
+                      type="button"
+                      className="nav-workspace-collapse"
+                      onClick={() => updateWorkspacePref(w.id, 'collapsed')}
+                      aria-expanded={!prefs.collapsed}
+                    >
+                      <ChevronDown />
+                      <span
+                        className="workspace-dot"
+                        style={{ background: w.color }}
+                        aria-hidden="true"
+                      />
+                      <span className="nav-text">{w.name}</span>
+                      <span className="nav-count">{members.length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`nav-favorite${prefs.favorite ? ' is-active' : ''}`}
+                      onClick={() => updateWorkspacePref(w.id, 'favorite')}
+                      aria-pressed={Boolean(prefs.favorite)}
+                      aria-label={`${prefs.favorite ? 'Unfavorite' : 'Favorite'} ${w.name}`}
+                      title={prefs.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      <StarIcon filled={Boolean(prefs.favorite)} />
+                    </button>
+                    {isAdmin && (
+                      <button
+                        className="nav-workspace-add"
+                        onClick={() => setCreatingProjectIn(w.id)}
+                        aria-label={`Create project in ${w.name}`}
+                        title={`Create project in ${w.name}`}
+                      >
+                        <PlusIcon />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <div className="nav-row-actions">
+                        <button
+                          ref={(el) => {
+                            if (el) rowAnchors.current[`workspace:${w.id}`] = el;
+                          }}
+                          className="nav-row-more"
+                          onClick={() => toggleRowMenu(`workspace:${w.id}`)}
+                          aria-label={`Actions for ${w.name}`}
+                          aria-expanded={rowMenu === `workspace:${w.id}`}
+                          title={`Actions for ${w.name}`}
+                        >
+                          <MoreIcon />
+                        </button>
+                        <AnchoredMenu
+                          open={rowMenu === `workspace:${w.id}`}
+                          onClose={() => setRowMenu(null)}
+                          getAnchor={() => rowAnchors.current[`workspace:${w.id}`]}
+                        >
+                          <button
+                            className="menu-item"
+                            role="menuitem"
+                            onClick={() => {
+                              setRowMenu(null);
+                              setEditingWorkspace(w);
+                            }}
+                          >
+                            <span className="menu-item-text">Edit workspace</span>
+                          </button>
+                          <button
+                            className="menu-item menu-item-danger"
+                            role="menuitem"
+                            onClick={() => {
+                              setRowMenu(null);
+                              setDeleting({ kind: 'workspace', ...w });
+                            }}
+                          >
+                            <span className="menu-item-text">Delete workspace</span>
+                          </button>
+                        </AnchoredMenu>
+                      </div>
+                    )}
+                  </div>
+                  {!prefs.collapsed && members.map(renderProjectItem)}
+                </div>
+              );
+            })}
+
+          {workspacesLoaded && ungrouped.map(renderProjectItem)}
+        </>
+      );
+    }
+
+    return null;
+  }
+
+  function renderSidebarSection(id) {
+    const prefs = sidebarPrefs.sections[id] || {};
+    const collapsed = Boolean(prefs.collapsed);
+    return (
+      <section
+        key={id}
+        className={`nav-section${prefs.favorite ? ' is-favorite' : ''}`}
+        onDragOver={(e) => {
+          if (draggingSection) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          dropSection(draggingSection, id);
+          setDraggingSection(null);
+        }}
+      >
+        <div className="nav-label nav-label-row nav-section-head">
+          <span
+            className="nav-drag-handle"
+            draggable
+            role="button"
+            tabIndex={0}
+            aria-label={`Reorder ${SECTION_LABELS[id]}`}
+            title="Drag to reorder. Alt+Arrow up or down to move."
+            onDragStart={(e) => {
+              setDraggingSection(id);
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', id);
+            }}
+            onDragEnd={() => setDraggingSection(null)}
+            onKeyDown={(e) => {
+              if (!e.altKey) return;
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                moveSection(id, -1);
+              } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                moveSection(id, 1);
+              }
+            }}
+          >
+            <GripIcon />
+          </span>
+          <button
+            type="button"
+            className="nav-section-toggle"
+            onClick={() => toggleSectionCollapsed(id)}
+            aria-expanded={!collapsed}
+          >
+            <span
+              className={`nav-section-chevron${collapsed ? ' is-collapsed' : ''}`}
+            >
+              <ChevronDown />
+            </span>
+            <span>{SECTION_LABELS[id]}</span>
+          </button>
+          <span className="nav-label-actions">
+            <button
+              type="button"
+              className={`nav-favorite${prefs.favorite ? ' is-active' : ''}`}
+              onClick={() => toggleSectionFavorite(id)}
+              aria-pressed={Boolean(prefs.favorite)}
+              aria-label={`${prefs.favorite ? 'Unfavorite' : 'Favorite'} ${SECTION_LABELS[id]}`}
+              title={prefs.favorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <StarIcon filled={Boolean(prefs.favorite)} />
+            </button>
+            {id === 'workspaces' && isAdmin && (
+              <button
+                className="nav-label-add"
+                onClick={() => setCreatingWorkspace(true)}
+                aria-label="Create workspace"
+                title="Create workspace"
+              >
+                <PlusIcon />
+              </button>
+            )}
+          </span>
+        </div>
+        {!collapsed && <nav className="nav">{renderSectionBody(id)}</nav>}
+      </section>
     );
   }
 
@@ -664,12 +1186,6 @@ export default function AppShell({
         <ThemeToggle />
 
         <NotificationBell currentUser={currentUser} />
-        <button className="icon-btn" aria-label="Help" title="Help">
-          <HelpIcon />
-        </button>
-        <button className="icon-btn" aria-label="Settings" title="Settings">
-          <SettingsIcon />
-        </button>
 
         <div className="topnav-avatar-wrap" ref={menuRef}>
           <button
@@ -721,203 +1237,7 @@ export default function AppShell({
 
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
           <div className="sidebar-scroll">
-            <div className="nav-label">Reporting & Analytics</div>
-            <nav className="nav">
-              {canAccessAdminDashboard ? (
-                <Link
-                  href="/dashboard"
-                  className={`nav-item${view === 'admin-dashboard' ? ' active' : ''}`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <GridIcon />
-                  <span className="nav-text">Admin Dashboard</span>
-                </Link>
-              ) : (
-                <Link
-                  href="/my-dashboard"
-                  className={`nav-item${view === 'employee-dashboard' ? ' active' : ''}`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <PersonIcon />
-                  <span className="nav-text">My Dashboard</span>
-                </Link>
-              )}
-              {canAccessReports && (
-                <Link
-                  href="/reports"
-                  className={`nav-item${view === 'reports-hub' || view === 'section-reports' || view === 'report-detail' ? ' active' : ''}`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <BarChartIcon />
-                  <span className="nav-text">Reports Hub (76)</span>
-                </Link>
-              )}
-            </nav>
-
-            <div className="nav-label">Issues</div>
-            <nav className="nav">
-              <button
-                className={`nav-item${view === 'dashboard' || (view === 'board' && filter === 'mine') ? ' active' : ''}`}
-                onClick={() => selectFilter('mine')}
-              >
-                <PersonIcon />
-                <span className="nav-text">My tickets</span>
-                <span className="nav-count">{myIssuesCount}</span>
-              </button>
-              {/* A Link rather than a button that pushes the router: this is a
-                  page of its own and belongs in the browser's history like the
-                  rest of the sidebar. */}
-              <Link
-                href="/task-sheet"
-                className={`nav-item${view === 'task-sheet' ? ' active' : ''}`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <ClipboardIcon />
-                <span className="nav-text">Task Sheet</span>
-              </Link>
-              {/* The task + happy sheet history is a page of its own too, open
-                  to every developer so the whole team can read the day's work. */}
-              {canReadSheets && (
-                <Link
-                  href="/task-sheet/history"
-                  className={`nav-item${view === 'task-sheet-history' ? ' active' : ''}`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <BarChartIcon />
-                  <span className="nav-text">Sheet History</span>
-                </Link>
-              )}
-            </nav>
-
-            <div className="nav-label">People</div>
-            <nav className="nav">
-              <Link
-                href="/employees"
-                className={`nav-item${view === 'employees' ? ' active' : ''}`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <PeopleIcon />
-                <span className="nav-text">Employees</span>
-                {employeeCount != null && (
-                  <span className="nav-count">{employeeCount}</span>
-                )}
-              </Link>
-            </nav>
-
-            {/* Always shown to an admin, empty or not. Hiding it until a
-                request existed made the whole feature undiscoverable: with an
-                empty queue there was no sign the page was there at all. */}
-            {isAdmin && (
-              <>
-                <div className="nav-label">Client requests</div>
-                <nav className="nav">
-                  <Link
-                    href="/client-requests"
-                    className={`nav-item${view === 'client-requests' ? ' active' : ''}`}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <InboxIcon />
-                    <span className="nav-text">All client requests</span>
-                    <span className="nav-count">{clientRequests.length}</span>
-                  </Link>
-
-                </nav>
-              </>
-            )}
-
-            <div className="nav-label nav-label-row">
-              <span>Work spaces</span>
-              <span className="nav-label-actions">
-                {isAdmin && (
-                  <button
-                    className="nav-label-add"
-                    onClick={() => setCreatingWorkspace(true)}
-                    aria-label="Create work space"
-                    title="Create work space"
-                  >
-                    <PlusIcon />
-                  </button>
-                )}
-              </span>
-            </div>
-            <nav className="nav">
-              {workspacesLoaded && workspaces.map((w) => {
-                const members = sidebarProjects.filter(
-                  (p) => String(p.workspace_id) === String(w.id)
-                );
-                return (
-                  <div className="nav-workspace" key={w.id}>
-                    <div
-                      className={`nav-workspace-head${isAdmin ? ' has-actions' : ''}`}
-                      title={w.name}
-                    >
-                      <span
-                        className="workspace-dot"
-                        style={{ background: w.color }}
-                        aria-hidden="true"
-                      />
-                      <span className="nav-text">{w.name}</span>
-                      <span className="nav-count">{members.length}</span>
-                      {isAdmin && (
-                        <button
-                          className="nav-workspace-add"
-                          onClick={() => setCreatingProjectIn(w.id)}
-                          aria-label={`Create project in ${w.name}`}
-                          title={`Create project in ${w.name}`}
-                        >
-                          <PlusIcon />
-                        </button>
-                      )}
-                      {isAdmin && (
-                        <div className="nav-row-actions">
-                          <button
-                            ref={(el) => {
-                              if (el) rowAnchors.current[`workspace:${w.id}`] = el;
-                            }}
-                            className="nav-row-more"
-                            onClick={() => toggleRowMenu(`workspace:${w.id}`)}
-                            aria-label={`Actions for ${w.name}`}
-                            aria-expanded={rowMenu === `workspace:${w.id}`}
-                            title={`Actions for ${w.name}`}
-                          >
-                            <MoreIcon />
-                          </button>
-                          <AnchoredMenu
-                            open={rowMenu === `workspace:${w.id}`}
-                            onClose={() => setRowMenu(null)}
-                            getAnchor={() => rowAnchors.current[`workspace:${w.id}`]}
-                          >
-                            <button
-                              className="menu-item"
-                              role="menuitem"
-                              onClick={() => {
-                                setRowMenu(null);
-                                setEditingWorkspace(w);
-                              }}
-                            >
-                              <span className="menu-item-text">Edit workspace</span>
-                            </button>
-                            <button
-                              className="menu-item menu-item-danger"
-                              role="menuitem"
-                              onClick={() => {
-                                setRowMenu(null);
-                                setDeleting({ kind: 'workspace', ...w });
-                              }}
-                            >
-                              <span className="menu-item-text">Delete workspace</span>
-                            </button>
-                          </AnchoredMenu>
-                        </div>
-                      )}
-                    </div>
-                    {members.map(renderProjectItem)}
-                  </div>
-                );
-              })}
-
-              {workspacesLoaded && ungrouped.map(renderProjectItem)}
-            </nav>
+            {orderedSections.map(renderSidebarSection)}
           </div>
 
           <div className="sidebar-footer">
@@ -951,6 +1271,10 @@ export default function AppShell({
             workspaces={workspaces}
             initialWorkspaceId={creatingProjectIn}
             onClose={() => setCreatingProjectIn(null)}
+            onWorkspaceCreated={async () => {
+              await loadWorkspaces();
+              await loadSidebarProjects();
+            }}
             onSave={async () => {
               setCreatingProjectIn(null);
               await loadSidebarProjects();
@@ -989,7 +1313,7 @@ export default function AppShell({
                       deleting.project_count === 1
                         ? 'It will be'
                         : 'They will be'
-                    } kept and listed without a work space.`
+                    } kept and listed without a workspace.`
                   : `${deleting.name} has no projects. This cannot be undone.`
                 : deleting.ticket_count > 0
                   ? `${deleting.name} has ${deleting.ticket_count} ${

@@ -568,7 +568,7 @@ export default function DocsView({
 
         <PageHeader
           breadcrumb={[
-            { label: 'Projects', href: '/projects' },
+            { label: 'Workspaces', href: '/projects' },
             { label: project.name, href: `/projects/${project.id}/summary` },
             { label: 'Docs' },
           ]}

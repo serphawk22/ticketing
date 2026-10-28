@@ -253,7 +253,7 @@ export default function ArchivedView({
       <div className="board">
         <PageHeader
           breadcrumb={[
-            { label: 'Projects', href: '/projects' },
+            { label: 'Workspaces', href: '/projects' },
             { label: project.name, href: `/projects/${project.id}/summary` },
             { label: 'Archived' },
           ]}

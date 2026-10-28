@@ -26,14 +26,29 @@ export async function POST(req) {
   }
 
   if (email.includes('@') && email.includes('.')) {
-    const user = await getUserByEmail(email);
-    if (user) {
-      const employee = await getEmployeeByEmail(email);
-      if (employee) {
-        const tempPassword = await resetUserPassword(user.id);
-        await deleteUserSessions(user.id);
-        await sendPasswordReset({ employee, tempPassword });
+    try {
+      const user = await getUserByEmail(email);
+      if (user) {
+        const employee = await getEmployeeByEmail(email);
+        if (employee) {
+          const tempPassword = await resetUserPassword(user.id);
+          await deleteUserSessions(user.id);
+          const result = await sendPasswordReset({ employee, tempPassword });
+          if (result && (result.status === 'failed' || result.status === 'error')) {
+            console.error(`[forgot-password] failed to send reset email to ${email}:`, result.error);
+            return Response.json(
+              { ok: false, error: 'Failed to send password reset email. Please try again later.' },
+              { status: 500 }
+            );
+          }
+        }
       }
+    } catch (error) {
+      console.error('[forgot-password] unexpected error:', error);
+      return Response.json(
+        { ok: false, error: 'Failed to send password reset email. Please try again later.' },
+        { status: 500 }
+      );
     }
   }
 
