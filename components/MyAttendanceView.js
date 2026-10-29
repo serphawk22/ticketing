@@ -7,6 +7,7 @@ import { ClipboardIcon } from '@/components/AppShellIcons';
 import { formatKolkataTime, formatMinutes, getLeaveTypeLabel } from '@/lib/attendanceMeta';
 import LeaveRequestModal from '@/components/LeaveRequestModal';
 import MyLeaveRequestsView from '@/components/MyLeaveRequestsView';
+import LeaveBalanceCards from '@/components/LeaveBalanceCards';
 
 export default function MyAttendanceView({
   currentUser,
@@ -23,9 +24,26 @@ export default function MyAttendanceView({
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [loadingLeaves, setLoadingLeaves] = useState(false);
+  const [balanceData, setBalanceData] = useState(null);
+  const [loadingBalances, setLoadingBalances] = useState(false);
 
   const records = data.records || [];
   const summary = data.summary || {};
+
+  async function fetchBalances() {
+    setLoadingBalances(true);
+    try {
+      const res = await fetch('/api/attendance/leave/balances');
+      if (res.ok) {
+        const json = await res.json();
+        setBalanceData(json.balances || json);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingBalances(false);
+    }
+  }
 
   async function fetchLeaveRequests() {
     setLoadingLeaves(true);
@@ -44,6 +62,7 @@ export default function MyAttendanceView({
 
   useEffect(() => {
     fetchLeaveRequests();
+    fetchBalances();
   }, []);
 
   async function handleMonthChange(newMonth) {
@@ -167,10 +186,16 @@ export default function MyAttendanceView({
 
         {activeTab === 'leaves' ? (
           <div>
+            <LeaveBalanceCards
+              balanceData={balanceData}
+              loading={loadingBalances}
+              onRefresh={fetchBalances}
+            />
             <MyLeaveRequestsView
               requests={leaveRequests}
               onRefresh={() => {
                 fetchLeaveRequests();
+                fetchBalances();
                 handleMonthChange(month);
               }}
             />
@@ -400,9 +425,11 @@ export default function MyAttendanceView({
 
         <LeaveRequestModal
           isOpen={isLeaveModalOpen}
+          balanceData={balanceData}
           onClose={() => setIsLeaveModalOpen(false)}
           onSubmitted={() => {
             fetchLeaveRequests();
+            fetchBalances();
             handleMonthChange(month);
           }}
         />

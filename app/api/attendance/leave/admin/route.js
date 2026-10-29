@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getAllLeaveRequests, adminProcessLeaveRequest, detectLeaveConflicts } from '@/lib/attendance';
+import {
+  getAllLeaveRequests,
+  adminProcessLeaveRequest,
+  detectLeaveConflicts,
+  getEmployeeLeaveBalances,
+} from '@/lib/attendance';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +35,15 @@ export async function POST(request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { requestId, action, conflictResolutions = {}, reviewerNotes = '', checkConflictsOnly = false } = body;
+    const {
+      requestId,
+      action,
+      conflictResolutions = {},
+      reviewerNotes = '',
+      checkConflictsOnly = false,
+      authorizedPaidDays = null,
+      authorizedLopDays = null,
+    } = body;
 
     if (!requestId) {
       return NextResponse.json({ error: 'Leave Request ID is required.' }, { status: 400 });
@@ -47,7 +60,11 @@ export async function POST(request) {
         startDate: target.start_date,
         endDate: target.end_date,
       });
-      return NextResponse.json({ ok: true, conflicts });
+      const balances = await getEmployeeLeaveBalances({
+        employeeId: target.employee_id,
+        dateInput: target.start_date,
+      });
+      return NextResponse.json({ ok: true, conflicts, balances });
     }
 
     const updated = await adminProcessLeaveRequest({
@@ -56,6 +73,8 @@ export async function POST(request) {
       adminUser: session.user,
       conflictResolutions,
       reviewerNotes,
+      authorizedPaidDays,
+      authorizedLopDays,
     });
 
     return NextResponse.json({ ok: true, leaveRequest: updated });

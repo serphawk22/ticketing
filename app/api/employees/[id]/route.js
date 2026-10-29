@@ -17,6 +17,7 @@ import {
   deleteUserSessions,
   getUserById,
 } from '@/lib/users';
+import { syncEmployeeEmploymentTypeLeaveEligibility } from '@/lib/attendance';
 import { db } from '@/lib/db';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -209,6 +210,24 @@ export async function PATCH(request, { params }) {
     }
   }
 
+  const VALID_EMPLOYMENT_TYPES = ['full_time', 'part_time', 'intern', 'probation', 'freelancer'];
+  const employment_type =
+    body.employment_type !== undefined
+      ? String(body.employment_type).trim().toLowerCase()
+      : existing.employment_type || 'full_time';
+
+  if (body.employment_type !== undefined && !VALID_EMPLOYMENT_TYPES.includes(employment_type)) {
+    return NextResponse.json(
+      { error: `Invalid employment type "${body.employment_type}". Allowed values: ${VALID_EMPLOYMENT_TYPES.join(', ')}` },
+      { status: 400 }
+    );
+  }
+
+  const workspace_id =
+    body.workspace_id !== undefined
+      ? body.workspace_id ? Number(body.workspace_id) : null
+      : existing.workspace_id;
+
   const employee = await updateEmployee(id, {
     name,
     email,
@@ -221,7 +240,26 @@ export async function PATCH(request, { params }) {
     salary_currency,
     last_payment_date,
     payment_status,
+    employment_type,
+    workspace_id,
   });
+
+  // Automatically allocate leave entitlements if employment type or workspace changes
+  const employmentTypeChanged = body.employment_type && body.employment_type !== existing.employment_type;
+  const workspaceChanged = body.workspace_id !== undefined && Number(body.workspace_id) !== Number(existing.workspace_id);
+  if (employmentTypeChanged || workspaceChanged) {
+    try {
+      await syncEmployeeEmploymentTypeLeaveEligibility({
+        employeeId: id,
+        oldType: existing.employment_type,
+        newType: employment_type,
+        newWorkspaceId: workspace_id,
+        adminUser: session.user,
+      });
+    } catch (allocErr) {
+      console.error('[employees] Automatic leave allocation on transition error:', allocErr);
+    }
+  }
 
   // Mirror the change onto the login account
   const linkedUser = existing.user_id
