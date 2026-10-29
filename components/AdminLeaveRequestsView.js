@@ -9,9 +9,12 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Conflict modal state
+  // Conflict & LOP modal state
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [activeRequest, setActiveRequest] = useState(null);
+  const [activeBalances, setActiveBalances] = useState(null);
+  const [authPaidDays, setAuthPaidDays] = useState(0);
+  const [authLopDays, setAuthLopDays] = useState(0);
   const [conflicts, setConflicts] = useState([]);
   const [conflictResolutions, setConflictResolutions] = useState({});
   const [reviewerNotes, setReviewerNotes] = useState('');
@@ -46,7 +49,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
     setProcessing(true);
 
     try {
-      // Pre-scan for conflicts
+      // Pre-scan for conflicts and live balance
       const res = await fetch('/api/attendance/leave/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,19 +58,31 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to inspect attendance conflicts.');
 
+      const balances = data.balances || null;
+      setActiveBalances(balances);
+
+      const cat = balances?.categories?.[req.leave_type];
+      const avail = cat?.remainingBalance ?? 0;
+      const isOver = req.total_working_days > avail;
+      const initialPaid = Math.min(req.total_working_days, Math.max(0, avail));
+      const initialLop = Math.max(0, req.total_working_days - initialPaid);
+
+      setAuthPaidDays(initialPaid);
+      setAuthLopDays(initialLop);
+
       const detected = data.conflicts || [];
-      if (detected.length > 0) {
+      if (detected.length > 0 || isOver) {
         setConflicts(detected);
         const initialResolutions = {};
         for (const c of detected) {
           initialResolutions[c.date] = 'keep_attendance';
         }
         setConflictResolutions(initialResolutions);
-        setReviewerNotes('');
+        setReviewerNotes(isOver ? `Approved with LOP breakdown (${initialPaid}d Paid + ${initialLop}d LOP)` : '');
         setConflictModalOpen(true);
       } else {
-        // Direct clean approval
-        await executeProcess(req.id, 'approve', {}, 'Approved by Admin');
+        // Direct clean approval within entitlement
+        await executeProcess(req.id, 'approve', {}, 'Approved by Admin', req.total_working_days, 0);
       }
     } catch (err) {
       setError(err.message);
@@ -76,7 +91,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
     }
   }
 
-  async function executeProcess(requestId, action, resolutions = {}, notes = '') {
+  async function executeProcess(requestId, action, resolutions = {}, notes = '', paidDays = null, lopDays = null) {
     setProcessing(true);
     setError(null);
 
@@ -89,6 +104,8 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
           action,
           conflictResolutions: resolutions,
           reviewerNotes: notes,
+          authorizedPaidDays: paidDays !== null ? paidDays : authPaidDays,
+          authorizedLopDays: lopDays !== null ? lopDays : authLopDays,
         }),
       });
 
@@ -251,7 +268,12 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                     {r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}
                   </td>
                   <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0c66e4' }}>
-                    {r.total_working_days}d
+                    <div>{r.total_working_days}d</div>
+                    {r.status === 'approved' && r.lop_days > 0 && (
+                      <div style={{ fontSize: '11px', color: '#bf2600', fontWeight: 700 }}>
+                        {r.paid_days || 0}d Paid + {r.lop_days}d LOP
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '12px 16px', color: '#44546f', maxWidth: '200px' }}>
                     <div>{r.reason}</div>
@@ -366,18 +388,78 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
               <span style={{ fontSize: '20px' }}>⚠️</span>
               <div>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#172b4d' }}>
-                  Attendance Conflict Detected
+                  {conflicts.length > 0 && authLopDays > 0
+                    ? 'Attendance Conflict & Loss of Pay (LOP) Authorization'
+                    : conflicts.length > 0
+                    ? 'Attendance Conflict Detected'
+                    : 'Loss of Pay (LOP) Authorization Required'}
                 </h3>
                 <div style={{ fontSize: '12px', color: '#44546f' }}>
-                  Employee has genuine recorded punches on dates within this leave request.
+                  {activeRequest.employee_name} · Requested {activeRequest.total_working_days}d ({activeRequest.leave_type})
                 </div>
               </div>
             </div>
 
             <div style={{ padding: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
-              <div style={{ marginBottom: '16px', fontSize: '13px', color: '#172b4d' }}>
-                Please choose how you wish to resolve each conflicting date:
-              </div>
+              {/* LOP Authorization Card if over-balance */}
+              {(authLopDays > 0 || (activeBalances?.categories?.[activeRequest.leave_type]?.remainingBalance ?? 0) < activeRequest.total_working_days) && (
+                <div style={{
+                  background: '#fffae6',
+                  border: '1px solid #ffe380',
+                  borderRadius: '6px',
+                  padding: '14px 16px',
+                  marginBottom: '16px',
+                }}>
+                  <div style={{ fontWeight: 700, color: '#172b4d', fontSize: '13px', marginBottom: '4px' }}>
+                    Loss of Pay (LOP) Review & Authorization
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#44546f', marginBottom: '12px' }}>
+                    Available balance: <strong>{(activeBalances?.categories?.[activeRequest.leave_type]?.remainingBalance ?? 0).toFixed(1)}d</strong>.
+                    Requested: <strong>{activeRequest.total_working_days}d</strong>.
+                    Explicit authorization is required before approving unpaid/LOP days:
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#006644', marginBottom: '4px' }}>
+                        Authorized Paid Days:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max={activeRequest.total_working_days}
+                        value={authPaidDays}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setAuthPaidDays(val);
+                          setAuthLopDays(Math.max(0, activeRequest.total_working_days - val));
+                        }}
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #dfe1e6', fontSize: '13px', fontWeight: 600 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#bf2600', marginBottom: '4px' }}>
+                        Authorized Loss of Pay (LOP) Days:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max={activeRequest.total_working_days}
+                        value={authLopDays}
+                        onChange={(e) => setAuthLopDays(parseFloat(e.target.value) || 0)}
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #dfe1e6', fontSize: '13px', fontWeight: 600 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {conflicts.length > 0 && (
+                <div style={{ marginBottom: '16px', fontSize: '13px', color: '#172b4d' }}>
+                  Please choose how you wish to resolve each conflicting date:
+                </div>
+              )}
 
               {conflicts.map((c) => (
                 <div key={c.date} style={{
@@ -463,7 +545,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                 disabled={processing}
                 style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: '#0c66e4', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: processing ? 'not-allowed' : 'pointer' }}
               >
-                {processing ? 'Applying...' : 'Confirm Resolution & Approve'}
+                {processing ? 'Applying...' : 'Authorize & Approve Leave'}
               </button>
             </div>
           </div>

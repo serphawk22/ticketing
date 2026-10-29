@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { LEAVE_TYPES } from '@/lib/attendanceMeta';
 
-export default function LeaveRequestModal({ isOpen, onClose, onSubmitted }) {
+export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanceData = null }) {
   const [leaveType, setLeaveType] = useState('casual');
   const [dayType, setDayType] = useState('full_day');
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -15,6 +16,52 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted }) {
   if (!isOpen) return null;
 
   const isHalfDay = dayType === 'first_half' || dayType === 'second_half';
+
+  // Calculate days difference from today for notice check
+  const startMs = new Date(`${startDate}T00:00:00Z`).getTime();
+  const todayMs = new Date(`${todayStr}T00:00:00Z`).getTime();
+  const daysNotice = Math.round((startMs - todayMs) / 86400000);
+
+  // Available balance for selected leave type
+  const data = balanceData?.balances || balanceData;
+  const categoriesMap = data?.categories || {};
+
+  // Build available types dynamically from policy categories
+  let availableTypes = [];
+  const catEntries = Object.entries(categoriesMap).filter(([code]) => code !== 'holidays');
+  if (catEntries.length > 0) {
+    availableTypes = catEntries
+      .filter(([, cat]) => cat.is_active !== false && cat.isEligible !== false && cat.isConfigured !== false)
+      .map(([code, cat]) => ({
+        key: code,
+        label: cat.name || code,
+        remaining: cat.remainingBalance ?? 0,
+        allowPastDates: cat.allowPastDates,
+      }));
+  }
+
+  // Fallback if categories not yet loaded
+  if (availableTypes.length === 0) {
+    const isClEligible = categoriesMap?.casual?.isEligible !== false;
+    const isOptionalConfigured = categoriesMap?.optional?.isConfigured ?? false;
+    availableTypes = LEAVE_TYPES.filter((t) => {
+      if (t.key === 'casual' && !isClEligible) return false;
+      if (t.key === 'optional' && !isOptionalConfigured) return false;
+      return true;
+    }).map((t) => ({
+      key: t.key,
+      label: t.label,
+      remaining: categoriesMap?.[t.key]?.remainingBalance ?? 0,
+    }));
+  }
+
+  // Ensure current leaveType is valid
+  const currentKeyValid = availableTypes.some((t) => t.key === leaveType);
+  const activeTypeKey = currentKeyValid ? leaveType : (availableTypes[0]?.key || 'casual');
+
+  const activeCategory = categoriesMap?.[activeTypeKey];
+  const remainingBalance = activeCategory ? activeCategory.remainingBalance : null;
+  const allowPastDates = activeCategory?.allowPastDates || activeTypeKey === 'sick';
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -127,14 +174,27 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted }) {
                 Leave Type *
               </label>
               <select
-                value={leaveType}
+                value={activeTypeKey}
                 onChange={(e) => setLeaveType(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d', background: '#fff' }}
               >
-                {LEAVE_TYPES.map((t) => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
+                {availableTypes.map((t) => {
+                  const bal = categoriesMap[t.key]?.remainingBalance ?? t.remaining;
+                  const balStr = bal !== undefined && bal !== null ? ` — (${bal.toFixed(1)} days available)` : '';
+                  return (
+                    <option key={t.key} value={t.key}>
+                      {t.label}{balStr}
+                    </option>
+                  );
+                })}
               </select>
+              {remainingBalance !== null && (
+                <div style={{ marginTop: '4px', fontSize: '11px', color: remainingBalance > 0 ? '#006644' : '#bf2600', fontWeight: 600 }}>
+                  {remainingBalance > 0
+                    ? `✓ Available: ${remainingBalance.toFixed(1)} days remaining`
+                    : `⚠️ 0.0 days remaining (Loss of Pay applies)`}
+                </div>
+              )}
             </div>
 
             <div>
@@ -166,6 +226,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted }) {
               <input
                 type="date"
                 value={startDate}
+                min={allowPastDates ? undefined : todayStr}
                 onChange={(e) => {
                   setStartDate(e.target.value);
                   if (isHalfDay) setEndDate(e.target.value);
@@ -191,6 +252,38 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted }) {
               </div>
             )}
           </div>
+
+          {/* 7-Day Advance Notice Advisory for Planned Casual Leave */}
+          {leaveType === 'casual' && daysNotice >= 0 && daysNotice < 7 && (
+            <div style={{
+              background: '#e9f2ff',
+              border: '1px solid #b3d4ff',
+              borderRadius: '6px',
+              padding: '10px 14px',
+              marginBottom: '14px',
+              fontSize: '12px',
+              color: '#0747a6',
+              lineHeight: '1.4'
+            }}>
+              ℹ️ <strong>Advance Notice Guideline:</strong> As per SERP Hawk Leave Policy 2026, planned Casual Leave requests require <strong>7 working days prior notice</strong>. This submission may be subject to additional management review.
+            </div>
+          )}
+
+          {/* LOP Advisory if remaining balance is low or 0 */}
+          {remainingBalance !== null && remainingBalance <= 0 && (
+            <div style={{
+              background: '#fffae6',
+              border: '1px solid #ffe380',
+              borderRadius: '6px',
+              padding: '10px 14px',
+              marginBottom: '14px',
+              fontSize: '12px',
+              color: '#7f5f01',
+              lineHeight: '1.4'
+            }}>
+              ⚠️ <strong>Loss of Pay (LOP) Notice:</strong> Your available balance for {leaveType.toUpperCase()} is <strong>0.0 days</strong>. If approved by Admin, this leave request will be recorded as <strong>Loss of Pay (LOP)</strong>.
+            </div>
+          )}
 
           <div style={{
             background: '#f4f5f7',
