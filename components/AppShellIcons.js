@@ -2,10 +2,6 @@
 
 /**
  * The clipboard the Task Sheet row in the sidebar uses.
- *
- * AppShell's other icons are file-private components, and reaching into that
- * file for one would export a nav detail as public API. This sits beside it so
- * the page heading can show the same mark as the link that brought you there.
  */
 export function ClipboardIcon({ size = 16 }) {
   return (
@@ -67,6 +63,28 @@ export function BarChartIcon({ size = 16 }) {
       <path d="M10 20V7" />
       <path d="M14.5 20v-9" />
       <path d="M19 20V10" />
+    </svg>
+  );
+}
+
+/** People icon for employees and workforce attendance. */
+export function PeopleIcon({ size = 16 }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }

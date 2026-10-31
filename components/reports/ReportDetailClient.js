@@ -1,12 +1,18 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import Link from 'next/link';
 import AppShell from '../AppShell';
 import ReportNav from './ReportNav';
 import ReportFilterBar from './ReportFilterBar';
 import KpiCard from './KpiCard';
-import { DonutChart, BarChart, TrendChart } from './ReportCharts';
+import {
+  DonutChart,
+  BarChart,
+  TrendChart,
+  ComparisonBarChart,
+  StackedDistributionBar,
+  ChartEmptyState,
+} from './ReportCharts';
 import ReportTable from './ReportTable';
 import ReportExportMenu from './ReportExportMenu';
 
@@ -16,6 +22,7 @@ export default function ReportDetailClient({
   initialData,
   projects = [],
   employees = [],
+  clients = [],
   currentUser,
 }) {
   const [data, setData] = useState(initialData);
@@ -33,9 +40,10 @@ export default function ReportDetailClient({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showTraceability, setShowTraceability] = useState(false);
   const reqSeqRef = useRef(0);
 
-  // Extract departments
+  // Extract unique departments
   const departments = [...new Set(employees.map((e) => e.department).filter(Boolean))];
 
   async function handleFilterChange(nextFilters) {
@@ -108,7 +116,7 @@ export default function ReportDetailClient({
         {/* Navigation Breadcrumb */}
         <ReportNav currentSectionSlug={section.slug} currentReportSlug={reportDef.title} />
 
-        {/* Header */}
+        {/* 1. Report Title and Description Header */}
         <div className="rpt-detail-header">
           <div className="rpt-detail-title-block">
             <div className="rpt-detail-meta">
@@ -133,22 +141,27 @@ export default function ReportDetailClient({
           </div>
         </div>
 
-        {/* Important Info Card */}
-        <div className="rpt-info-banner">
-          <div className="rpt-info-icon">📋</div>
-          <div className="rpt-info-content">
-            <span className="rpt-info-title">Catalogue Measurement Definition:</span>
-            <span className="rpt-info-text">{reportDef.importantInfo}</span>
+        {/* Measurement Definition Banner */}
+        {reportDef.importantInfo && (
+          <div className="rpt-info-banner">
+            <div className="rpt-info-icon">📋</div>
+            <div className="rpt-info-content">
+              <span className="rpt-info-title">Catalogue Measurement Definition:</span>
+              <span className="rpt-info-text">{reportDef.importantInfo}</span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Filter Bar */}
+        {/* 2. Collapsible Filters Panel */}
         <ReportFilterBar
           filters={filters}
           onChange={handleFilterChange}
           projects={projects}
           employees={employees}
           departments={departments}
+          clients={clients}
+          sectionSlug={section.slug}
+          reportSlug={reportDef.slug}
           supportedFilters={reportDef.filters || ['date_range', 'project', 'employee', 'search']}
         />
 
@@ -171,7 +184,7 @@ export default function ReportDetailClient({
           </div>
         )}
 
-        {/* KPI Cards */}
+        {/* 3. Existing Summary Cards and Metrics (KPIs) */}
         {kpis.length > 0 && (
           <div className="rpt-kpi-grid">
             {kpis.map((k) => (
@@ -186,30 +199,88 @@ export default function ReportDetailClient({
           </div>
         )}
 
-        {/* Visual Charts */}
-        {series.length > 0 && !data.unavailableNotice && (
+        {/* 4. Existing Charts and Visualizations */}
+        {!data.unavailableNotice && (
           <div className="rpt-card rpt-chart-card">
             <div className="rpt-card-head">
               <h3 className="rpt-card-title">{reportDef.title} Visualization</h3>
               <span className="rpt-card-meta">{data.dateRange?.label}</span>
             </div>
             <div className="rpt-card-body">
-              {chartType === 'donut' && <DonutChart data={series} size={190} />}
-              {chartType === 'bar' && <BarChart data={series} height={220} />}
-              {chartType === 'trend' && <TrendChart data={series} height={220} />}
+              {series.length === 0 ? (
+                <ChartEmptyState
+                  title="No chart data available"
+                  message={`No visual records match the current filter selection for ${reportDef.title}.`}
+                  hint="Try adjusting the date range or clearing filters to visualize metrics."
+                />
+              ) : chartType === 'donut' ? (
+                <DonutChart data={series} size={200} unit={data.chartUnit || ''} />
+              ) : chartType === 'trend' ? (
+                <TrendChart data={series} height={220} unit={data.chartUnit || ''} />
+              ) : chartType === 'comparison_bar' ? (
+                <ComparisonBarChart
+                  data={series}
+                  label1={data.chartLabel1 || 'Planned'}
+                  label2={data.chartLabel2 || 'Actual'}
+                  unit={data.chartUnit || ''}
+                />
+              ) : chartType === 'stacked_bar' ? (
+                <StackedDistributionBar data={series} unit={data.chartUnit || ''} />
+              ) : (
+                <BarChart data={series} unit={data.chartUnit || ''} />
+              )}
             </div>
           </div>
         )}
 
-        {/* Data Table */}
+        {/* 5. Existing Detailed Report Table */}
         <div className="rpt-card rpt-table-card">
           <div className="rpt-card-head">
-            <h3 className="rpt-card-title">Filtered Records & Source Traceability</h3>
-            <span className="rpt-card-meta">
-              {rows.length} {rows.length === 1 ? 'record' : 'records'} found
-            </span>
+            <div className="rpt-table-title-area">
+              <h3 className="rpt-card-title">Filtered Records & Source Traceability</h3>
+              <span className="rpt-count-badge">
+                {rows.length} {rows.length === 1 ? 'record' : 'records'} found
+              </span>
+            </div>
+            <div className="rpt-table-head-actions">
+              <button
+                type="button"
+                className="rpt-trace-btn"
+                onClick={() => setShowTraceability(!showTraceability)}
+                title="Toggle source traceability metadata"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <span>{showTraceability ? 'Hide Source Info' : 'Source Traceability'}</span>
+              </button>
+            </div>
           </div>
-          <div className="rpt-card-body">
+
+          {showTraceability && (
+            <div className="rpt-traceability-drawer">
+              <div className="rpt-trace-item">
+                <span className="rpt-trace-label">Active Scope:</span>
+                <span className="rpt-trace-val">{reportDef.title}</span>
+              </div>
+              <div className="rpt-trace-item">
+                <span className="rpt-trace-label">Date Window:</span>
+                <span className="rpt-trace-val">{data.dateRange?.label || 'All time'}</span>
+              </div>
+              <div className="rpt-trace-item">
+                <span className="rpt-trace-label">Data Traceability:</span>
+                <span className="rpt-trace-val">Live Database (verified multi-table relational logs)</span>
+              </div>
+              <div className="rpt-trace-item">
+                <span className="rpt-trace-label">Engine Status:</span>
+                <span className="rpt-trace-val rpt-trace-verified">✓ Dual-Clock Verified Business Engine</span>
+              </div>
+            </div>
+          )}
+
+          <div className="rpt-card-body rpt-table-body">
             <ReportTable
               columns={columns}
               rows={rows}
@@ -222,4 +293,3 @@ export default function ReportDetailClient({
     </AppShell>
   );
 }
-

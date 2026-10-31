@@ -358,9 +358,16 @@ export default function ProjectSummary({
         <div className="summary-filters">
           <div className="summary-avatars" aria-label="People with work in this project">
             {people.slice(0, 6).map((p) => (
-              <span key={p.id} className="summary-avatar" title={`${p.name} — ${p.project_count}`}>
-                <Avatar name={p.name} size={28} />
-              </span>
+              <button
+                key={p.id}
+                type="button"
+                className={`summary-avatar${assignee === String(p.id) ? ' is-active' : ''}`}
+                title={`${p.name} — ${p.project_count} ticket${p.project_count !== 1 ? 's' : ''}`}
+                aria-pressed={assignee === String(p.id)}
+                onClick={() => setAssignee(assignee === String(p.id) ? 'all' : String(p.id))}
+              >
+                <Avatar name={p.name} assigned size={28} showTitle={false} />
+              </button>
             ))}
             {people.length === 0 && (
               <span className="summary-avatars-empty">Nobody assigned yet</span>

@@ -51,10 +51,13 @@ export async function GET(request) {
   // A client account is scoped to its own requests. The team roles read the
   // whole board as before, or scoped by project if projectId is supplied.
   let tickets;
-  if (projectId && Number.isInteger(projectId)) {
-    tickets = await getTicketsForProject(projectId);
-  } else if (session.user.role === 'client') {
+  if (session.user.role === 'client') {
     tickets = await getTicketsForClient(session.user.id);
+    if (projectId && Number.isInteger(projectId)) {
+      tickets = tickets.filter((t) => t.project_id === projectId);
+    }
+  } else if (projectId && Number.isInteger(projectId)) {
+    tickets = await getTicketsForProject(projectId);
   } else {
     tickets = await getAllTickets();
   }

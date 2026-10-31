@@ -13,6 +13,7 @@ import { useInitialWorkspaces } from './WorkspacesProvider';
 import { ticketKey } from './meta';
 import ThemeToggle from './ThemeToggle';
 import NotificationBell from './NotificationBell';
+import { useToasts, Toaster } from './Toaster';
 import {
   SIDEBAR_SECTION_IDS,
   createDefaultSidebarPreferences,
@@ -123,12 +124,12 @@ function GripIcon() {
   );
 }
 
-function StarIcon({ filled = false }) {
+export function StarIcon({ filled = false, size = 14 }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="14"
-      height="14"
+      width={size}
+      height={size}
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth="1.8"
@@ -180,10 +181,14 @@ function orderSectionIds(prefs, isAdmin) {
 }
 
 function orderWorkspaceList(workspaces, prefs) {
+  return sortWithFavorites(workspaces, prefs.workspaceOrder, () => false);
+}
+
+function orderProjectList(projectList, prefs) {
   return sortWithFavorites(
-    workspaces,
-    prefs.workspaceOrder,
-    (w) => prefs.workspaces[String(w.id)]?.favorite
+    projectList,
+    prefs?.projectOrder || [],
+    (p) => prefs?.projects?.[String(p.id)]?.favorite
   );
 }
 
@@ -212,6 +217,7 @@ export default function AppShell({
   onCreate,
   children,
 }) {
+  const { toasts, push: pushToast, dismiss: dismissToast, pause: pauseToast, resume: resumeToast } = useToasts();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -579,6 +585,24 @@ export default function AppShell({
     }));
   }
 
+  function projectPref(id) {
+    return sidebarPrefs.projects?.[String(id)] || {};
+  }
+
+  function toggleProjectFavorite(id) {
+    const keyId = String(id);
+    setSidebarPrefs((prev) => ({
+      ...prev,
+      projects: {
+        ...(prev.projects || {}),
+        [keyId]: {
+          ...prev.projects?.[keyId],
+          favorite: !prev.projects?.[keyId]?.favorite,
+        },
+      },
+    }));
+  }
+
   function moveWorkspace(id, delta) {
     setSidebarPrefs((prev) => {
       const order = orderWorkspaceList(workspaces, prev).map((w) => String(w.id));
@@ -629,8 +653,13 @@ export default function AppShell({
     const menuKey = `project:${p.id}`;
     const isActive =
       projectId != null && String(projectId) === String(p.id);
+    const pref = projectPref(p.id);
+    const isFav = Boolean(pref.favorite);
     return (
-      <div className="nav-item-wrap" key={p.id}>
+      <div
+        className={`nav-item-wrap${isFav ? ' is-favorite' : ''}${isAdmin ? ' has-actions' : ''}`}
+        key={p.id}
+      >
         <Link
           href={`/projects/${p.id}/summary`}
           className={`nav-item${isActive ? ' active' : ''}`}
@@ -647,6 +676,19 @@ export default function AppShell({
             {projectCounts?.[p.id] ?? p.open_count ?? 0}
           </span>
         </Link>
+        <button
+          type="button"
+          className={`nav-favorite${isFav ? ' is-active' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleProjectFavorite(p.id);
+          }}
+          aria-pressed={isFav}
+          aria-label={`${isFav ? 'Unfavorite' : 'Favorite'} ${p.name}`}
+          title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <StarIcon filled={isFav} />
+        </button>
         {isAdmin && (
           <div className="nav-row-actions">
             <button
@@ -759,6 +801,24 @@ export default function AppShell({
               <span className="nav-text">Sheet History</span>
             </Link>
           )}
+          <Link
+            href="/my-attendance"
+            className={`nav-item${view === 'my-attendance' ? ' active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <ClipboardIcon />
+            <span className="nav-text">My Attendance</span>
+          </Link>
+          {isAdmin && (
+            <Link
+              href="/attendance"
+              className={`nav-item${view === 'attendance-management' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChartIcon />
+              <span className="nav-text">Attendance</span>
+            </Link>
+          )}
         </>
       );
     }
@@ -804,7 +864,7 @@ export default function AppShell({
               const prefs = workspacePref(w.id);
               return (
                 <div
-                  className={`nav-workspace${prefs.favorite ? ' is-favorite' : ''}`}
+                  className="nav-workspace"
                   key={w.id}
                 >
                   <div
@@ -860,16 +920,6 @@ export default function AppShell({
                       <span className="nav-text">{w.name}</span>
                       <span className="nav-count">{members.length}</span>
                     </button>
-                    <button
-                      type="button"
-                      className={`nav-favorite${prefs.favorite ? ' is-active' : ''}`}
-                      onClick={() => updateWorkspacePref(w.id, 'favorite')}
-                      aria-pressed={Boolean(prefs.favorite)}
-                      aria-label={`${prefs.favorite ? 'Unfavorite' : 'Favorite'} ${w.name}`}
-                      title={prefs.favorite ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      <StarIcon filled={Boolean(prefs.favorite)} />
-                    </button>
                     {isAdmin && (
                       <button
                         className="nav-workspace-add"
@@ -923,12 +973,12 @@ export default function AppShell({
                       </div>
                     )}
                   </div>
-                  {!prefs.collapsed && members.map(renderProjectItem)}
+                  {!prefs.collapsed && orderProjectList(members, sidebarPrefs).map(renderProjectItem)}
                 </div>
               );
             })}
 
-          {workspacesLoaded && ungrouped.map(renderProjectItem)}
+          {workspacesLoaded && orderProjectList(ungrouped, sidebarPrefs).map(renderProjectItem)}
         </>
       );
     }
@@ -1342,6 +1392,7 @@ export default function AppShell({
 
         {children}
       </div>
+      <Toaster toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
     </div>
   );
 }

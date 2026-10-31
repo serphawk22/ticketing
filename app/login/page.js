@@ -346,29 +346,6 @@ export default function LoginPage() {
             </button>
           )}
 
-          <div className="auth-split-demo">
-            <div className="auth-split-demo-divider">
-              <span>Demo accounts</span>
-            </div>
-            <div className="auth-split-demo-list">
-              <div className="auth-split-demo-row">
-                <span className="auth-split-demo-role">Admin</span>
-                <span className="auth-split-demo-creds">
-                  <code>admin@example.com</code>
-                  <span className="auth-split-demo-sep">/</span>
-                  <code>admin123</code>
-                </span>
-              </div>
-              <div className="auth-split-demo-row">
-                <span className="auth-split-demo-role">Developer</span>
-                <span className="auth-split-demo-creds">
-                  <code>dev@example.com</code>
-                  <span className="auth-split-demo-sep">/</span>
-                  <code>dev123</code>
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </main>
