@@ -39,31 +39,31 @@ export default function MyLeaveRequestsView({ requests = [], onRefresh }) {
       case 'rejected':
         return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#ffebe6', color: '#bf2600' }}>Rejected</span>;
       case 'cancelled':
-        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#f4f5f7', color: '#44546f' }}>Cancelled</span>;
+        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'var(--surface-muted)', color: 'var(--neutral-text)' }}>Cancelled</span>;
       default:
-        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#fff0b3', color: '#172b4d' }}>Pending Review</span>;
+        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'var(--warning-banner-bg)', color: 'var(--text)' }}>Pending Review</span>;
     }
   };
 
   if (!requests || requests.length === 0) {
     return (
       <div style={{
-        background: '#fff',
+        background: 'var(--bg-elevated)',
         borderRadius: '8px',
-        border: '1px solid #ebecf0',
+        border: '1px solid var(--border-subtle)',
         padding: '36px 20px',
         textAlign: 'center',
-        color: '#6b778c'
+        color: 'var(--muted)'
       }}>
         <div style={{ fontSize: '24px', marginBottom: '8px' }}>🏖️</div>
-        <div style={{ fontSize: '14px', fontWeight: 600, color: '#172b4d' }}>No Leave Requests Found</div>
+        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>No Leave Requests Found</div>
         <div style={{ fontSize: '12px', marginTop: '4px' }}>You have not submitted any leave requests yet.</div>
       </div>
     );
   }
 
   return (
-    <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #ebecf0', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
       {error && (
         <div style={{ background: '#ffebe6', color: '#bf2600', padding: '10px 16px', fontSize: '13px', borderBottom: '1px solid #ffbdad' }}>
           {error}
@@ -72,7 +72,7 @@ export default function MyLeaveRequestsView({ requests = [], onRefresh }) {
 
       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
         <thead>
-          <tr style={{ background: '#f4f5f7', borderBottom: '1px solid #ebecf0', color: '#44546f' }}>
+          <tr style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--neutral-text)' }}>
             <th style={{ padding: '10px 16px', fontWeight: 600 }}>Leave Type</th>
             <th style={{ padding: '10px 16px', fontWeight: 600 }}>Duration / Shift</th>
             <th style={{ padding: '10px 16px', fontWeight: 600 }}>Dates</th>
@@ -84,28 +84,28 @@ export default function MyLeaveRequestsView({ requests = [], onRefresh }) {
         </thead>
         <tbody>
           {requests.map((r) => (
-            <tr key={r.id} style={{ borderBottom: '1px solid #ebecf0' }}>
-              <td style={{ padding: '12px 16px', fontWeight: 600, color: '#172b4d' }}>
+            <tr key={r.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text)' }}>
                 {getLeaveTypeLabel(r.leave_type)}
               </td>
-              <td style={{ padding: '12px 16px', color: '#44546f' }}>
+              <td style={{ padding: '12px 16px', color: 'var(--neutral-text)' }}>
                 {getLeaveDayTypeLabel(r.day_type)}
               </td>
-              <td style={{ padding: '12px 16px', color: '#172b4d' }}>
+              <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
                 {r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}
               </td>
-              <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0c66e4' }}>
+              <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-link)' }}>
                 <div>{r.total_working_days}d</div>
                 {r.status === 'approved' && r.lop_days > 0 && (
-                  <div style={{ fontSize: '11px', color: '#bf2600', fontWeight: 700 }}>
+                  <div style={{ fontSize: '11px', color: 'var(--danger)', fontWeight: 700 }}>
                     {r.paid_days || 0}d Paid + {r.lop_days}d LOP
                   </div>
                 )}
               </td>
-              <td style={{ padding: '12px 16px', color: '#44546f', maxWidth: '240px' }}>
+              <td style={{ padding: '12px 16px', color: 'var(--neutral-text)', maxWidth: '240px' }}>
                 <div>{r.reason}</div>
                 {r.reviewer_notes && (
-                  <div style={{ fontSize: '11px', color: '#6b778c', marginTop: '4px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
                     <strong>Admin Note:</strong> {r.reviewer_notes}
                   </div>
                 )}
@@ -121,10 +121,10 @@ export default function MyLeaveRequestsView({ requests = [], onRefresh }) {
                     style={{
                       padding: '4px 10px',
                       borderRadius: '4px',
-                      border: '1px solid #dfe1e6',
-                      background: '#fff',
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-elevated)',
                       fontSize: '12px',
-                      color: '#bf2600',
+                      color: 'var(--danger)',
                       fontWeight: 600,
                       cursor: 'pointer'
                     }}
@@ -132,7 +132,7 @@ export default function MyLeaveRequestsView({ requests = [], onRefresh }) {
                     {cancellingId === r.id ? 'Cancelling...' : 'Cancel'}
                   </button>
                 ) : (
-                  <span style={{ fontSize: '12px', color: '#8993a4' }}>—</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>—</span>
                 )}
               </td>
             </tr>

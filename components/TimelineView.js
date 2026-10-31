@@ -634,7 +634,7 @@ export default function TimelineView({
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Projects</Link>
+              <Link href="/projects">Workspaces</Link>
               <span className="breadcrumb-sep" aria-hidden="true">/</span>
               <span>{project.name}</span>
             </nav>

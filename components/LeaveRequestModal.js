@@ -121,7 +121,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
       padding: '16px'
     }}>
       <div style={{
-        background: '#ffffff',
+        background: 'var(--bg-elevated)',
         borderRadius: '8px',
         maxWidth: '520px',
         width: '100%',
@@ -130,13 +130,13 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
       }}>
         <div style={{
           padding: '16px 20px',
-          borderBottom: '1px solid #ebecf0',
+          borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: '#f4f5f7'
+          background: 'var(--surface-muted)'
         }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#172b4d' }}>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
             Apply for Leave
           </h3>
           <button
@@ -146,7 +146,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
               border: 'none',
               fontSize: '18px',
               cursor: 'pointer',
-              color: '#6b778c'
+              color: 'var(--muted)'
             }}
           >
             ×
@@ -170,13 +170,13 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                 Leave Type *
               </label>
               <select
                 value={activeTypeKey}
                 onChange={(e) => setLeaveType(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d', background: '#fff' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)', background: 'var(--bg-elevated)' }}
               >
                 {availableTypes.map((t) => {
                   const bal = categoriesMap[t.key]?.remainingBalance ?? t.remaining;
@@ -189,7 +189,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
                 })}
               </select>
               {remainingBalance !== null && (
-                <div style={{ marginTop: '4px', fontSize: '11px', color: remainingBalance > 0 ? '#006644' : '#bf2600', fontWeight: 600 }}>
+                <div style={{ marginTop: '4px', fontSize: '11px', color: remainingBalance > 0 ? 'var(--text-link)' : 'var(--danger)', fontWeight: 600 }}>
                   {remainingBalance > 0
                     ? `✓ Available: ${remainingBalance.toFixed(1)} days remaining`
                     : `⚠️ 0.0 days remaining (Loss of Pay applies)`}
@@ -198,7 +198,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                 Duration Type *
               </label>
               <select
@@ -209,7 +209,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
                     setEndDate(startDate);
                   }
                 }}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d', background: '#fff' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)', background: 'var(--bg-elevated)' }}
               >
                 <option value="full_day">Full Day</option>
                 <option value="first_half">First Half (09:00 AM – 01:00 PM)</option>
@@ -220,7 +220,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
 
           <div style={{ display: 'grid', gridTemplateColumns: isHalfDay ? '1fr' : '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                 {isHalfDay ? 'Leave Date *' : 'Start Date *'}
               </label>
               <input
@@ -232,13 +232,13 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
                   if (isHalfDay) setEndDate(e.target.value);
                 }}
                 required
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)' }}
               />
             </div>
 
             {!isHalfDay && (
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                   End Date *
                 </label>
                 <input
@@ -247,7 +247,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
                   onChange={(e) => setEndDate(e.target.value)}
                   min={startDate}
                   required
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)' }}
                 />
               </div>
             )}
@@ -256,13 +256,13 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
           {/* 7-Day Advance Notice Advisory for Planned Casual Leave */}
           {leaveType === 'casual' && daysNotice >= 0 && daysNotice < 7 && (
             <div style={{
-              background: '#e9f2ff',
-              border: '1px solid #b3d4ff',
+              background: 'var(--bg-selected)',
+              border: '1px solid var(--border)',
               borderRadius: '6px',
               padding: '10px 14px',
               marginBottom: '14px',
               fontSize: '12px',
-              color: '#0747a6',
+              color: 'var(--text-link)',
               lineHeight: '1.4'
             }}>
               ℹ️ <strong>Advance Notice Guideline:</strong> As per SERP Hawk Leave Policy 2026, planned Casual Leave requests require <strong>7 working days prior notice</strong>. This submission may be subject to additional management review.
@@ -272,13 +272,13 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
           {/* LOP Advisory if remaining balance is low or 0 */}
           {remainingBalance !== null && remainingBalance <= 0 && (
             <div style={{
-              background: '#fffae6',
-              border: '1px solid #ffe380',
+              background: 'var(--warning-banner-bg)',
+              border: '1px solid var(--warning-border, #ffe380)',
               borderRadius: '6px',
               padding: '10px 14px',
               marginBottom: '14px',
               fontSize: '12px',
-              color: '#7f5f01',
+              color: 'var(--text)',
               lineHeight: '1.4'
             }}>
               ⚠️ <strong>Loss of Pay (LOP) Notice:</strong> Your available balance for {leaveType.toUpperCase()} is <strong>0.0 days</strong>. If approved by Admin, this leave request will be recorded as <strong>Loss of Pay (LOP)</strong>.
@@ -286,18 +286,18 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
           )}
 
           <div style={{
-            background: '#f4f5f7',
+            background: 'var(--surface-muted)',
             borderRadius: '6px',
             padding: '10px 14px',
             marginBottom: '16px',
             fontSize: '12px',
-            color: '#44546f'
+            color: 'var(--neutral-text)'
           }}>
             ℹ️ <strong>Working-Day Accounting:</strong> Sundays and official company holidays within your selected dates are automatically excluded from leave consumption.
           </div>
 
           <div style={{ marginBottom: '18px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
               Reason for Leave * (Minimum 5 characters)
             </label>
             <textarea
@@ -306,7 +306,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g., Medical appointment, family event, personal travel..."
               required
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d' }}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)' }}
             />
           </div>
 
@@ -318,11 +318,11 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
-                border: '1px solid #dfe1e6',
-                background: '#fff',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-elevated)',
                 fontSize: '13px',
                 fontWeight: 600,
-                color: '#44546f',
+                color: 'var(--neutral-text)',
                 cursor: 'pointer'
               }}
             >
@@ -335,10 +335,10 @@ export default function LeaveRequestModal({ isOpen, onClose, onSubmitted, balanc
                 padding: '8px 18px',
                 borderRadius: '6px',
                 border: 'none',
-                background: '#0c66e4',
+                background: 'var(--primary)',
                 fontSize: '13px',
                 fontWeight: 600,
-                color: '#fff',
+                color: 'var(--primary-text)',
                 cursor: loading ? 'not-allowed' : 'pointer'
               }}
             >

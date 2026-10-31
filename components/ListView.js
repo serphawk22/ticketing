@@ -224,9 +224,27 @@ export default function ListView({
   projectCounts,
   myIssuesCount,
   currentUser,
+  allTickets = [],
 }) {
   const router = useRouter();
-  const [tickets, setTickets] = useState(initialTickets);
+  const [tickets, setTickets] = useState(() => {
+    const base = initialTickets || [];
+    const projectIdInit = project?.id ?? null;
+    if (projectIdInit == null || !Array.isArray(allTickets) || allTickets.length === 0) {
+      return base;
+    }
+    const merged = new Map();
+    for (const t of base) merged.set(t.id, t);
+    for (const t of allTickets) {
+      if (t.project_id == projectIdInit) {
+        if (!merged.has(t.id)) merged.set(t.id, t);
+      } else if (merged.has(t.parent_id)) {
+        // Include children that might belong to different project but reference parent in this project
+        if (!merged.has(t.id)) merged.set(t.id, t);
+      }
+    }
+    return Array.from(merged.values());
+  });
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
   const [group, setGroup] = useState('none');
@@ -753,8 +771,18 @@ export default function ListView({
 
   const applyTicketUpdate = useCallback((next) => {
     if (!next) return;
-    setTickets((ts) => ts.map((t) => (t.id === next.id ? { ...t, ...next } : t)));
-  }, []);
+    setTickets((ts) => {
+      const exists = ts.some((t) => t.id === next.id);
+      if (exists) {
+        return ts.map((t) => (t.id === next.id ? { ...t, ...next } : t));
+      }
+      // If we don't have it in the current project list, try to include it if it belongs to this project
+      if (projectId != null && next.project_id == projectId) {
+        return [...ts, next];
+      }
+      return ts;
+    });
+  }, [projectId]);
 
   function openTicket(id) {
     const found = tickets.find((t) => t.id === id);
@@ -1198,7 +1226,7 @@ export default function ListView({
 
         <PageHeader
           breadcrumb={[
-            { label: 'Projects', href: '/projects' },
+            { label: 'Workspaces', href: '/projects' },
             { label: project?.name || 'All work items' },
           ]}
           title={project?.name || 'All work items'}
@@ -1583,7 +1611,28 @@ export default function ListView({
           onClose={modal.close}
           onNext={modal.next}
           onPrev={modal.prev}
-          onTicketChanged={applyTicketUpdate}
+          onTicketChanged={(updated) => {
+            if (!updated) return;
+            setTickets((ts) => {
+              const exists = ts.some((t) => t.id === updated.id);
+              if (exists) {
+                return ts.map((t) => (t.id === updated.id ? { ...t, ...updated } : t));
+              }
+              if (projectId != null && updated.project_id == projectId) {
+                return [...ts, updated];
+              }
+              return ts;
+            });
+            // Ensure parent branch is expanded to show new child
+            if (updated.parent_id) {
+              setCollapsedParents((prev) => {
+                const next = new Set(prev);
+                next.delete(updated.parent_id);
+                writeCollapsed(projectId, next);
+                return next;
+              });
+            }
+          }}
           onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
         />
@@ -1686,16 +1735,36 @@ export default function ListView({
             setShowCreate(false);
             const parent = createParent;
             setCreateParent(null);
-            const res = await fetch('/api/tickets');
+            const res = await fetch(projectId != null ? `/api/tickets?projectId=${projectId}` : '/api/tickets');
             const data = await res.json();
             if (!res.ok) return;
-            setTickets(data.tickets.filter((t) => t.project_id === projectId));
+            if (data.tickets) {
+              const projectScoped = projectId != null ? data.tickets.filter((t) => t.project_id === projectId) : data.tickets;
+              setTickets((prev) => {
+                const merged = new Map();
+                for (const t of prev) merged.set(t.id, t);
+                for (const t of projectScoped) merged.set(t.id, t);
+                // also ensure any child whose parent is in project is included
+                if (projectId != null) {
+                  for (const t of data.tickets) {
+                    if (t.parent_id && merged.has(t.parent_id) && t.project_id == projectId) {
+                      merged.set(t.id, t);
+                    } else if (t.parent_id && merged.has(t.parent_id)) {
+                      // include child even if project differs
+                      merged.set(t.id, t);
+                    }
+                  }
+                }
+                return Array.from(merged.values());
+              });
+            }
             // Make sure the branch that just grew is open, so the new child is
             // on screen without the user having to go looking for it.
             if (parent) {
               setCollapsedParents((prev) => {
                 const next = new Set(prev);
                 next.delete(parent.id);
+                writeCollapsed(projectId, next);
                 return next;
               });
             }

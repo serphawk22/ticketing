@@ -290,7 +290,7 @@ export default function Board({
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/">Projects</Link>
+              <Link href="/projects">Workspaces</Link>
               {activeProject && (
                 <>
                   <span className="breadcrumb-sep" aria-hidden="true">

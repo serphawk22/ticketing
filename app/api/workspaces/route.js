@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getAllWorkspaces, createWorkspace, getWorkspaceByKey } from '@/lib/workspaces';
+import { getAllWorkspaces, createWorkspace, getWorkspaceByKey, getWorkspaceByName } from '@/lib/workspaces';
 import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
 
 export async function GET() {
@@ -42,6 +42,13 @@ export async function POST(request) {
     return NextResponse.json(
       { error: 'Workspace color must be a hex value.' },
       { status: 400 }
+    );
+  }
+
+  if (await getWorkspaceByName(name)) {
+    return NextResponse.json(
+      { error: `A workspace named "${name.trim()}" already exists.` },
+      { status: 409 }
     );
   }
 

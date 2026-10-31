@@ -113,7 +113,7 @@ export default function MyAttendanceView({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '8px 16px',
-                background: '#0c66e4',
+                background: 'var(--primary)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '6px',
@@ -132,7 +132,7 @@ export default function MyAttendanceView({
         <div style={{
           display: 'flex',
           gap: '8px',
-          borderBottom: '2px solid #ebecf0',
+          borderBottom: '2px solid var(--border-subtle)',
           marginBottom: '20px'
         }}>
           <button
@@ -143,8 +143,8 @@ export default function MyAttendanceView({
               background: 'none',
               fontSize: '14px',
               fontWeight: 600,
-              color: activeTab === 'attendance' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'attendance' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'attendance' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'attendance' ? '2px solid var(--text-link)' : '2px solid transparent',
               marginBottom: '-2px',
               cursor: 'pointer'
             }}
@@ -159,8 +159,8 @@ export default function MyAttendanceView({
               background: 'none',
               fontSize: '14px',
               fontWeight: 600,
-              color: activeTab === 'leaves' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'leaves' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'leaves' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'leaves' ? '2px solid var(--text-link)' : '2px solid transparent',
               marginBottom: '-2px',
               cursor: 'pointer',
               display: 'flex',
@@ -171,8 +171,8 @@ export default function MyAttendanceView({
             🏖️ My Leave Requests
             {leaveRequests.some((r) => r.status === 'pending') && (
               <span style={{
-                background: '#fff0b3',
-                color: '#172b4d',
+                background: 'var(--warning-banner-bg)',
+                color: 'var(--text)',
                 fontSize: '11px',
                 padding: '1px 6px',
                 borderRadius: '10px',
@@ -207,15 +207,15 @@ export default function MyAttendanceView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              background: '#ffffff',
+              background: 'var(--bg-elevated)',
               padding: '16px 20px',
               borderRadius: '8px',
-              border: '1px solid #ebecf0',
+              border: '1px solid var(--border-subtle)',
               marginBottom: '20px',
               boxShadow: '0 1px 2px rgba(9, 30, 66, 0.05)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontWeight: 600, fontSize: '14px', color: '#172b4d' }}>Selected Month:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>Selected Month:</span>
                 <input
                   type="month"
                   value={month}
@@ -223,15 +223,16 @@ export default function MyAttendanceView({
                   style={{
                     padding: '6px 12px',
                     borderRadius: '6px',
-                    border: '1px solid #dfe1e6',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
                     fontSize: '14px',
-                    color: '#172b4d',
+                    color: 'var(--text)',
                     outline: 'none',
                   }}
                 />
               </div>
 
-              <div style={{ fontSize: '13px', color: '#626f86' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-subtle)' }}>
                 Office Hours: <strong>9:00 AM – 5:00 PM</strong> · Lunch: <strong>12:30 PM – 1:00 PM</strong> (Asia/Kolkata)
               </div>
             </div>
@@ -239,7 +240,7 @@ export default function MyAttendanceView({
             {error && (
               <div style={{
                 background: '#ffebe6',
-                color: '#ae2e24',
+                color: 'var(--danger)',
                 padding: '12px 16px',
                 borderRadius: '6px',
                 marginBottom: '16px',
@@ -256,73 +257,73 @@ export default function MyAttendanceView({
               gap: '14px',
               marginBottom: '24px'
             }}>
-              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #ebecf0', borderLeft: '4px solid #22c55e' }}>
-                <span style={{ fontSize: '12px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Present / Full Day</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #22c55e' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Present / Full Day</span>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#166534', marginTop: '4px' }}>
                   {summary.presentCount || 0}
                 </div>
-                <span style={{ fontSize: '12px', color: '#8590a2' }}>Days present</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>Days present</span>
               </div>
 
-              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #ebecf0', borderLeft: '4px solid #f59e0b' }}>
-                <span style={{ fontSize: '12px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Late Arrivals</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #f59e0b' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Late Arrivals</span>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#974f00', marginTop: '4px' }}>
                   {summary.lateCount || 0}
                 </div>
-                <span style={{ fontSize: '12px', color: '#8590a2' }}>Check-in after 11:30 AM</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>Check-in after 11:30 AM</span>
               </div>
 
-              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #ebecf0', borderLeft: '4px solid #9333ea' }}>
-                <span style={{ fontSize: '12px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Half Days</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #9333ea' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Half Days</span>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#6b21a8', marginTop: '4px' }}>
                   {summary.halfDayCount || 0}
                 </div>
-                <span style={{ fontSize: '12px', color: '#8590a2' }}>Check-in after 12:01 PM</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>Check-in after 12:01 PM</span>
               </div>
 
-              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #ebecf0', borderLeft: '4px solid #6b21a8' }}>
-                <span style={{ fontSize: '12px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Approved Leaves</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #6b21a8' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Approved Leaves</span>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#581c87', marginTop: '4px' }}>
                   {summary.onLeaveCount || 0}d
                 </div>
-                <span style={{ fontSize: '12px', color: '#8590a2' }}>Authorized leave days</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>Authorized leave days</span>
               </div>
 
-              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #ebecf0', borderLeft: '4px solid #ef4444' }}>
-                <span style={{ fontSize: '12px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Confirmed Absences</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid #ef4444' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Confirmed Absences</span>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#991b1b', marginTop: '4px' }}>
                   {summary.confirmedAbsentCount || 0}
                 </div>
-                <span style={{ fontSize: '12px', color: '#8590a2' }}>Recorded absent days</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>Recorded absent days</span>
               </div>
 
-              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', border: '1px solid #ebecf0', borderLeft: '4px solid #0c66e4' }}>
-                <span style={{ fontSize: '12px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Total Hours</span>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: '#0c66e4', marginTop: '4px' }}>
+              <div style={{ background: 'var(--bg-elevated)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderLeft: '4px solid var(--primary)' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Total Hours</span>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-link)', marginTop: '4px' }}>
                   {summary.totalHours || '0.0'}h
                 </div>
-                <span style={{ fontSize: '12px', color: '#8590a2' }}>Net attendance</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>Net attendance</span>
               </div>
             </div>
 
             {/* History Records Table */}
-            <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #ebecf0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(9, 30, 66, 0.05)' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #ebecf0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#172b4d' }}>
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(9, 30, 66, 0.05)' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
                   Daily Records ({records.length})
                 </h3>
-                {loading && <span style={{ fontSize: '13px', color: '#0c66e4' }}>Refreshing...</span>}
+                {loading && <span style={{ fontSize: '13px', color: 'var(--text-link)' }}>Refreshing...</span>}
               </div>
 
               {records.length === 0 ? (
-                <div style={{ padding: '40px 20px', textAlign: 'center', color: '#626f86' }}>
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-subtle)' }}>
                   No attendance records found for {month}.
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                     <thead>
-                      <tr style={{ background: '#f7f8f9', borderBottom: '1px solid #dfe1e6', color: '#626f86' }}>
+                      <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', color: 'var(--text-subtle)' }}>
                         <th style={{ padding: '12px 16px', fontWeight: 600 }}>Date</th>
                         <th style={{ padding: '12px 16px', fontWeight: 600 }}>Day</th>
                         <th style={{ padding: '12px 16px', fontWeight: 600 }}>Check-In</th>
@@ -338,17 +339,17 @@ export default function MyAttendanceView({
                         const isEstimated = r.is_estimated === 1;
 
                         return (
-                          <tr key={r.id} style={{ borderBottom: '1px solid #f1f2f4' }}>
-                            <td style={{ padding: '12px 16px', fontWeight: 500, color: '#172b4d' }}>{r.work_date}</td>
-                            <td style={{ padding: '12px 16px', color: '#626f86' }}>{getDayName(r.work_date)}</td>
-                            <td style={{ padding: '12px 16px', color: '#172b4d' }}>
+                          <tr key={r.id} style={{ borderBottom: '1px solid var(--bg-hover)' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--text)' }}>{r.work_date}</td>
+                            <td style={{ padding: '12px 16px', color: 'var(--text-subtle)' }}>{getDayName(r.work_date)}</td>
+                            <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
                               {r.check_in_time ? formatKolkataTime(r.check_in_time) : '—'}
                             </td>
-                            <td style={{ padding: '12px 16px', color: '#172b4d' }}>
+                            <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
                               {r.check_out_time ? (
                                 formatKolkataTime(r.check_out_time)
                               ) : isMissingCheckout ? (
-                                <span style={{ color: '#ae2e24', fontWeight: 600 }}>Missing Checkout</span>
+                                <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Missing Checkout</span>
                               ) : (
                                 '—'
                               )}
@@ -360,7 +361,7 @@ export default function MyAttendanceView({
                                   🏖️ {r.leave_type ? getLeaveTypeLabel(r.leave_type) : 'Approved Leave'}
                                 </span>
                               ) : isMissingCheckout ? (
-                                <span style={{ background: '#ffebe6', color: '#ae2e24', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                                <span style={{ background: '#ffebe6', color: 'var(--danger)', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
                                   ⚠️ Missing Checkout · Pending Review
                                 </span>
                               ) : isEstimated ? (
@@ -407,7 +408,7 @@ export default function MyAttendanceView({
                                 </span>
                               )}
                               {r.is_manually_adjusted === 1 && (
-                                <span style={{ marginLeft: '6px', fontSize: '11px', color: '#626f86', fontStyle: 'italic' }}>
+                                <span style={{ marginLeft: '6px', fontSize: '11px', color: 'var(--text-subtle)', fontStyle: 'italic' }}>
                                   (Adjusted by Admin)
                                 </span>
                               )}

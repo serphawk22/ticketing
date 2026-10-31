@@ -155,9 +155,9 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
       case 'rejected':
         return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#ffebe6', color: '#bf2600' }}>Rejected</span>;
       case 'cancelled':
-        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#f4f5f7', color: '#44546f' }}>Cancelled</span>;
+        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'var(--surface-muted)', color: 'var(--neutral-text)' }}>Cancelled</span>;
       default:
-        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#fff0b3', color: '#172b4d' }}>Pending Review</span>;
+        return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: 'var(--warning-banner-bg)', color: 'var(--text)' }}>Pending Review</span>;
     }
   };
 
@@ -168,14 +168,14 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        background: '#ffffff',
+        background: 'var(--bg-elevated)',
         padding: '14px 20px',
         borderRadius: '8px',
-        border: '1px solid #ebecf0',
+        border: '1px solid var(--border-subtle)',
         marginBottom: '16px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#44546f' }}>Status Filter:</span>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--neutral-text)' }}>Status Filter:</span>
           {['pending', 'approved', 'rejected', 'cancelled', 'all'].map((st) => (
             <button
               key={st}
@@ -183,9 +183,9 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
               style={{
                 padding: '6px 12px',
                 borderRadius: '6px',
-                border: statusFilter === st ? '1px solid #0c66e4' : '1px solid #dfe1e6',
-                background: statusFilter === st ? '#e9f2ff' : '#ffffff',
-                color: statusFilter === st ? '#0c66e4' : '#44546f',
+                border: statusFilter === st ? '1px solid var(--primary)' : '1px solid var(--border)',
+                background: statusFilter === st ? 'var(--bg-selected)' : 'var(--bg-elevated)',
+                color: statusFilter === st ? 'var(--text-link)' : 'var(--neutral-text)',
                 fontSize: '12px',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -203,11 +203,11 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
           style={{
             padding: '6px 12px',
             borderRadius: '6px',
-            border: '1px solid #dfe1e6',
-            background: '#ffffff',
+            border: '1px solid var(--border)',
+            background: 'var(--bg-elevated)',
             fontSize: '12px',
             fontWeight: 600,
-            color: '#44546f',
+            color: 'var(--neutral-text)',
             cursor: 'pointer'
           }}
         >
@@ -230,10 +230,10 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
       )}
 
       {/* Requests Table */}
-      <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #ebecf0', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
           <thead>
-            <tr style={{ background: '#f4f5f7', borderBottom: '1px solid #ebecf0', color: '#44546f' }}>
+            <tr style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--neutral-text)' }}>
               <th style={{ padding: '12px 16px', fontWeight: 600 }}>Employee</th>
               <th style={{ padding: '12px 16px', fontWeight: 600 }}>Leave Type</th>
               <th style={{ padding: '12px 16px', fontWeight: 600 }}>Shift / Day Type</th>
@@ -247,38 +247,38 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
           <tbody>
             {requests.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ padding: '36px 16px', textAlign: 'center', color: '#6b778c' }}>
+                <td colSpan={8} style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--muted)' }}>
                   No leave requests found for this filter.
                 </td>
               </tr>
             ) : (
               requests.map((r) => (
-                <tr key={r.id} style={{ borderBottom: '1px solid #ebecf0' }}>
+                <tr key={r.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                   <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontWeight: 600, color: '#172b4d' }}>{r.employee_name}</div>
-                    <div style={{ fontSize: '11px', color: '#6b778c' }}>{r.department || 'General'}</div>
+                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>{r.employee_name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{r.department || 'General'}</div>
                   </td>
-                  <td style={{ padding: '12px 16px', fontWeight: 500, color: '#172b4d' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--text)' }}>
                     {getLeaveTypeLabel(r.leave_type)}
                   </td>
-                  <td style={{ padding: '12px 16px', color: '#44546f' }}>
+                  <td style={{ padding: '12px 16px', color: 'var(--neutral-text)' }}>
                     {getLeaveDayTypeLabel(r.day_type)}
                   </td>
-                  <td style={{ padding: '12px 16px', color: '#172b4d' }}>
+                  <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
                     {r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}
                   </td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0c66e4' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-link)' }}>
                     <div>{r.total_working_days}d</div>
                     {r.status === 'approved' && r.lop_days > 0 && (
-                      <div style={{ fontSize: '11px', color: '#bf2600', fontWeight: 700 }}>
+                      <div style={{ fontSize: '11px', color: 'var(--danger)', fontWeight: 700 }}>
                         {r.paid_days || 0}d Paid + {r.lop_days}d LOP
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '12px 16px', color: '#44546f', maxWidth: '200px' }}>
+                  <td style={{ padding: '12px 16px', color: 'var(--neutral-text)', maxWidth: '200px' }}>
                     <div>{r.reason}</div>
                     {r.reviewer_notes && (
-                      <div style={{ fontSize: '11px', color: '#6b778c', marginTop: '2px' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                         <em>Note:</em> {r.reviewer_notes}
                       </div>
                     )}
@@ -296,8 +296,8 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                             padding: '4px 10px',
                             borderRadius: '4px',
                             border: 'none',
-                            background: '#0c66e4',
-                            color: '#fff',
+background: 'var(--primary)',
+                    color: 'var(--primary-text)',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer'
@@ -315,9 +315,9 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                           style={{
                             padding: '4px 10px',
                             borderRadius: '4px',
-                            border: '1px solid #dfe1e6',
-                            background: '#fff',
-                            color: '#bf2600',
+                            border: '1px solid var(--border)',
+                            background: 'var(--bg-elevated)',
+                            color: 'var(--danger)',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer'
@@ -333,9 +333,9 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                         style={{
                           padding: '4px 8px',
                           borderRadius: '4px',
-                          border: '1px solid #dfe1e6',
-                          background: '#fff',
-                          color: '#44546f',
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-elevated)',
+                          color: 'var(--neutral-text)',
                           fontSize: '11px',
                           fontWeight: 500,
                           cursor: 'pointer'
@@ -344,7 +344,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                         Cancel Leave
                       </button>
                     ) : (
-                      <span style={{ fontSize: '12px', color: '#8993a4' }}>—</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-disabled)' }}>—</span>
                     )}
                   </td>
                 </tr>
@@ -370,7 +370,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
           padding: '16px'
         }}>
           <div style={{
-            background: '#ffffff',
+            background: 'var(--bg-elevated)',
             borderRadius: '8px',
             maxWidth: '600px',
             width: '100%',
@@ -379,22 +379,22 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
           }}>
             <div style={{
               padding: '16px 20px',
-              borderBottom: '1px solid #ebecf0',
-              background: '#fff0b3',
+              borderBottom: '1px solid var(--border-subtle)',
+              background: 'var(--warning-banner-bg)',
               display: 'flex',
               alignItems: 'center',
               gap: '10px'
             }}>
               <span style={{ fontSize: '20px' }}>⚠️</span>
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#172b4d' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
                   {conflicts.length > 0 && authLopDays > 0
                     ? 'Attendance Conflict & Loss of Pay (LOP) Authorization'
                     : conflicts.length > 0
                     ? 'Attendance Conflict Detected'
                     : 'Loss of Pay (LOP) Authorization Required'}
                 </h3>
-                <div style={{ fontSize: '12px', color: '#44546f' }}>
+                <div style={{ fontSize: '12px', color: 'var(--neutral-text)' }}>
                   {activeRequest.employee_name} · Requested {activeRequest.total_working_days}d ({activeRequest.leave_type})
                 </div>
               </div>
@@ -404,23 +404,23 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
               {/* LOP Authorization Card if over-balance */}
               {(authLopDays > 0 || (activeBalances?.categories?.[activeRequest.leave_type]?.remainingBalance ?? 0) < activeRequest.total_working_days) && (
                 <div style={{
-                  background: '#fffae6',
-                  border: '1px solid #ffe380',
+                  background: 'var(--warning-banner-bg)',
+                  border: '1px solid var(--warning-border, #ffe380)',
                   borderRadius: '6px',
                   padding: '14px 16px',
                   marginBottom: '16px',
                 }}>
-                  <div style={{ fontWeight: 700, color: '#172b4d', fontSize: '13px', marginBottom: '4px' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: '13px', marginBottom: '4px' }}>
                     Loss of Pay (LOP) Review & Authorization
                   </div>
-                  <div style={{ fontSize: '12px', color: '#44546f', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--neutral-text)', marginBottom: '12px' }}>
                     Available balance: <strong>{(activeBalances?.categories?.[activeRequest.leave_type]?.remainingBalance ?? 0).toFixed(1)}d</strong>.
                     Requested: <strong>{activeRequest.total_working_days}d</strong>.
                     Explicit authorization is required before approving unpaid/LOP days:
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#006644', marginBottom: '4px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-link)', marginBottom: '4px' }}>
                         Authorized Paid Days:
                       </label>
                       <input
@@ -434,11 +434,11 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                           setAuthPaidDays(val);
                           setAuthLopDays(Math.max(0, activeRequest.total_working_days - val));
                         }}
-                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #dfe1e6', fontSize: '13px', fontWeight: 600 }}
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: '13px', fontWeight: 600 }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#bf2600', marginBottom: '4px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--danger)', marginBottom: '4px' }}>
                         Authorized Loss of Pay (LOP) Days:
                       </label>
                       <input
@@ -448,7 +448,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                         max={activeRequest.total_working_days}
                         value={authLopDays}
                         onChange={(e) => setAuthLopDays(parseFloat(e.target.value) || 0)}
-                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #dfe1e6', fontSize: '13px', fontWeight: 600 }}
+                        style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text)', fontSize: '13px', fontWeight: 600 }}
                       />
                     </div>
                   </div>
@@ -456,26 +456,26 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
               )}
 
               {conflicts.length > 0 && (
-                <div style={{ marginBottom: '16px', fontSize: '13px', color: '#172b4d' }}>
+                <div style={{ marginBottom: '16px', fontSize: '13px', color: 'var(--text)' }}>
                   Please choose how you wish to resolve each conflicting date:
                 </div>
               )}
 
               {conflicts.map((c) => (
                 <div key={c.date} style={{
-                  border: '1px solid #ebecf0',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '6px',
                   padding: '12px 16px',
                   marginBottom: '12px',
-                  background: '#f7f8f9'
+                  background: 'var(--bg-surface)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <strong style={{ color: '#172b4d' }}>Date: {c.date}</strong>
-                    <span style={{ fontSize: '12px', color: '#0c66e4', fontWeight: 600 }}>
+                    <strong style={{ color: 'var(--text)' }}>Date: {c.date}</strong>
+                    <span style={{ fontSize: '12px', color: 'var(--text-link)', fontWeight: 600 }}>
                       Current Status: {c.status}
                     </span>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#626f86', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-subtle)', marginBottom: '8px' }}>
                     Check-In: <strong>{c.checkInTime}</strong> {c.checkOutTime && ` · Check-Out: ${c.checkOutTime}`}
                   </div>
 
@@ -517,7 +517,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
               ))}
 
               <div style={{ marginTop: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                   Resolution / Reviewer Notes (Mandatory for Override):
                 </label>
                 <textarea
@@ -525,17 +525,17 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                   value={reviewerNotes}
                   onChange={(e) => setReviewerNotes(e.target.value)}
                   placeholder="Explain why this resolution was chosen..."
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '13px' }}
                 />
               </div>
             </div>
 
-            <div style={{ padding: '14px 20px', borderTop: '1px solid #ebecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#f4f5f7' }}>
+            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: 'var(--surface-muted)' }}>
               <button
                 type="button"
                 onClick={() => setConflictModalOpen(false)}
                 disabled={processing}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #dfe1e6', background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -543,7 +543,7 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                 type="button"
                 onClick={() => executeProcess(activeRequest.id, 'approve', conflictResolutions, reviewerNotes)}
                 disabled={processing}
-                style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: '#0c66e4', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: processing ? 'not-allowed' : 'pointer' }}
+                style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: 'var(--primary-text)', fontSize: '13px', fontWeight: 600, cursor: processing ? 'not-allowed' : 'pointer' }}
               >
                 {processing ? 'Applying...' : 'Authorize & Approve Leave'}
               </button>
@@ -568,20 +568,20 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
           padding: '16px'
         }}>
           <div style={{
-            background: '#ffffff',
+            background: 'var(--bg-elevated)',
             borderRadius: '8px',
             maxWidth: '460px',
             width: '100%',
             boxShadow: '0 8px 30px rgba(0, 0, 0, 0.2)',
             overflow: 'hidden'
           }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #ebecf0', background: '#f4f5f7' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#172b4d' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-muted)' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
                 Reject Leave Request
               </h3>
             </div>
             <div style={{ padding: '20px' }}>
-              <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#44546f' }}>
+              <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--neutral-text)' }}>
                 Please provide rejection remarks for <strong>{activeRequest.employee_name}</strong>:
               </p>
               <textarea
@@ -589,15 +589,15 @@ export default function AdminLeaveRequestsView({ onRosterRefresh }) {
                 value={rejectNotes}
                 onChange={(e) => setRejectNotes(e.target.value)}
                 placeholder="e.g. Critical project deadline, please reschedule..."
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '13px' }}
               />
             </div>
-            <div style={{ padding: '14px 20px', borderTop: '1px solid #ebecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 type="button"
                 onClick={() => setRejectModalOpen(false)}
                 disabled={processing}
-                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #dfe1e6', background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>

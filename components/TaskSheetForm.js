@@ -49,8 +49,17 @@ export default function TaskSheetForm({
   defaults = {},
   onSubmitted,
 }) {
+  const activePeople = Array.isArray(people)
+    ? people.filter((p) => p && p.active !== false && p.active !== 0)
+    : people;
   const [name, setName] = useState(defaults.name || '');
-  const [project, setProject] = useState(defaults.project || '');
+  const [selectedProjects, setSelectedProjects] = useState(() => {
+    const initial = Array.isArray(defaults.projects) ? defaults.projects : [];
+    if (initial.length > 0) {
+      return [...new Set(initial.map(String).filter(Boolean))];
+    }
+    return defaults.project ? [String(defaults.project)] : [];
+  });
   const [hours, setHours] = useState('');
   const [customHours, setCustomHours] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -99,19 +108,23 @@ export default function TaskSheetForm({
     [normalizedProjects]
   );
 
-  const activeProject = useMemo(
-    () => normalizedProjects.find((p) => p.name === project),
-    [normalizedProjects, project]
+  const activeProjects = useMemo(
+    () => normalizedProjects.filter((p) => selectedProjects.includes(p.name)),
+    [normalizedProjects, selectedProjects]
   );
 
-  // Fetch active tasks for the selected project and user, and revalidate tickets
+  const activeProjectIds = activeProjects.map((p) => p.id).filter(Boolean).join(',');
+
+  const activeProject = activeProjects[0] || null;
+
+  // Fetch active tasks for every selected project and user, and revalidate
+  // tickets. A ticket stays selected only while its project is still one of the
+  // chosen projects and it is still assigned to this person.
   useEffect(() => {
-    // Clear tickets that do not belong to the selected project and user or are closed
     setSelectedTickets((prev) =>
       prev.filter((t) =>
         Boolean(
-          activeProject?.id &&
-          t.project_id === activeProject.id &&
+          activeProjects.some((p) => p.id === t.project_id) &&
           name &&
           (t.assignee === name || t.employee_name === name || t.assigned_to_name === name) &&
           t.status !== 'closed'
@@ -119,7 +132,7 @@ export default function TaskSheetForm({
       )
     );
 
-    if (!activeProject?.id || !name) {
+    if (activeProjects.length === 0 || !name) {
       setProjectTasks([]);
       return undefined;
     }
@@ -128,20 +141,29 @@ export default function TaskSheetForm({
     setLoadingTasks(true);
     setTasksError('');
 
-    fetch(`/api/tickets?projectId=${activeProject.id}&userName=${encodeURIComponent(name)}&excludeClosed=true`)
-      .then((res) => {
+    Promise.all(
+      activeProjects.map(async (projectItem) => {
+        const res = await fetch(
+          `/api/tickets?projectId=${projectItem.id}&userName=${encodeURIComponent(name)}&excludeClosed=true`
+        );
         if (!res.ok) throw new Error('Could not load project tasks');
-        return res.json();
-      })
-      .then((data) => {
-        if (active) {
-          const matching = (data.tickets || []).filter(
+        const data = await res.json();
+        return (data.tickets || [])
+          .filter(
             (t) =>
               (t.employee_name === name || t.assigned_to_name === name) &&
               t.status !== 'closed'
-          );
-          setProjectTasks(matching);
-        }
+          )
+          .map((t) => ({
+            ...t,
+            project_id: t.project_id || projectItem.id,
+            project_name: t.project_name || projectItem.name,
+            project_key: t.project_key || projectItem.key,
+          }));
+      })
+    )
+      .then((groups) => {
+        if (active) setProjectTasks(groups.flat());
       })
       .catch((err) => {
         if (active) {
@@ -156,7 +178,7 @@ export default function TaskSheetForm({
     return () => {
       active = false;
     };
-  }, [activeProject?.id, name]);
+  }, [activeProjectIds, name]);
 
   function handleSelectTask(taskId) {
     if (!taskId) return;
@@ -166,7 +188,10 @@ export default function TaskSheetForm({
     // Prevent duplicate selection of the same ticket
     if (selectedTickets.some((t) => t.id === task.id)) return;
 
-    const key = `${(task.project_key || activeProject?.key || 'TM').toUpperCase()}-${task.id}`;
+    const taskProject =
+      normalizedProjects.find((p) => p.id === task.project_id) || activeProject;
+
+    const key = `${(task.project_key || taskProject?.key || 'TM').toUpperCase()}-${task.id}`;
     let defaultStatus = 'In Progress';
     if (task.status === 'open') defaultStatus = 'To Do';
 
@@ -181,8 +206,8 @@ export default function TaskSheetForm({
       assignee: task.employee_name || task.assigned_to_name || 'Unassigned',
       employee_name: task.employee_name,
       assigned_to_name: task.assigned_to_name,
-      project_id: task.project_id || activeProject?.id,
-      project_name: task.project_name || activeProject?.name || '',
+      project_id: task.project_id || taskProject?.id,
+      project_name: task.project_name || taskProject?.name || '',
       workState: initialWorkState,
       taskStatus: initialStatus,
       blocker: '',
@@ -240,7 +265,7 @@ export default function TaskSheetForm({
       return undefined;
     }
 
-    if (!activeProject?.id || !name) {
+    if (activeProjects.length === 0 || !name) {
       setLinking(false);
       return undefined;
     }
@@ -253,7 +278,6 @@ export default function TaskSheetForm({
           q: trimmed,
           limit: '10',
           excludeClosed: 'true',
-          projectId: String(activeProject.id),
           userName: name,
         });
         const res = await fetch(
@@ -269,10 +293,11 @@ export default function TaskSheetForm({
         if (match) {
           const matchAssignee = match.employee_name || match.assigned_to_name;
           if (matchAssignee !== name) return;
-          if (match.project_id !== activeProject.id) return;
+          const matchProject = activeProjects.find((p) => p.id === match.project_id);
+          if (!matchProject) return;
           if (match.status === 'closed') return;
 
-          const matchKey = `${(match.project_key || activeProject?.key || 'TM').toUpperCase()}-${match.id}`;
+          const matchKey = `${(match.project_key || matchProject.key || 'TM').toUpperCase()}-${match.id}`;
           let defaultStatus = 'In Progress';
           if (match.status === 'open') defaultStatus = 'To Do';
           const initialWorkState = match.status === 'resolved' ? 'completed' : 'not_completed';
@@ -290,8 +315,8 @@ export default function TaskSheetForm({
                 assignee: match.employee_name || match.assigned_to_name || 'Unassigned',
                 employee_name: match.employee_name,
                 assigned_to_name: match.assigned_to_name,
-                project_id: match.project_id || activeProject.id,
-                project_name: match.project_name || activeProject.name || '',
+                project_id: match.project_id || matchProject.id,
+                project_name: match.project_name || matchProject.name || '',
                 workState: initialWorkState,
                 taskStatus: initialStatus,
                 blocker: '',
@@ -310,7 +335,7 @@ export default function TaskSheetForm({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [taskTitle, activeProject?.id, activeProject?.key, activeProject?.name, name]);
+  }, [taskTitle, activeProjectIds, name]);
 
   function resolvedHours() {
     if (hours === 'other') {
@@ -325,7 +350,7 @@ export default function TaskSheetForm({
   function validate() {
     const next = {};
     if (!name) next.name = 'Please select your name.';
-    if (!project) next.project = 'Please select a project.';
+    if (selectedProjects.length === 0) next.project = 'Please select at least one project.';
     if (resolvedHours() == null) {
       next.hours = hours === 'other'
         ? 'Enter the hours worked.'
@@ -382,7 +407,8 @@ export default function TaskSheetForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name,
-          project,
+          project: selectedProjects[0] || '',
+          projects: selectedProjects,
           hoursWorked: resolvedHours(),
           taskTitle: taskTitle.trim(),
           taskDescription: taskDescription.trim(),
@@ -401,7 +427,7 @@ export default function TaskSheetForm({
       setConfirmation({
         submission: data.submission,
         name,
-        project,
+        project: selectedProjects.join(', '),
         hoursWorked: resolvedHours(),
         taskTitle: taskTitle.trim(),
         taskState: effectiveTaskState,
@@ -419,7 +445,14 @@ export default function TaskSheetForm({
 
   function reset() {
     setName(defaults.name || '');
-    setProject(defaults.project || '');
+    const initialProjects = Array.isArray(defaults.projects) ? defaults.projects : [];
+    setSelectedProjects(
+      initialProjects.length > 0
+        ? [...new Set(initialProjects.map(String).filter(Boolean))]
+        : defaults.project
+          ? [String(defaults.project)]
+          : []
+    );
     setHours('');
     setCustomHours('');
     setTaskTitle('');
@@ -439,6 +472,7 @@ export default function TaskSheetForm({
   }
 
   const errorList = Object.entries(errors).filter(([k]) => k !== '_form');
+  const projectLabels = selectedProjects.join(', ');
 
   return (
     <form className="ts-form" onSubmit={submit} noValidate>
@@ -486,15 +520,16 @@ export default function TaskSheetForm({
           className={`form-group ts-field${errors.project ? ' has-error' : ''}`}
           id="ts-project"
           role="group"
-          aria-label="Project"
+          aria-label="Projects"
         >
-          <span className="ts-legend">Project <span className="ts-required-star">*</span></span>
+          <span className="ts-legend">Projects <span className="ts-required-star">*</span></span>
           <InlineDropdownField
-            value={project}
+            multiple
+            values={selectedProjects}
             options={projectOptions}
-            onSelect={setProject}
-            label="Project"
-            emptyText="Select a project"
+            onSelect={setSelectedProjects}
+            label="Projects"
+            emptyText="Select one or more projects"
             searchable={false}
             variant="button"
             className="ts-select"
@@ -540,7 +575,7 @@ export default function TaskSheetForm({
         >
           <label htmlFor="ts-title">Task title or ticket number <span className="ts-required-star">*</span></label>
 
-          {project && (
+          {selectedProjects.length > 0 && (
             <div className="ts-task-picker" style={{ marginBottom: 6 }}>
               <select
                 id="ts-task-dropdown"
@@ -551,7 +586,7 @@ export default function TaskSheetForm({
                   handleSelectTask(e.target.value);
                   e.target.value = '';
                 }}
-                aria-label={`Select an existing task from ${project}`}
+                aria-label={`Select an existing task from ${projectLabels}`}
               >
                 <option value="">
                   {!name
@@ -559,18 +594,23 @@ export default function TaskSheetForm({
                     : loadingTasks
                     ? `Loading tasks for ${name}...`
                     : projectTasks.length === 0
-                    ? `No open tasks assigned to ${name} in ${project}`
+                    ? `No open tasks assigned to ${name} in ${projectLabels}`
                     : selectedTickets.length > 0
-                    ? `+ Add another task from ${project} (optional)`
-                    : `— Choose an existing task from ${project} (optional) —`}
+                    ? `+ Add another task from ${projectLabels} (optional)`
+                    : `— Choose an existing task from ${projectLabels} (optional) —`}
                 </option>
                 {projectTasks
                   .filter((t) => !selectedTickets.some((st) => st.id === t.id))
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      [{(t.project_key || activeProject?.key || 'TM').toUpperCase()}-{t.id}] {t.title} ({STATUS_META[t.status]?.label || t.status}{t.employee_name ? ` · ${t.employee_name}` : ''})
-                    </option>
-                  ))}
+                  .map((t) => {
+                    const taskProject = normalizedProjects.find(
+                      (p) => p.id === t.project_id
+                    );
+                    return (
+                      <option key={t.id} value={t.id}>
+                        [{(t.project_key || taskProject?.key || 'TM').toUpperCase()}-{t.id}] {t.title} ({STATUS_META[t.status]?.label || t.status}{t.employee_name ? ` · ${t.employee_name}` : ''})
+                      </option>
+                    );
+                  })}
               </select>
             </div>
           )}
@@ -733,7 +773,7 @@ export default function TaskSheetForm({
                     {t.key && (
                       <TaskSheetGithubActivity
                         ticketKey={t.key}
-                        projectId={t.project_id || activeProject?.id || null}
+                        projectId={t.project_id || null}
                       />
                     )}
                   </div>

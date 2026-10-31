@@ -92,7 +92,7 @@ export default function AdminAttendanceModal({
       padding: '16px'
     }}>
       <div style={{
-        background: '#ffffff',
+        background: 'var(--bg-elevated)',
         borderRadius: '8px',
         maxWidth: '560px',
         width: '100%',
@@ -102,19 +102,19 @@ export default function AdminAttendanceModal({
         display: 'flex',
         flexDirection: 'column'
       }}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #ebecf0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 600, color: '#172b4d' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>
               {attendance ? 'Correct Attendance Record' : 'Regularize Attendance'}
             </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#626f86' }}>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-subtle)' }}>
               Employee: <strong>{employee?.name}</strong> · Date: <strong>{workDate}</strong>
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#626f86' }}
+            style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-subtle)' }}
           >
             ×
           </button>
@@ -128,13 +128,13 @@ export default function AdminAttendanceModal({
           )}
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
               Attendance Status *
             </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '14px', color: '#172b4d', background: '#fff' }}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '14px', color: 'var(--text)', background: 'var(--bg-elevated)' }}
             >
               <option value="present">Present / Full Day</option>
               <option value="late">Late Arrival</option>
@@ -146,7 +146,7 @@ export default function AdminAttendanceModal({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                 Check-In Timestamp
               </label>
               <input
@@ -154,12 +154,12 @@ export default function AdminAttendanceModal({
                 value={checkInTime}
                 onChange={(e) => setCheckInTime(e.target.value)}
                 disabled={status === 'absent' || status === 'on_leave'}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)' }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                 Check-Out Timestamp
               </label>
               <input
@@ -167,13 +167,13 @@ export default function AdminAttendanceModal({
                 value={checkOutTime}
                 onChange={(e) => setCheckOutTime(e.target.value)}
                 disabled={status === 'absent' || status === 'on_leave'}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)' }}
               />
             </div>
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
               Reason for Adjustment / Regularization * (Mandatory)
             </label>
             <textarea
@@ -182,7 +182,7 @@ export default function AdminAttendanceModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder="Provide a clear justification (e.g., 'Employee present on site but missed mobile punch', 'Approved medical leave', etc.)"
               required
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d', resize: 'vertical' }}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)', resize: 'vertical' }}
             />
           </div>
 
@@ -191,14 +191,14 @@ export default function AdminAttendanceModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #dfe1e6', background: '#fff', color: '#44546f', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
+              style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--neutral-text)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: '#0c66e4', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
+              style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: 'var(--primary-text)', fontSize: '13px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
             >
               {loading ? 'Saving...' : 'Save & Record Audit'}
             </button>

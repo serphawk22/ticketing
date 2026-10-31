@@ -613,7 +613,7 @@ export default function CalendarView({
         )}
 
         <PageHeader
-          breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: project.name }]}
+          breadcrumb={[{ label: 'Workspaces', href: '/projects' }, { label: project.name }]}
           title={project.name}
           project={project}
           subtitle={project.description}

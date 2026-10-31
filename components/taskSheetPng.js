@@ -99,7 +99,7 @@ export default function downloadTaskSheetPng(rows, { filters = {} } = {}) {
   const cols = [
     { key: 'date', label: 'Date', width: 100 },
     { key: 'name', label: 'Name', width: 140 },
-    { key: 'project', label: 'Project', width: 130 },
+    { key: 'project', label: 'Projects', width: 160 },
     { key: 'hours', label: 'Hours', width: 60, align: 'right' },
     {
       key: 'task',
@@ -155,7 +155,10 @@ export default function downloadTaskSheetPng(rows, { filters = {} } = {}) {
           segments.push({ text: `filed by ${r.submitted_by_name}`, color: COLORS.faint, weight: '400', size: noteSize });
         }
       } else if (c.key === 'project') {
-        segments = [{ text: r.project || '\u2014', color: COLORS.muted, weight: '400', size: bodySize }];
+        const projects = Array.isArray(r.projects) && r.projects.length > 0
+          ? r.projects.join(', ')
+          : r.project;
+        segments = [{ text: projects || '\u2014', color: COLORS.muted, weight: '400', size: bodySize }];
       } else if (c.key === 'hours') {
         segments = [{ text: `${r.hours_worked}h`, color: COLORS.ink, weight: '600', size: bodySize }];
       } else if (c.key === 'task') {

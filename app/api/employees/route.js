@@ -23,7 +23,10 @@ export async function GET(request) {
   const workspaceId = searchParams.get('workspaceId');
 
   const isAdmin = session.user.role === 'admin';
-  const allEmployees = await getEmployees({ workspaceId: workspaceId ? Number(workspaceId) : null });
+  const allEmployees = await getEmployees({
+    includeInactive: true,
+    workspaceId: workspaceId ? Number(workspaceId) : null,
+  });
   // Safe filtering: non-admins NEVER receive base_salary, last_payment_date, payment_status
   const employees = allEmployees.map((e) => toSafeEmployee(e, isAdmin));
 

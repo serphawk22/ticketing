@@ -437,6 +437,18 @@ export async function PATCH(request, { params }) {
 
     if (reassigning && nextEmployeeId) {
       const employee = await getEmployee(nextEmployeeId);
+      if (employee) {
+        try {
+          const { notifyTicketCreatedEmail } = await import('@/lib/mail');
+          await notifyTicketCreatedEmail({
+            ticket: updated,
+            employee,
+            actorName: session.user.name,
+          });
+        } catch (e) {
+          console.error('Reassignment email failed:', e);
+        }
+      }
       const notification = await notifyAssignment({
         ticket: updated,
         employee,
@@ -449,14 +461,50 @@ export async function PATCH(request, { params }) {
     if (edits.status !== undefined && updated.status === 'in_progress' && nextEmployeeId) {
       const employee = await getEmployee(nextEmployeeId);
       const isSelf = employee?.email === session.user.email;
-      if (!isSelf) {
-        const notification = await notifyStatusChange({
-          ticket: updated,
-          employee,
-          actorName: session.user.name,
-          status: updated.status,
-        });
-        if (notification) notifications.push(notification);
+      if (!isSelf && employee) {
+        try {
+          const { notifyStatusChange } = await import('@/lib/mail');
+          const notification = await notifyStatusChange({
+            ticket: updated,
+            employee,
+            actorName: session.user.name,
+            status: updated.status,
+          });
+          if (notification) notifications.push(notification);
+        } catch (e) {
+          console.error('Status email failed:', e);
+        }
+      }
+    }
+
+    // Send update emails for other changes to current assignee
+    if (updated.employee_id) {
+      const assigneeEmp = await getEmployee(updated.employee_id);
+      if (assigneeEmp && assigneeEmp.email && !reassigning) {
+        const changes = [];
+        if (edits.title !== undefined) changes.push({ label: 'Title', from: ticket.title, to: edits.title });
+        if (edits.description !== undefined) changes.push({ label: 'Description', from: ticket.description ? '(updated)' : '(empty)', to: edits.description ? '(updated)' : '(empty)' });
+        if (edits.status !== undefined) changes.push({ label: 'Status', from: ticket.status, to: edits.status });
+        if (edits.priority !== undefined) changes.push({ label: 'Priority', from: ticket.priority, to: edits.priority });
+        if (edits.type !== undefined) changes.push({ label: 'Issue type', from: ticket.type, to: edits.type });
+        if (edits.start_date !== undefined) changes.push({ label: 'Start date', from: ticket.start_date || 'None', to: edits.start_date || 'None' });
+        if (edits.due_date !== undefined) changes.push({ label: 'Due date', from: ticket.due_date || 'None', to: edits.due_date || 'None' });
+        if (edits.category !== undefined) changes.push({ label: 'Category', from: ticket.category || 'None', to: edits.category || 'None' });
+        if (edits.resolution !== undefined) changes.push({ label: 'Resolution', from: ticket.resolution || 'None', to: edits.resolution || 'None' });
+        if (edits.labels !== undefined) changes.push({ label: 'Labels', from: ticket.labels || 'None', to: edits.labels || 'None' });
+        if (changes.length > 0) {
+          try {
+            const { notifyTicketUpdatedEmail } = await import('@/lib/mail');
+            await notifyTicketUpdatedEmail({
+              ticket: updated,
+              employee: assigneeEmp,
+              actorName: session.user.name,
+              changes,
+            });
+          } catch (e) {
+            console.error('Update email failed:', e);
+          }
+        }
       }
     }
   } catch (err) {

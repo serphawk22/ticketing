@@ -378,6 +378,7 @@ export default function TicketDetailModal({
           priority: childPriority,
           employee_id: childAssignee ? Number(childAssignee) : null,
           parent_id: id,
+          project_id: t?.project_id || detail?.ticket?.project_id || null,
         }),
       });
       setChildTitle('');
