@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getEmployees, createEmployee, getEmployeeByEmail, toSafeEmployee } from '@/lib/employees';
+import { ensureEmployeeLeaveBalances } from '@/lib/attendance';
 import {
   createClientAccount,
   createUserWithTempPassword,
@@ -14,12 +15,18 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // manages every login, but they are never assignable work.
 const VALID_ROLES = ['admin', 'developer', 'client'];
 
-export async function GET() {
+export async function GET(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const workspaceId = searchParams.get('workspaceId');
+
   const isAdmin = session.user.role === 'admin';
-  const allEmployees = await getEmployees({ includeInactive: true });
+  const allEmployees = await getEmployees({
+    includeInactive: true,
+    workspaceId: workspaceId ? Number(workspaceId) : null,
+  });
   // Safe filtering: non-admins NEVER receive base_salary, last_payment_date, payment_status
   const employees = allEmployees.map((e) => toSafeEmployee(e, isAdmin));
 
@@ -48,6 +55,8 @@ export async function POST(request) {
     salary_currency = 'USD',
     last_payment_date = null,
     payment_status = '',
+    employment_type = 'full_time',
+    workspace_id = null,
   } = await request.json();
 
   const cleanName = String(name ?? '').trim();
@@ -187,6 +196,7 @@ export async function POST(request) {
       last_payment_date: null,
       payment_status: '',
       user_id: account.id,
+      workspace_id: workspace_id ? Number(workspace_id) : null,
     });
 
     // A client authenticates with one passkey, emailed to the address if provided.
@@ -247,7 +257,16 @@ export async function POST(request) {
     last_payment_date,
     payment_status,
     user_id: account.id,
+    employment_type: employment_type || 'full_time',
+    workspace_id: workspace_id ? Number(workspace_id) : null,
   });
+
+  // Automatically allocate leave balances for the employee's workspace
+  try {
+    await ensureEmployeeLeaveBalances(employee.id);
+  } catch (err) {
+    console.error('[employees] Initial leave balance allocation failed:', err);
+  }
 
   const invite = await sendEmployeeInvite({
     employee,

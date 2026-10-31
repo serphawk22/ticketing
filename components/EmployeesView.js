@@ -524,6 +524,20 @@ export default function EmployeesView({
                         <td>{e.department || '—'}</td>
                         <td>
                           <span className={`role-tag role-${e.role}`}>{e.role}</span>
+                          {e.role !== 'client' && (
+                            <span style={{
+                              marginLeft: '6px',
+                              fontSize: '11px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: e.employment_type === 'full_time' || !e.employment_type ? '#e3fcef' : '#fff0b3',
+                              color: e.employment_type === 'full_time' || !e.employment_type ? '#006644' : '#172b4d',
+                              fontWeight: 600,
+                              textTransform: 'capitalize'
+                            }}>
+                              {(e.employment_type || 'full_time').replace('_', ' ')}
+                            </span>
+                          )}
                         </td>
                         <td className="num">{e.open_count}</td>
                         <td className="num">{e.assigned_count}</td>

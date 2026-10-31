@@ -32,6 +32,7 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
   // status from here as well as from the row menu.
   const [active, setActive] = useState(employee ? Boolean(employee.active) : true);
   const [title, setTitle] = useState(employee?.title || '');
+  const [employmentType, setEmploymentType] = useState(employee?.employment_type || 'full_time');
 
   // Employment & Compensation fields (managed by administrators)
   const [baseSalary, setBaseSalary] = useState(
@@ -86,6 +87,9 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
           }
           if (data.employee.payment_status) {
             setPaymentStatus(data.employee.payment_status);
+          }
+          if (data.employee.employment_type) {
+            setEmploymentType(data.employee.employment_type);
           }
         }
       })
@@ -150,6 +154,7 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
             salary_currency: isClient ? 'USD' : (salaryCurrency || 'USD'),
             last_payment_date: isClient ? null : (lastPaymentDate || null),
             payment_status: isClient ? '' : (paymentStatus || ''),
+            employment_type: isClient ? 'full_time' : employmentType,
           }),
         }
       );
@@ -330,6 +335,28 @@ export default function EmployeeModal({ employee, onClose, onSave }) {
                   placeholder="Senior Engineer"
                 />
               </div>
+            </div>
+          )}
+
+          {role !== 'client' && (
+            <div className="form-group">
+              <label htmlFor="employee-employment-type">
+                Employment Type <span className="req-star" style={{ color: 'var(--danger, #e5484d)' }}>*</span>
+              </label>
+              <select
+                id="employee-employment-type"
+                value={employmentType}
+                onChange={(e) => setEmploymentType(e.target.value)}
+              >
+                <option value="full_time">Full-Time Employee</option>
+                <option value="part_time">Part-Time Employee</option>
+                <option value="intern">Intern</option>
+                <option value="probation">Employee on Probation</option>
+                <option value="freelancer">Freelancer</option>
+              </select>
+              <span className="field-hint">
+                Company leave entitlements are determined by the configured leave policy.
+              </span>
             </div>
           )}
 

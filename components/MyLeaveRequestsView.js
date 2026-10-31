@@ -95,7 +95,12 @@ export default function MyLeaveRequestsView({ requests = [], onRefresh }) {
                 {r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}
               </td>
               <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-link)' }}>
-                {r.total_working_days}d
+                <div>{r.total_working_days}d</div>
+                {r.status === 'approved' && r.lop_days > 0 && (
+                  <div style={{ fontSize: '11px', color: 'var(--danger)', fontWeight: 700 }}>
+                    {r.paid_days || 0}d Paid + {r.lop_days}d LOP
+                  </div>
+                )}
               </td>
               <td style={{ padding: '12px 16px', color: 'var(--neutral-text)', maxWidth: '240px' }}>
                 <div>{r.reason}</div>

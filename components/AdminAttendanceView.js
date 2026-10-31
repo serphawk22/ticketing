@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader';
 import { PeopleIcon } from '@/components/AppShellIcons';
 import AdminAttendanceModal from '@/components/AdminAttendanceModal';
 import AdminLeaveRequestsView from '@/components/AdminLeaveRequestsView';
+import AdminLeaveBalancesView from '@/components/AdminLeaveBalancesView';
 import { formatKolkataTime, formatMinutes } from '@/lib/attendanceMeta';
 
 export default function AdminAttendanceView({
@@ -226,6 +227,22 @@ export default function AdminAttendanceView({
             }}
           >
             Official Schedules & Grace Period
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('balances')}
+            style={{
+              padding: '10px 16px',
+              border: 'none',
+              background: 'none',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              color: activeTab === 'balances' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'balances' ? '2px solid var(--text-link)' : '2px solid transparent',
+            }}
+          >
+            📊 Leave Balances & Policy
           </button>
           <button
             type="button"
@@ -580,6 +597,11 @@ export default function AdminAttendanceView({
               </button>
             </form>
           </div>
+        )}
+
+        {/* Tab 3: Balances */}
+        {activeTab === 'balances' && (
+          <AdminLeaveBalancesView />
         )}
 
         {/* Tab 4: Holidays */}

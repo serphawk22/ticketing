@@ -13,6 +13,8 @@ import { useInitialWorkspaces } from './WorkspacesProvider';
 import { ticketKey } from './meta';
 import ThemeToggle from './ThemeToggle';
 import NotificationBell from './NotificationBell';
+import SettingsMenu from './SettingsMenu';
+import HelpMenu from './HelpMenu';
 import { useToasts, Toaster } from './Toaster';
 import {
   SIDEBAR_SECTION_IDS,
@@ -1236,6 +1238,8 @@ export default function AppShell({
         <ThemeToggle />
 
         <NotificationBell currentUser={currentUser} />
+        <HelpMenu onToast={pushToast} />
+        <SettingsMenu onToast={pushToast} />
 
         <div className="topnav-avatar-wrap" ref={menuRef}>
           <button
@@ -1257,15 +1261,6 @@ export default function AppShell({
                 </div>
               </div>
               <div className="menu-sep" />
-              <Link
-                href="/profile"
-                className="menu-item"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                <PersonIcon />
-                Profile
-              </Link>
               <button className="menu-item" role="menuitem" onClick={handleLogout}>
                 <LogoutIcon />
                 Log out
