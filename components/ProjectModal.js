@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PROJECT_COLORS } from './meta';
+import { isValidProjectKey } from '@/lib/projectValidation';
 
 export default function ProjectModal({
   project,
@@ -14,8 +15,10 @@ export default function ProjectModal({
   initialWorkspaceId = null,
   onClose,
   onSave,
+  onWorkspaceCreated,
 }) {
   const isEdit = Boolean(project);
+  const [localWorkspaces, setLocalWorkspaces] = useState(workspaces);
   const [key, setKey] = useState(project?.key || '');
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
@@ -31,11 +34,33 @@ export default function ProjectModal({
       ? String(project.workspace_id)
       : initialWorkspaceId != null
         ? String(initialWorkspaceId)
-        : ''
+        : workspaces[0]?.id != null
+          ? String(workspaces[0].id)
+          : ''
   );
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [fetchedClients, setFetchedClients] = useState(null);
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [newWorkspaceKey, setNewWorkspaceKey] = useState('');
+  const [workspaceKeyEdited, setWorkspaceKeyEdited] = useState(false);
+  const [workspaceCreating, setWorkspaceCreating] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState('');
+
+  useEffect(() => {
+    setLocalWorkspaces(workspaces);
+  }, [workspaces]);
+
+  // The workspace list can arrive after the modal mounts. A select with no value
+  // would visually show its first option while submitting no workspace, so keep
+  // the state aligned with the option the browser is showing.
+  useEffect(() => {
+    if (isEdit || initialWorkspaceId != null) return;
+    setWorkspaceId((current) =>
+      current || (workspaces[0]?.id != null ? String(workspaces[0].id) : '')
+    );
+  }, [workspaces, isEdit, initialWorkspaceId]);
 
   useEffect(() => {
     function onKey(e) {
@@ -68,6 +93,91 @@ export default function ProjectModal({
   }, [clients]);
 
   const clientOptions = clients !== undefined ? clients : fetchedClients || [];
+
+  function suggestWorkspaceKey(value) {
+    const words = value
+      .trim()
+      .split(/\s+/)
+      .map((word) => word.replace(/[^a-z0-9]/gi, ''))
+      .filter(Boolean);
+    if (!words.length) return '';
+    if (words.length === 1) return words[0].slice(0, 6).toUpperCase();
+    return words
+      .map((word) => word[0])
+      .join('')
+      .slice(0, 6)
+      .toUpperCase();
+  }
+
+  function openWorkspaceCreator() {
+    setCreatingWorkspace(true);
+    setWorkspaceError('');
+    setNewWorkspaceName('');
+    setNewWorkspaceKey('');
+    setWorkspaceKeyEdited(false);
+  }
+
+  async function handleCreateWorkspace(e) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setWorkspaceError('');
+
+    const trimmedName = newWorkspaceName.trim();
+    const trimmedKey = newWorkspaceKey.trim().toUpperCase();
+
+    if (!trimmedName) {
+      setWorkspaceError('Workspace name is required.');
+      return;
+    }
+    if (!isValidProjectKey(trimmedKey)) {
+      setWorkspaceError('Workspace key must be 2-6 letters or numbers.');
+      return;
+    }
+    if (
+      localWorkspaces.some(
+        (w) => String(w.name || '').trim().toLowerCase() === trimmedName.toLowerCase()
+      )
+    ) {
+      setWorkspaceError('A workspace with that name already exists.');
+      return;
+    }
+    if (
+      localWorkspaces.some(
+        (w) => String(w.key || '').trim().toUpperCase() === trimmedKey
+      )
+    ) {
+      setWorkspaceError(`Workspace key ${trimmedKey} is already in use.`);
+      return;
+    }
+
+    setWorkspaceCreating(true);
+    try {
+      const res = await fetch('/api/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          key: trimmedKey,
+          description: '',
+          color,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create workspace.');
+
+      const created = data.workspace;
+      setLocalWorkspaces((prev) => [...prev, created]);
+      setWorkspaceId(String(created.id));
+      setCreatingWorkspace(false);
+      setNewWorkspaceName('');
+      setNewWorkspaceKey('');
+      await onWorkspaceCreated?.(created);
+    } catch (err) {
+      setWorkspaceError(err.message);
+    } finally {
+      setWorkspaceCreating(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -176,23 +286,96 @@ export default function ProjectModal({
             />
           </div>
 
-          {workspaces.length > 0 && (
-            <div className="form-group">
-              <label htmlFor="project-workspace">Work space</label>
-              <select
-                id="project-workspace"
-                value={workspaceId}
-                onChange={(e) => setWorkspaceId(e.target.value)}
-              >
-                <option value="">No work space</option>
-                {workspaces.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="form-group">
+            <label htmlFor="project-workspace">Workspace</label>
+            <select
+              id="project-workspace"
+              value={workspaceId}
+              onChange={(e) => {
+                if (e.target.value === '__create') {
+                  openWorkspaceCreator();
+                  return;
+                }
+                setWorkspaceId(e.target.value);
+              }}
+            >
+              {(localWorkspaces.length === 0 || (isEdit && project?.workspace_id == null)) && (
+                <option value="">
+                  {isEdit ? 'No workspace (legacy)' : 'No workspace yet'}
+                </option>
+              )}
+              {localWorkspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+              <option value="__create">+ Create new workspace</option>
+            </select>
+
+            {creatingWorkspace && (
+              <div className="workspace-create-panel">
+                <div className="workspace-create-fields">
+                  <div className="form-group">
+                    <label htmlFor="new-workspace-name">Name</label>
+                    <input
+                      id="new-workspace-name"
+                      type="text"
+                      value={newWorkspaceName}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewWorkspaceName(value);
+                        if (!workspaceKeyEdited) setNewWorkspaceKey(suggestWorkspaceKey(value));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreateWorkspace(e);
+                      }}
+                      placeholder="Operations"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="form-group form-group-narrow">
+                    <label htmlFor="new-workspace-key">Key</label>
+                    <input
+                      id="new-workspace-key"
+                      type="text"
+                      value={newWorkspaceKey}
+                      onChange={(e) => {
+                        setWorkspaceKeyEdited(true);
+                        setNewWorkspaceKey(e.target.value.toUpperCase().slice(0, 6));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreateWorkspace(e);
+                      }}
+                      placeholder="OPS"
+                      maxLength={6}
+                    />
+                  </div>
+                </div>
+                {workspaceError && <p className="form-error">{workspaceError}</p>}
+                <div className="workspace-create-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setCreatingWorkspace(false);
+                      setWorkspaceError('');
+                    }}
+                    disabled={workspaceCreating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleCreateWorkspace}
+                    disabled={workspaceCreating}
+                  >
+                    {workspaceCreating ? 'Creating...' : 'Create workspace'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="form-group">
             <label htmlFor="project-client">Client (optional)</label>

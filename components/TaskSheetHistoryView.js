@@ -16,6 +16,17 @@ const STATE_META = {
   not_completed: { label: 'Not Completed', className: 'is-open' },
 };
 
+function indiaToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = (type) => parts.find((part) => part.type === type)?.value;
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
 /**
  * The admin's view of both daily sheets.
  *
@@ -43,6 +54,8 @@ export default function TaskSheetHistoryView({
   const [projectFilter, setProjectFilter] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [reportDate, setReportDate] = useState(indiaToday);
+  const [sendingReport, setSendingReport] = useState(false);
   const pending = useRef(null);
 
   useEffect(() => {
@@ -115,6 +128,13 @@ function parseTicketsDetail(row) {
   return [];
 }
 
+function projectsLabel(row) {
+  const list = Array.isArray(row.projects) && row.projects.length > 0
+    ? row.projects
+    : [row.project];
+  return list.filter(Boolean).join(', ');
+}
+
   function downloadTaskCsv() {
     const csvCell = (v) => {
       const s = String(v ?? '');
@@ -124,7 +144,7 @@ function parseTicketsDetail(row) {
       'Date',
       'Time',
       'Name',
-      'Project',
+      'Projects',
       'Hours',
       'Task title',
       'Task description',
@@ -162,7 +182,7 @@ function parseTicketsDetail(row) {
           date,
           time,
           r.name,
-          r.project,
+          projectsLabel(r),
           r.hours_worked,
           r.task_title,
           r.task_description,
@@ -198,17 +218,55 @@ function parseTicketsDetail(row) {
     }
   }
 
+  async function sendDailyReports() {
+    if (sendingReport) return;
+    setSendingReport(true);
+    try {
+      const res = await fetch('/api/reports/daily-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportDate }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && data.status !== 'partial_failure' && data.status !== 'no_responses') {
+        throw new Error(data.error || 'Failed to send reports.');
+      }
+      if (data.status === 'no_responses') {
+        push({ message: 'No responses available for today.', tone: 'error' });
+      } else if (data.status === 'partial_failure') {
+        push({
+          message: 'Failed to send reports.',
+          tone: 'error',
+        });
+      } else if (data.status === 'no_admins') {
+        push({ message: 'No admin email addresses available.', tone: 'error' });
+      } else {
+        push({ message: 'Responses sent to admin emails successfully.', tone: 'success' });
+      }
+    } catch (error) {
+      push({ message: error.message || 'The daily report could not be sent.', tone: 'error' });
+    } finally {
+      setSendingReport(false);
+    }
+  }
+
   const byName = rows.reduce((acc, r) => {
     acc[r.name] = (acc[r.name] || 0) + 1;
     return acc;
   }, {});
   const byProject = rows.reduce((acc, r) => {
-    acc[r.project] = (acc[r.project] || 0) + 1;
+    const names = Array.isArray(r.projects) && r.projects.length > 0
+      ? r.projects
+      : [r.project];
+    for (const name of names.filter(Boolean)) {
+      acc[name] = (acc[name] || 0) + 1;
+    }
     return acc;
   }, {});
 
   const taskCount = rows.length;
   const happyCount = happyInitial?.length ?? 0;
+  const canSendDailyReports = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const subtitle =
     tab === 'task'
@@ -237,6 +295,30 @@ function parseTicketsDetail(row) {
           title={tab === 'task' ? 'Task Sheet History' : 'Happy Sheet History'}
           icon={tab === 'task' ? <ClipboardIcon /> : <SmileIcon />}
           subtitle={subtitle}
+          actions={
+            canSendDailyReports ? (
+              <>
+                <label className="ts-filter-date">
+                  <span className="visually-hidden">Report date</span>
+                  <input
+                    type="date"
+                    value={reportDate}
+                    aria-label="Daily report date"
+                    onChange={(event) => setReportDate(event.target.value)}
+                    disabled={sendingReport}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={sendDailyReports}
+                  disabled={sendingReport || !reportDate}
+                >
+                  {sendingReport ? 'Sending reports...' : 'Send Daily Reports'}
+                </button>
+              </>
+            ) : null
+          }
         />
 
         <div className="tab-bar" role="tablist" aria-label="Sheet history">
@@ -358,7 +440,7 @@ function parseTicketsDetail(row) {
                     <tr>
                       <th className="list-th">Date</th>
                       <th className="list-th">Name</th>
-                      <th className="list-th">Project</th>
+                      <th className="list-th">Projects</th>
                       <th className="list-th list-th-num">Hours</th>
                       <th className="list-th">Task</th>
                       <th className="list-th">State</th>
@@ -379,7 +461,7 @@ function parseTicketsDetail(row) {
                               </span>
                             )}
                           </td>
-                          <td className="list-cell">{row.project}</td>
+                          <td className="list-cell">{projectsLabel(row)}</td>
                           <td className="list-cell list-cell-num">{row.hours_worked}h</td>
                           <td className="list-cell">
                             {(() => {

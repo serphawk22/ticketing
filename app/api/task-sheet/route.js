@@ -23,7 +23,14 @@ export async function POST(request) {
   // for certain.
   const submittedBy = session ? session.user.id : null;
   const name = String(body.name ?? '').trim();
-  const project = String(body.project ?? '').trim();
+  const projects = [
+    ...new Set(
+      (Array.isArray(body.projects) ? body.projects : [body.project])
+        .map((p) => String(p ?? '').trim())
+        .filter(Boolean)
+    ),
+  ];
+  const project = projects[0] || '';
   const taskTitle = String(body.taskTitle ?? '').trim();
   const taskDescription = String(body.taskDescription ?? '').trim();
   const taskState = String(body.taskState ?? '').trim();
@@ -37,7 +44,18 @@ export async function POST(request) {
 
   if (!name) return NextResponse.json({ error: 'Please select your name.' }, { status: 400 });
   if (!project) {
-    return NextResponse.json({ error: 'Please select a project.' }, { status: 400 });
+    return NextResponse.json({ error: 'Please select at least one project.' }, { status: 400 });
+  }
+
+  const projectPlaceholders = projects.map(() => '?').join(', ');
+  const existingProjects = await db
+    .prepare(`SELECT name FROM projects WHERE name IN (${projectPlaceholders})`)
+    .all(...projects);
+  if (existingProjects.length !== projects.length) {
+    return NextResponse.json(
+      { error: 'One or more selected projects no longer exist. Please choose again.' },
+      { status: 400 }
+    );
   }
   if (!taskTitle) {
     return NextResponse.json({ error: 'Please enter a task title or number.' }, { status: 400 });
@@ -166,10 +184,15 @@ export async function POST(request) {
         );
       }
 
-      // Validate project: ticket must belong to the selected project
-      if (project && exists.project_name && exists.project_name.toLowerCase() !== project.toLowerCase()) {
+      // Validate project: ticket must belong to one of the selected projects
+      const belongsToSelectedProject =
+        !exists.project_name ||
+        projects.some((p) => p.toLowerCase() === exists.project_name.toLowerCase());
+      if (!belongsToSelectedProject) {
         return NextResponse.json(
-          { error: `Ticket #${t.key || tid} does not belong to project "${project}".` },
+          {
+            error: `Ticket #${t.key || tid} does not belong to any selected project (${projects.join(', ')}).`,
+          },
           { status: 400 }
         );
       }
@@ -246,7 +269,9 @@ export async function POST(request) {
         .get(candidate);
       if (exists) {
         const isClosed = exists.status === 'closed';
-        const projectMismatch = project && exists.project_name && exists.project_name.toLowerCase() !== project.toLowerCase();
+        const projectMismatch =
+          exists.project_name &&
+          !projects.some((p) => p.toLowerCase() === exists.project_name.toLowerCase());
         const userMismatch = name && !(
           (exists.employee_name && exists.employee_name.toLowerCase() === name.toLowerCase()) ||
           (exists.assigned_to_name && exists.assigned_to_name.toLowerCase() === name.toLowerCase())
@@ -300,6 +325,7 @@ export async function POST(request) {
     submittedBy,
     name,
     project,
+    projects,
     hoursWorked,
     taskTitle,
     taskDescription,
@@ -314,14 +340,14 @@ export async function POST(request) {
   return NextResponse.json({ submission }, { status: 201 });
 }
 
-/** The history is a manager's view, so it is admin-only on both page and API. */
+/** The history is a team view, open to the same admins and developers as the page. */
 export async function GET(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (session.user.role !== 'admin' && session.user.role !== 'developer') {
     return NextResponse.json(
-      { error: 'Only admins can read the task sheet history.' },
+      { error: 'Only team members can read the task sheet history.' },
       { status: 403 }
     );
   }

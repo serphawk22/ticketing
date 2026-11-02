@@ -1,7 +1,7 @@
 import requireTeamUser from '@/lib/requireTeamUser';
 import { getAllTickets } from '@/lib/tickets';
 import { getAllProjects } from '@/lib/projects';
-import { getEmployees, getEmployeeByUserId } from '@/lib/employees';
+import { getActiveEmployees, getEmployeeByUserId } from '@/lib/employees';
 import { toISO } from '@/lib/calendar';
 import Board from '@/components/Board';
 import DevDashboard from '@/components/DevDashboard';
@@ -25,7 +25,7 @@ export default async function HomePage({ searchParams }) {
   const [tickets, projects, employees] = await Promise.all([
     getAllTickets(),
     getAllProjects(),
-    getEmployees(),
+    getActiveEmployees(),
   ]);
 
   const today = toISO(new Date());

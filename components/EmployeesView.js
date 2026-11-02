@@ -159,20 +159,23 @@ export default function EmployeesView({
 
   async function handleDelete() {
     const target = deleting;
+    if (!target) return;
     setError('');
+    // Immediately remove from local state so the UI updates without delay
+    setEmployees((prev) => prev.filter((e) => e.id !== target.id));
+    setDeleting(null);
+
     try {
       const res = await fetch(`/api/employees/${target.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        // Their tickets are unassigned rather than left pointing at a deleted
-        // user, so say how many were touched instead of doing it silently.
         body: JSON.stringify({ reassign: 'unassign' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to remove employee.');
 
-      setDeleting(null);
       await refresh();
+      router.refresh();
 
       const unassigned = Number(data.unassigned || 0);
       push({
@@ -181,9 +184,10 @@ export default function EmployeesView({
               unassigned === 1 ? 'ticket is' : 'tickets are'
             } now unassigned.`
           : `Removed ${target.name}.`,
+        tone: 'success',
       });
     } catch (e) {
-      setDeleting(null);
+      await refresh();
       setError(e.message);
       push({ message: e.message, tone: 'error' });
     }

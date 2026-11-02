@@ -284,7 +284,7 @@ export default function ProjectSummary({
 
         <PageHeader
           className="summary-toolbar"
-          breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: data.project.name }]}
+          breadcrumb={[{ label: 'Workspaces', href: '/projects' }, { label: data.project.name }]}
           title={data.project.name}
           project={data.project}
           subtitle={data.project.description}

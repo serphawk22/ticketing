@@ -116,7 +116,7 @@ export function DonutChart({
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rpt-donut-svg">
           <g transform={`rotate(-90 ${radius} ${radius})`}>{segments}</g>
           {/* Subtle inner background disc */}
-          <circle cx={radius} cy={radius} r={innerRadius - 2} fill="#fafbfc" />
+          <circle cx={radius} cy={radius} r={innerRadius - 2} fill="var(--bg-surface, #fafbfc)" />
           <text
             x="50%"
             y="48%"
@@ -124,7 +124,7 @@ export function DonutChart({
             dy=".3em"
             fontSize={displayVal.length > 6 ? '18' : '22'}
             fontWeight="800"
-            fill="#172b4d"
+            fill="currentColor"
           >
             {displayVal}
           </text>
@@ -134,14 +134,13 @@ export function DonutChart({
             textAnchor="middle"
             fontSize="11"
             fontWeight="600"
-            fill="#626f86"
+            fill="var(--text-subtle, #626f86)"
             className="rpt-donut-center-sub"
           >
             {displayLabel.length > 14 ? displayLabel.slice(0, 12) + '…' : displayLabel}
           </text>
         </svg>
       </div>
-
       <div className="rpt-chart-legend">
         {cleanData.map((item, idx) => {
           const color = item.color || PALETTE[idx % PALETTE.length];
@@ -391,11 +390,11 @@ export function TrendChart({
               x2={width - pad.r}
               y1={t.y}
               y2={t.y}
-              stroke="#ebecf0"
+              stroke="var(--border, #ebecf0)"
               strokeDasharray={idx === 2 ? 'none' : '3 3'}
               strokeWidth="1"
             />
-            <text x={pad.l - 8} y={t.y + 3} textAnchor="end" fontSize="10" fill="#8993a4">
+            <text x={pad.l - 8} y={t.y + 3} textAnchor="end" fontSize="10" fill="var(--text-subtle, #8993a4)">
               {t.val.toLocaleString()}
             </text>
           </g>
@@ -428,7 +427,7 @@ export function TrendChart({
                 cx={p.x}
                 cy={p.y}
                 r={isHovered ? 6 : 4}
-                fill="#ffffff"
+                fill="var(--bg-surface, #ffffff)"
                 stroke={lineColor}
                 strokeWidth={isHovered ? 3 : 2}
                 style={{ transition: 'all 0.15s ease' }}
@@ -446,7 +445,7 @@ export function TrendChart({
             y={height - 8}
             textAnchor="middle"
             fontSize="10"
-            fill="#626f86"
+            fill="var(--text-subtle, #626f86)"
           >
             {p.label.length > 10 ? p.label.slice(5) : p.label}
           </text>
