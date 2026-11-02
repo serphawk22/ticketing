@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import Avatar from '../Avatar';
+import TicketGroupChat from './TicketGroupChat';
 import { PRIORITY_META, STATUS_META, INCLUSION_META, FIELD_META, formatFullDateTime, formatDuration, ticketKey } from '../meta';
 import { ArrowRightIcon, CommentIcon, HistoryIcon, SortDescIcon } from './icons';
 
 const TABS = [
   { key: 'all', label: 'All', Icon: null },
-  { key: 'comments', label: 'Comments', Icon: CommentIcon },
+  { key: 'comments', label: 'Group Chat', Icon: CommentIcon },
   { key: 'history', label: 'History', Icon: HistoryIcon },
   { key: 'worklog', label: 'Work log', Icon: HistoryIcon },
 ];
@@ -128,6 +129,8 @@ function CommentRow({ comment, currentUser, onEdit, onDelete }) {
 }
 
 export default function ActivityFeed({
+  ticket,
+  watchers,
   activity,
   comments,
   timeLogs,
@@ -137,8 +140,10 @@ export default function ActivityFeed({
   onAddComment,
   onEditComment,
   onDeleteComment,
+  isSubmitting,
+  initialTab,
 }) {
-  const [tab, setTab] = useState('all');
+  const [tab, setTab] = useState(initialTab || 'all');
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState('');
 
@@ -174,7 +179,7 @@ export default function ActivityFeed({
 
   const isEmpty =
     tab === 'comments'
-      ? !(comments || []).length && !commentDraft.trim()
+      ? false
       : !items.length;
 
   function startEdit(comment) {
@@ -191,7 +196,7 @@ export default function ActivityFeed({
 
   return (
     <section className="tm-section tm-activity" aria-label="Activity">
-      <h3 className="tm-section-title">Activity</h3>
+      <h3 className="tm-section-title">Activity & Discussion</h3>
       <div className="tm-subtabs" role="tablist" aria-label="Activity filter">
         {TABS.map(({ key, label, Icon }) => (
           <button
@@ -213,60 +218,18 @@ export default function ActivityFeed({
       </div>
 
       {tab === 'comments' ? (
-        <>
-          <div className="tm-comment-new">
-            <Avatar name={currentUser?.name} assigned size={24} />
-            <div className="tm-comment-compose">
-              <textarea
-                className="tm-textarea"
-                rows={2}
-                value={commentDraft}
-                placeholder="Add a comment..."
-                onChange={(e) => onCommentDraft(e.target.value)}
-              />
-              <div className="tm-comment-compose-foot">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!commentDraft.trim()}
-                  onClick={onAddComment}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-          <ul className="tm-activity-list">
-            {(comments || []).map((comment) =>
-              editingId === comment.id ? (
-                <li key={comment.id} className="tm-comment">
-                  <Avatar name={comment.author_name} assigned size={24} />
-                  <div className="tm-comment-body">
-                    <textarea
-                      className="tm-textarea"
-                      rows={3}
-                      value={editDraft}
-                      autoFocus
-                      onChange={(e) => setEditDraft(e.target.value)}
-                    />
-                    <div className="tm-comment-actions">
-                      <button type="button" onClick={() => saveEdit(comment.id)}>Save</button>
-                      <button type="button" onClick={() => { setEditingId(null); setEditDraft(''); }}>Cancel</button>
-                    </div>
-                  </div>
-                </li>
-              ) : (
-                <CommentRow
-                  key={comment.id}
-                  comment={comment}
-                  currentUser={currentUser}
-                  onEdit={startEdit}
-                  onDelete={onDeleteComment}
-                />
-              )
-            )}
-          </ul>
-        </>
+        <TicketGroupChat
+          ticket={ticket}
+          watchers={watchers}
+          comments={comments}
+          currentUser={currentUser}
+          commentDraft={commentDraft}
+          onCommentDraft={onCommentDraft}
+          onAddComment={onAddComment}
+          onEditComment={onEditComment}
+          onDeleteComment={onDeleteComment}
+          isSubmitting={isSubmitting}
+        />
       ) : tab === 'worklog' ? (
         <ul className="tm-activity-list">
           {worklog.map((log) => (

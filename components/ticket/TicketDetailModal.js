@@ -159,6 +159,39 @@ export default function TicketDetailModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, onNext, onPrev]);
 
+  // Live polling for comments so group chat updates automatically
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    const interval = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch(`/api/tickets/${id}/comments`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && Array.isArray(data.comments)) {
+          setDetail((prev) => {
+            const cur = prev.comments || [];
+            if (
+              cur.length !== data.comments.length ||
+              (cur.length > 0 && cur[cur.length - 1]?.id !== data.comments[data.comments.length - 1]?.id) ||
+              (cur.length > 0 && cur[cur.length - 1]?.updated_at !== data.comments[data.comments.length - 1]?.updated_at)
+            ) {
+              return { ...prev, comments: data.comments };
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Ignore polling network glitches
+      }
+    }, 4000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [id]);
+
   const patch = useCallback(
     async (fields) => {
       if (!id || busy) return;
@@ -1103,6 +1136,8 @@ export default function TicketDetailModal({
             )}
 
             <ActivityFeed
+              ticket={t}
+              watchers={detail.watchers}
               activity={detail.activity}
               comments={detail.comments}
               timeLogs={detail.timeLogs}
@@ -1112,6 +1147,7 @@ export default function TicketDetailModal({
               onAddComment={addComment}
               onEditComment={editComment}
               onDeleteComment={deleteComment}
+              isSubmitting={busy}
             />
           </div>
 
