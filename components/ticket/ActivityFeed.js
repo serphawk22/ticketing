@@ -140,6 +140,8 @@ export default function ActivityFeed({
   onAddComment,
   onEditComment,
   onDeleteComment,
+  onRefreshComments,
+  refreshingComments,
   isSubmitting,
   initialTab,
 }) {
@@ -228,6 +230,8 @@ export default function ActivityFeed({
           onAddComment={onAddComment}
           onEditComment={onEditComment}
           onDeleteComment={onDeleteComment}
+          onRefreshComments={onRefreshComments}
+          refreshingComments={refreshingComments}
           isSubmitting={isSubmitting}
         />
       ) : tab === 'worklog' ? (

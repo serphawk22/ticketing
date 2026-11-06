@@ -49,6 +49,8 @@ export default function TicketGroupChat({
   onAddComment,
   onEditComment,
   onDeleteComment,
+  onRefreshComments,
+  refreshingComments = false,
   isSubmitting = false,
 }) {
   const [editingId, setEditingId] = useState(null);
@@ -126,10 +128,12 @@ export default function TicketGroupChat({
       <div className="tm-chat-header">
         <div className="tm-chat-header-info">
           <div className="tm-chat-header-title">
-            <span className="tm-chat-live-pulse" title="Live group chat" />
             <span className="tm-chat-title-text">
               {key ? `${key} Group Discussion` : 'Ticket Group Discussion'}
             </span>
+            <button type="button" className="link-button" onClick={onRefreshComments} disabled={refreshingComments}>
+              {refreshingComments ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
           <p className="tm-chat-header-subtitle">
             Open channel for assignee, reporter & team members

@@ -6723,22 +6723,6 @@ textarea.inline-input { resize: vertical; }
   gap: 8px;
 }
 
-.tm-chat-live-pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
-  animation: chat-pulse 2s infinite;
-  flex-shrink: 0;
-}
-
-@keyframes chat-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
-  70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-}
-
 .tm-chat-title-text {
   font-size: var(--fs-13);
   font-weight: 600;

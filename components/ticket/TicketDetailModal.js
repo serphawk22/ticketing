@@ -71,6 +71,7 @@ export default function TicketDetailModal({
   const [linkQuery, setLinkQuery] = useState('');
   const [linkType, setLinkType] = useState('relates_to');
   const [commentDraft, setCommentDraft] = useState('');
+  const [refreshingComments, setRefreshingComments] = useState(false);
   const [attachmentsOpen, setAttachmentsOpen] = useState(true);
   const [childOpen, setChildOpen] = useState(true);
   const [linkedOpen, setLinkedOpen] = useState(true);
@@ -94,6 +95,8 @@ export default function TicketDetailModal({
   const scrollSide = useRef(null);
 
   const id = ticket?.id;
+  const activeTicketId = useRef(id);
+  activeTicketId.current = id;
   const isAdmin = currentUser?.role === 'admin';
   // Routing work -- naming an assignee or nesting it in the tree -- is the same
   // team decision the create and edit routes make, so the child form follows it.
@@ -159,38 +162,21 @@ export default function TicketDetailModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, onNext, onPrev]);
 
-  // Live polling for comments so group chat updates automatically
-  useEffect(() => {
-    if (!id) return;
-    let active = true;
-    const interval = setInterval(async () => {
-      if (document.hidden) return;
-      try {
-        const res = await fetch(`/api/tickets/${id}/comments`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (active && Array.isArray(data.comments)) {
-          setDetail((prev) => {
-            const cur = prev.comments || [];
-            if (
-              cur.length !== data.comments.length ||
-              (cur.length > 0 && cur[cur.length - 1]?.id !== data.comments[data.comments.length - 1]?.id) ||
-              (cur.length > 0 && cur[cur.length - 1]?.updated_at !== data.comments[data.comments.length - 1]?.updated_at)
-            ) {
-              return { ...prev, comments: data.comments };
-            }
-            return prev;
-          });
-        }
-      } catch {
-        // Ignore polling network glitches
+  const refreshComments = useCallback(async () => {
+    if (!id || refreshingComments) return;
+    const requestedId = id;
+    setRefreshingComments(true);
+    try {
+      const data = await call(`/api/tickets/${requestedId}/comments`);
+      if (activeTicketId.current === requestedId && Array.isArray(data.comments)) {
+        setDetail((prev) => ({ ...prev, comments: data.comments }));
       }
-    }, 4000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [id]);
+    } catch (err) {
+      if (activeTicketId.current === requestedId) setError(err.message);
+    } finally {
+      setRefreshingComments(false);
+    }
+  }, [id, refreshingComments]);
 
   const patch = useCallback(
     async (fields) => {
@@ -1147,6 +1133,8 @@ export default function TicketDetailModal({
               onAddComment={addComment}
               onEditComment={editComment}
               onDeleteComment={deleteComment}
+              onRefreshComments={refreshComments}
+              refreshingComments={refreshingComments}
               isSubmitting={busy}
             />
           </div>

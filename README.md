@@ -20,6 +20,8 @@ status changes.
 - **Email** — assignment, reassignment, and start notifications through SMTP,
   with every message recorded in the `email_outbox` table and readable through
   `GET /api/outbox` for auditing.
+- **Updates** — Notification and ticket-comment feeds refresh on demand; the app
+  does not poll them on a timer.
 - **Sessions** — opaque, database-backed sessions in an `HttpOnly`,
   `SameSite=Lax`, `Secure` (in production) cookie.
 

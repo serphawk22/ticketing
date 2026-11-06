@@ -52,10 +52,6 @@ function relativeTime(value) {
 }
 
 const PAGE_SIZE = 20;
-// Poll cadence for the badge and the open panel. The app ships no websocket or
-// SSE layer, so this is the real-time mechanism: a short interval keeps the
-// bell current without a page refresh.
-const POLL_MS = 25000;
 
 /**
  * Global notification bell.
@@ -100,7 +96,7 @@ export default function NotificationBell({ currentUser }) {
         setFailed(false);
       } catch {
         if (!append && seq !== requestId.current) return;
-        // Keep the last known list; the next poll can recover.
+        // Keep the last known list; a manual refresh can recover.
         setFailed(true);
       } finally {
         if (append) setLoadingMore(false);
@@ -110,18 +106,9 @@ export default function NotificationBell({ currentUser }) {
     [canView]
   );
 
-  // Fetch on mount, then poll. Refresh whenever the tab regains focus too, so a
-  // return to the tab is never showing a stale badge.
+  // Load the badge once; subsequent refreshes are user-triggered.
   useEffect(() => {
-    if (!canView) return undefined;
-    load();
-    const timer = setInterval(() => load(), POLL_MS);
-    const onFocus = () => load();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', onFocus);
-    };
+    if (canView) load();
   }, [canView, load]);
 
   // Close on outside click and Escape, matching the account and theme menus.
@@ -160,7 +147,7 @@ export default function NotificationBell({ currentUser }) {
         body: JSON.stringify({ id: item.id }),
       });
     } catch {
-      // The next poll reconciles server state if this fails.
+      // A manual refresh reconciles server state if this fails.
     }
   }
 
@@ -218,11 +205,16 @@ export default function NotificationBell({ currentUser }) {
         <div className="menu-popup notif-panel" role="dialog" aria-label="Notifications">
           <div className="notif-panel-head">
             <span className="notif-panel-title">Notifications</span>
-            {unreadCount > 0 && (
-              <button type="button" className="link-button notif-mark-all" onClick={markAllRead}>
-                Mark all as read
+            <div>
+              <button type="button" className="link-button" disabled={loading} onClick={() => load()}>
+                {loading ? 'Refreshing…' : 'Refresh'}
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button type="button" className="link-button notif-mark-all" onClick={markAllRead}>
+                  Mark all as read
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="notif-list">
