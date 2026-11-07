@@ -139,6 +139,7 @@ export default function TimelineView({
   myIssuesCount = 0,
   currentUser,
   today,
+  clientRequests = false,
 }) {
   const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
@@ -165,6 +166,7 @@ export default function TimelineView({
   const linkOverRef = useRef(null);
 
   const isAdmin = currentUser?.role === 'admin';
+  const canCreate = isAdmin && !clientRequests;
   const zoom = ZOOMS[zoomId];
   const dayWidth = zoom.dayWidth;
 
@@ -234,18 +236,20 @@ export default function TimelineView({
 
   // Extra room so a dependency handle sitting past the last day is not clipped.
   const chartWidth = range.count * dayWidth + 20;
-  const bodyRows = rows.length + (isAdmin ? 1 : 0);
+  const bodyRows = rows.length + (canCreate ? 1 : 0);
   const bodyHeight = Math.max(bodyRows * ROW_H, 360);
   const scheduledCount = rows.reduce((count, row) => count + (row.span ? 1 : 0), 0);
 
   const reloadTickets = useCallback(async () => {
-    const res = await fetch('/api/tickets');
+    const res = await fetch(clientRequests ? '/api/client-requests/tickets' : '/api/tickets');
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not reload work items.');
     setTickets(
-      (data.tickets || []).filter((ticket) => Number(ticket.project_id) === Number(project.id))
+      clientRequests
+        ? data.tickets || []
+        : (data.tickets || []).filter((ticket) => Number(ticket.project_id) === Number(project.id))
     );
-  }, [project.id]);
+  }, [project.id, clientRequests]);
 
   const commit = useCallback(async (patches, describe) => {
     const real = (patches || []).filter((patch) => patch?.fields && Object.keys(patch.fields).length);
@@ -317,12 +321,16 @@ export default function TimelineView({
   const applyTicketUpdate = useCallback((next) => {
     if (!next) return;
     setTickets((current) => {
-      if (next.project_id != null && Number(next.project_id) !== Number(project.id)) {
+      if (
+        !clientRequests
+        && next.project_id != null
+        && Number(next.project_id) !== Number(project.id)
+      ) {
         return current.filter((ticket) => ticket.id !== next.id);
       }
       return current.map((ticket) => (ticket.id === next.id ? { ...ticket, ...next } : ticket));
     });
-  }, [project.id]);
+  }, [project.id, clientRequests]);
 
   function clientToChart(event) {
     const rect = chartBodyRef.current?.getBoundingClientRect();
@@ -616,12 +624,14 @@ export default function TimelineView({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      view="summary"
+      view={clientRequests ? 'client-requests' : 'summary'}
       filter="all"
       onFilterChange={() => {}}
       projectId={String(project.id)}
-      onProjectChange={(id) => router.push(`/projects/${id}/timeline`)}
-      onCreate={isAdmin ? openCreate : undefined}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/timeline' : `/projects/${id}/timeline`)
+      }
+      onCreate={canCreate ? openCreate : undefined}
     >
       <div className={`board tl-view${gesture ? ` is-${gesture}` : ''}`}>
         {error && (
@@ -634,9 +644,13 @@ export default function TimelineView({
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Workspaces</Link>
+              {clientRequests ? (
+                <Link href="/client-requests">Client requests</Link>
+              ) : (
+                <Link href="/projects">Workspaces</Link>
+              )}
               <span className="breadcrumb-sep" aria-hidden="true">/</span>
-              <span>{project.name}</span>
+              <span>{clientRequests ? 'Timeline' : project.name}</span>
             </nav>
             <div className="toolbar-title-row">
               <span className="project-icon project-icon-sm" style={{ background: project.color }} aria-hidden="true">
@@ -648,7 +662,7 @@ export default function TimelineView({
           </div>
         </div>
 
-        <ProjectTabs projectId={project.id} active="timeline" />
+        <ProjectTabs projectId={project.id} active="timeline" clientRequests={clientRequests} />
 
         <div className="cal-toolbar">
           <div className="search-field cal-search">
@@ -878,7 +892,7 @@ export default function TimelineView({
                   </div>
                 );
               })}
-              {isAdmin && (
+              {canCreate && (
                 <button type="button" className="tl-create" onClick={openCreate}>
                   <PlusIcon />
                   Create
@@ -954,7 +968,7 @@ export default function TimelineView({
                   />
                 ))}
 
-                {isAdmin && (
+                {canCreate && (
                   <div
                     className="tl-chart-row is-schedulable"
                     style={{ top: rows.length * ROW_H }}
@@ -1083,7 +1097,7 @@ export default function TimelineView({
         />
       )}
 
-      {showCreate && (
+      {canCreate && showCreate && (
         <CreateTicketModal
           employees={employees}
           projects={projects}

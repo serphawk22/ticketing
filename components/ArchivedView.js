@@ -93,6 +93,7 @@ export default function ArchivedView({
   myIssuesCount,
   employees = [],
   currentUser,
+  clientRequests = false,
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [query, setQuery] = useState('');
@@ -247,16 +248,23 @@ export default function ArchivedView({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      projectId={project.id}
-      onProjectChange={(id) => router.push(`/projects/${id}/archived`)}
+      view={clientRequests ? 'client-requests' : undefined}
+      projectId={String(project.id)}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/archived' : `/projects/${id}/archived`)
+      }
     >
       <div className="board">
         <PageHeader
-          breadcrumb={[
-            { label: 'Workspaces', href: '/projects' },
-            { label: project.name, href: `/projects/${project.id}/summary` },
-            { label: 'Archived' },
-          ]}
+          breadcrumb={
+            clientRequests
+              ? [{ label: 'Client requests', href: '/client-requests' }, { label: 'Archived' }]
+              : [
+                  { label: 'Workspaces', href: '/projects' },
+                  { label: project.name, href: `/projects/${project.id}/summary` },
+                  { label: 'Archived' },
+                ]
+          }
           title="Archived work items"
           icon={
             <span
@@ -269,12 +277,12 @@ export default function ArchivedView({
           }
           subtitle={
             tickets.length === 0
-              ? 'Nothing archived in this project.'
+              ? `Nothing archived in ${clientRequests ? 'client requests' : 'this project'}.`
               : `${tickets.length} archived ${tickets.length === 1 ? 'work item' : 'work items'}.`
           }
         />
 
-        <ProjectTabs projectId={project.id} active="archived" />
+        <ProjectTabs projectId={project.id} active="archived" clientRequests={clientRequests} />
 
         <div className="archive-banner" role="note">
           <ArchiveIcon size={18} />

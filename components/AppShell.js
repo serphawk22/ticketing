@@ -1112,7 +1112,10 @@ export default function AppShell({
   }
 
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div
+      className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+      spellCheck="true"
+    >
       {/* ---------------- Top navigation ---------------- */}
       <header className="topnav">
         <button

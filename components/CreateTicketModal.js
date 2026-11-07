@@ -302,6 +302,7 @@ export default function CreateTicketModal({
                 aria-invalid={fieldErrors.summary ? 'true' : undefined}
                 aria-describedby={fieldErrors.summary ? 'summary-error' : undefined}
                 autoFocus
+                spellCheck="true"
               />
             </FormField>
 
@@ -322,6 +323,7 @@ export default function CreateTicketModal({
                 aria-describedby={
                   fieldErrors.description ? 'ticket-description-error' : undefined
                 }
+                spellCheck="true"
               />
             </FormField>
 

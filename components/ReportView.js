@@ -209,8 +209,13 @@ export default function ReportView({
   options,
   result,
   tickets,
+  clientRequests = false,
 }) {
   const router = useRouter();
+  const reportsHref = (slug) =>
+    clientRequests
+      ? `/client-requests/reports/${slug}`
+      : `/projects/${project.id}/reports/${slug}`;
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState(options);
   const [picked, setPicked] = useState('');
@@ -228,7 +233,7 @@ export default function ReportView({
     const params = new URLSearchParams();
     for (const filter of filters) params.set(filter.key, String(next[filter.key]));
     startTransition(() => {
-      router.replace(`/projects/${project.id}/reports/${report.slug}?${params.toString()}`, { scroll: false });
+      router.replace(`${reportsHref(report.slug)}?${params.toString()}`, { scroll: false });
     });
   }
 
@@ -246,15 +251,24 @@ export default function ReportView({
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       currentUser={currentUser}
+      clientRequests={clientRequests}
       title={report.title}
       subtitle={report.description}
       projectPath={(id) => `/projects/${id}/reports/${report.slug}`}
-      breadcrumb={[
-        { label: 'Workspaces', href: '/projects' },
-        { label: project.name, href: `/projects/${project.id}/summary` },
-        { label: 'Reports', href: `/projects/${project.id}/reports` },
-        { label: report.title },
-      ]}
+      breadcrumb={
+        clientRequests
+          ? [
+              { label: 'Client requests', href: '/client-requests' },
+              { label: 'Reports', href: '/client-requests/reports' },
+              { label: report.title },
+            ]
+          : [
+              { label: 'Workspaces', href: '/projects' },
+              { label: project.name, href: `/projects/${project.id}/summary` },
+              { label: 'Reports', href: `/projects/${project.id}/reports` },
+              { label: report.title },
+            ]
+      }
     >
       <div className="rpt-filters">
         <label className="rpt-filter">
@@ -263,7 +277,7 @@ export default function ReportView({
             <select
               value={report.slug}
               aria-label="Report"
-              onChange={(event) => router.push(`/projects/${project.id}/reports/${event.target.value}`)}
+              onChange={(event) => router.push(reportsHref(event.target.value))}
             >
               {REPORTS.map((item) => (
                 <option key={item.slug} value={item.slug}>

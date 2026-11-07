@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import EmptyState from '@/components/EmptyState';
 import { SmileIcon } from '@/components/AppShellIcons';
 import downloadHappySheetPng from '@/components/happySheetPng';
+import { indiaToday } from '@/lib/indiaDate';
 
 /**
  * The admin's view of the team's happy sheet.
@@ -19,7 +20,7 @@ export default function HappySheetHistoryView({ initial, facets }) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
   const [name, setName] = useState('');
-  const [day, setDay] = useState('');
+  const [day, setDay] = useState(indiaToday);
   const [sort, setSort] = useState('desc');
   const [error, setError] = useState('');
   const pending = useRef(null);

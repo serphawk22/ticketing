@@ -166,6 +166,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           ref={firstRef}
           rows={3}
           value={happyOne}
+          spellCheck="true"
           placeholder="A small win, a kind word, a problem that dissolved…"
           onChange={(e) => setHappyOne(e.target.value)}
           aria-invalid={errors.happyOne ? 'true' : undefined}
@@ -179,6 +180,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           id="hs-others"
           rows={3}
           value={happyOthers}
+          spellCheck="true"
           placeholder="Who, and how? Feel free to leave it blank — a day already happy is enough."
           onChange={(e) => setHappyOthers(e.target.value)}
         />
@@ -194,6 +196,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           id="hs-goals"
           rows={3}
           value={happyGoals}
+          spellCheck="true"
           placeholder="A goal you are working toward because it matters to you…"
           onChange={(e) => setHappyGoals(e.target.value)}
         />
@@ -206,6 +209,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           id="hs-dreams"
           rows={3}
           value={happyDreams}
+          spellCheck="true"
           placeholder="The dream you are slowly, surely making real…"
           onChange={(e) => setHappyDreams(e.target.value)}
         />
@@ -220,6 +224,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           id="hs-self-study"
           rows={3}
           value={happySelfStudy}
+          spellCheck="true"
           placeholder="Describe any self-study, personal project, or topic you are exploring..."
           onChange={(e) => setHappySelfStudy(e.target.value)}
         />

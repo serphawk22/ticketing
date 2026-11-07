@@ -105,6 +105,7 @@ export default function DescriptionEditor({ value, onSave, canEdit = true }) {
         ref={editorRef}
         className="tm-rich-body"
         contentEditable
+        spellCheck="true"
         suppressContentEditableWarning
         onBlur={commit}
         onKeyDown={(e) => {

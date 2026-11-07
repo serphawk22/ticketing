@@ -623,6 +623,7 @@ export default function TaskSheetForm({
             placeholder="TM-594, or a short summary of the work"
             onChange={(e) => setTaskTitle(e.target.value)}
             aria-invalid={errors.taskTitle ? 'true' : undefined}
+            spellCheck="true"
           />
 
           {selectedTickets.length > 0 && (
@@ -751,6 +752,7 @@ export default function TaskSheetForm({
                             id={`ticket-blocker-${t.id}`}
                             rows={2}
                             value={t.blocker || ''}
+                            spellCheck="true"
                             placeholder="Waiting on a dependency, a review, access, a decision…"
                             onChange={(e) => handleUpdateTicket(t.id, { blocker: e.target.value })}
                             style={{
@@ -804,6 +806,7 @@ export default function TaskSheetForm({
             id="ts-description"
             rows={4}
             value={taskDescription}
+            spellCheck="true"
             placeholder="What was worked on, and how far it got"
             onChange={(e) => setTaskDescription(e.target.value)}
             aria-invalid={errors.taskDescription ? 'true' : undefined}
@@ -826,6 +829,7 @@ export default function TaskSheetForm({
             id="ts-learning-project"
             rows={4}
             value={learningProject}
+            spellCheck="true"
             placeholder="Describe any learning or other project you are working on..."
             onChange={(e) => setLearningProject(e.target.value)}
           />
@@ -844,6 +848,7 @@ export default function TaskSheetForm({
             id="ts-other-activities"
             rows={4}
             value={otherActivities}
+            spellCheck="true"
             placeholder="Describe anything new or different you did today outside of work..."
             onChange={(e) => setOtherActivities(e.target.value)}
           />
