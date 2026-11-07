@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getAllTickets, getTicket, getTicketsForClient, getTicketsForProject } from '@/lib/tickets';
@@ -76,6 +76,39 @@ export async function GET(request) {
     role: session.user.role,
     tickets,
   });
+}
+
+async function sendCreationNotifications({ ticket, actorId, actorName, assignee }) {
+  try {
+    await notifyTicketCreated({ ticket, actorId, actorName });
+
+    if (assignee) {
+      const employee = await getEmployee(assignee);
+      if (employee) {
+        try {
+          const { notifyTicketCreatedEmail } = await import('@/lib/mail');
+          await notifyTicketCreatedEmail({ ticket, employee, actorName });
+        } catch (e) {
+          console.error('Ticket created email failed:', e);
+        }
+      }
+      await notifyAssignment({
+        ticket,
+        employee,
+        actorName,
+        trigger: 'assignment',
+      });
+      await notifyTicketAssigned({
+        ticket,
+        actorId,
+        actorName,
+        employeeName: employee?.name,
+        trigger: 'assignment',
+      });
+    }
+  } catch (err) {
+    console.error('Ticket created, but notifications failed:', err);
+  }
 }
 
 export async function POST(request) {
@@ -189,52 +222,18 @@ export async function POST(request) {
   // even before anything is edited.
   await logCreated(ticket.id, session.user.id);
 
-  // Every admin and developer hears about the new ticket, regardless of who
-  // raised it or which project it landed in. The assignment is its own event on
-  // top, the same split the email layer makes.
-  //
-  // Best-effort for the same reason as above: the ticket row and its creation
-  // activity row are committed, so a delivery failure must not turn the create
-  // into a 500 and leave the client without its new ticket.
-  let notification = null;
-  try {
-    await notifyTicketCreated({
+  // Notifications and email fan out per recipient, and SMTP delivery can take
+  // several seconds. The ticket row and its creation activity are already
+  // committed, so run that best-effort work after the response so the creator
+  // gets the new ticket immediately.
+  after(() =>
+    sendCreationNotifications({
       ticket,
       actorId: session.user.id,
       actorName: session.user.name,
-    });
+      assignee,
+    })
+  );
 
-    if (assignee) {
-      const employee = await getEmployee(assignee);
-      if (employee) {
-        try {
-          const { notifyTicketCreatedEmail } = await import('@/lib/mail');
-          await notifyTicketCreatedEmail({
-            ticket,
-            employee,
-            actorName: session.user.name,
-          });
-        } catch (e) {
-          console.error('Ticket created email failed:', e);
-        }
-      }
-      notification = await notifyAssignment({
-        ticket,
-        employee,
-        actorName: session.user.name,
-        trigger: 'assignment',
-      });
-      await notifyTicketAssigned({
-        ticket,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        employeeName: employee?.name,
-        trigger: 'assignment',
-      });
-    }
-  } catch (err) {
-    console.error('Ticket created, but notifications failed:', err);
-  }
-
-  return NextResponse.json({ ticket, notification }, { status: 201 });
+  return NextResponse.json({ ticket }, { status: 201 });
 }

@@ -67,6 +67,7 @@ export default function ClientRaiseTicketView({ currentUser }) {
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               placeholder="What do you need?"
               required
+              spellCheck="true"
             />
           </div>
 
@@ -79,6 +80,7 @@ export default function ClientRaiseTicketView({ currentUser }) {
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               placeholder="Add anything that helps us understand the request."
               required
+              spellCheck="true"
             />
           </div>
 

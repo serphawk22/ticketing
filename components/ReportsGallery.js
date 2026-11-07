@@ -91,7 +91,12 @@ export default function ReportsGallery({
   projectCounts,
   myIssuesCount,
   currentUser,
+  clientRequests = false,
 }) {
+  const reportsHref = (slug) =>
+    clientRequests
+      ? `/client-requests/reports/${slug}`
+      : `/projects/${project.id}/reports/${slug}`;
   const [query, setQuery] = useState('');
   const needle = query.trim().toLowerCase();
 
@@ -109,13 +114,22 @@ export default function ReportsGallery({
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       currentUser={currentUser}
+      clientRequests={clientRequests}
       title="Reports"
-      subtitle="Charts for how work is created, resolved, and shared across this project."
-      breadcrumb={[
-        { label: 'Workspaces', href: '/projects' },
-        { label: project.name, href: `/projects/${project.id}/summary` },
-        { label: 'Reports' },
-      ]}
+      subtitle={
+        clientRequests
+          ? 'Charts for how client requests are created, resolved, and shared.'
+          : 'Charts for how work is created, resolved, and shared across this project.'
+      }
+      breadcrumb={
+        clientRequests
+          ? [{ label: 'Client requests', href: '/client-requests' }, { label: 'Reports' }]
+          : [
+              { label: 'Workspaces', href: '/projects' },
+              { label: project.name, href: `/projects/${project.id}/summary` },
+              { label: 'Reports' },
+            ]
+      }
     >
       <div className="search-field rpt-search">
         <SearchIcon />
@@ -142,7 +156,7 @@ export default function ReportsGallery({
                   <Link
                     key={report.slug}
                     className="rpt-card"
-                    href={`/projects/${project.id}/reports/${report.slug}`}
+                    href={reportsHref(report.slug)}
                   >
                     <span className="rpt-card-icon">
                       <ReportIcon slug={report.slug} />

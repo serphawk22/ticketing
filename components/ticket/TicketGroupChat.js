@@ -224,6 +224,7 @@ export default function TicketGroupChat({
                               rows={3}
                               value={editDraft}
                               autoFocus
+                              spellCheck="true"
                               onChange={(e) => setEditDraft(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -316,6 +317,7 @@ export default function TicketGroupChat({
             className="tm-chat-textarea"
             rows={1}
             value={commentDraft}
+            spellCheck="true"
             placeholder={`Message ${key ? `#${key}` : 'the group'}... (Enter to send, Shift+Enter for new line)`}
             onChange={(e) => onCommentDraft(e.target.value)}
             onKeyDown={handleKeyDown}

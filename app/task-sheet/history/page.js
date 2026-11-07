@@ -4,6 +4,7 @@ import { getAllTickets } from '@/lib/tickets';
 import { listHappyFacets, listHappySubmissions } from '@/lib/happySheet';
 import { listSubmissionFacets, listSubmissions } from '@/lib/taskSheet';
 import { getActiveEmployees } from '@/lib/employees';
+import { indiaToday } from '@/lib/indiaDate';
 import TaskSheetHistoryView from '@/components/TaskSheetHistoryView';
 
 export const dynamic = 'force-dynamic';
@@ -19,12 +20,13 @@ export default async function TaskSheetHistoryPage() {
   // requireTeamUser already keeps clients out; the history is open to admins
   // and developers alike, so there is no further role check here.
   const session = await requireTeamUser();
+  const today = indiaToday();
 
   const [submissions, facets, happySubmissions, happyFacets, projects, tickets, activeEmployees] =
     await Promise.all([
-      listSubmissions(),
+      listSubmissions({ from: today, to: today }),
       listSubmissionFacets(),
-      listHappySubmissions(),
+      listHappySubmissions({ day: today }),
       listHappyFacets(),
       getAllProjects(),
       getAllTickets(),

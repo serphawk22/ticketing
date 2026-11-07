@@ -144,6 +144,7 @@ export default function RaiseTicketView({
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="What needs to be done?"
                   required
+                  spellCheck="true"
                 />
               </div>
 
@@ -156,6 +157,7 @@ export default function RaiseTicketView({
                   placeholder="Add a description…"
                   rows={5}
                   required
+                  spellCheck="true"
                 />
               </div>
 

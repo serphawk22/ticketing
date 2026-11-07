@@ -61,6 +61,7 @@ export default function Board({
   currentUser,
   currentEmployeeId = null,
   today,
+  clientRequests = false,
 }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [projects, setProjects] = useState(initialProjects);
@@ -79,6 +80,7 @@ export default function Board({
   const [draggingId, setDraggingId] = useState(null);
 
   const isAdmin = currentUser.role === 'admin';
+  const canCreate = isAdmin && !clientRequests;
   // Any signed-in user can move a ticket. Only reassignment and creation stay admin-only.
   const canMove = true;
 
@@ -238,7 +240,7 @@ export default function Board({
 
   async function refresh() {
     const [ticketsRes, projectsRes, employeesRes] = await Promise.all([
-      fetch('/api/tickets'),
+      fetch(clientRequests ? '/api/client-requests/tickets' : '/api/tickets'),
       fetch('/api/projects'),
       fetch('/api/employees'),
     ]);
@@ -270,12 +272,12 @@ export default function Board({
       projectCounts={projectCounts}
       employeeCount={employees.filter((e) => e.active).length}
       myIssuesCount={myIssuesCount}
-      view="board"
+      view={clientRequests ? 'client-requests' : 'board'}
       filter={filter}
       onFilterChange={setFilter}
       projectId={projectId}
       onProjectChange={handleProjectChange}
-      onCreate={isAdmin ? () => setShowModal(true) : null}
+      onCreate={canCreate ? () => setShowModal(true) : null}
     >
       <div className="board">
         {error && (
@@ -290,36 +292,50 @@ export default function Board({
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Workspaces</Link>
-              {activeProject && (
+              {clientRequests ? (
                 <>
+                  <Link href="/client-requests">Client requests</Link>
                   <span className="breadcrumb-sep" aria-hidden="true">
                     /
                   </span>
-                  <span>{activeProject.name}</span>
+                  <span>Board</span>
                 </>
-              )}
-              {!activeProject && (
+              ) : (
                 <>
-                  <span className="breadcrumb-sep" aria-hidden="true">
-                    /
-                  </span>
-                  <span>All issues</span>
+                  <Link href="/projects">Workspaces</Link>
+                  {activeProject && (
+                    <>
+                      <span className="breadcrumb-sep" aria-hidden="true">
+                        /
+                      </span>
+                      <span>{activeProject.name}</span>
+                    </>
+                  )}
+                  {!activeProject && (
+                    <>
+                      <span className="breadcrumb-sep" aria-hidden="true">
+                        /
+                      </span>
+                      <span>All issues</span>
+                    </>
+                  )}
                 </>
               )}
             </nav>
             <div className="toolbar-title-row">
-              {activeProject && (
+              {activeProject && !clientRequests && (
                 <span
                   className="project-dot project-dot-lg"
                   style={{ background: activeProject.color }}
                   aria-hidden="true"
                 />
               )}
-              <h1>{activeProject ? activeProject.name : 'Board'}</h1>
+              <h1>
+                {clientRequests ? 'Client requests' : activeProject ? activeProject.name : 'Board'}
+              </h1>
             </div>
             <p className="board-subtitle">
-              {activeProject && (
+              {activeProject && !clientRequests && (
                 <button
                   type="button"
                   className="link-button"
@@ -328,7 +344,8 @@ export default function Board({
                   All issues
                 </button>
               )}
-              {activeProject && ' · '}
+              {activeProject && !clientRequests && ' · '}
+              {clientRequests && 'Requests raised by client accounts · '}
               {filter === 'mine' ? 'My tickets' : 'All tickets'} · {total}{' '}
               {total === 1 ? 'ticket' : 'tickets'}
             </p>
@@ -392,7 +409,7 @@ export default function Board({
               <ChevronIcon />
             </div>
 
-            {isAdmin && (
+            {isAdmin && !clientRequests && (
               <button
                 className="btn-secondary"
                 onClick={() => {
@@ -416,7 +433,7 @@ export default function Board({
               </button>
             )}
 
-            {isAdmin && (
+            {canCreate && (
               <button className="btn-primary" onClick={() => setShowModal(true)}>
                 <svg
                   viewBox="0 0 24 24"
@@ -435,9 +452,15 @@ export default function Board({
           </div>
         </div>
 
-        {activeProject && <ProjectTabs projectId={activeProject.id} active="board" />}
+        {(activeProject || clientRequests) && (
+          <ProjectTabs
+            projectId={activeProject?.id || 'client-requests'}
+            active="board"
+            clientRequests={clientRequests}
+          />
+        )}
 
-        {isAdmin && !activeProject && (
+        {isAdmin && !activeProject && !clientRequests && (
           <TodayByDeveloper
             tickets={tickets}
             employees={employees}
@@ -495,7 +518,7 @@ export default function Board({
                   )}
                 </div>
 
-                {isAdmin && (
+                {canCreate && (
                   <button
                     className="column-create"
                     onClick={() => setShowModal(true)}
@@ -510,7 +533,7 @@ export default function Board({
         </div>
       </div>
 
-      {showModal && (
+      {canCreate && showModal && (
         <CreateTicketModal
           employees={employees}
           projects={projects}
@@ -520,7 +543,7 @@ export default function Board({
         />
       )}
 
-      {addForEmployee && (
+      {canCreate && addForEmployee && (
         <CreateTicketModal
           employees={employees}
           projects={projects}

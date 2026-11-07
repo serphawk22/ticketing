@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { clientRequestsHref } from '@/lib/clientRequestsProject';
 
 const TABS = [
   { key: 'summary', label: 'Summary' },
@@ -33,7 +34,7 @@ const HREF = {
  * soon page for the project, so the strip is uniform and nothing is a
  * dead-end.
  */
-export default function ProjectTabs({ projectId, active = 'summary' }) {
+export default function ProjectTabs({ projectId, active = 'summary', clientRequests = false }) {
   return (
     <div className="tab-bar project-tab-bar" role="tablist" aria-label="Project views">
       {TABS.map((tab) => (
@@ -42,7 +43,7 @@ export default function ProjectTabs({ projectId, active = 'summary' }) {
           className={`tab${tab.key === active ? ' active' : ''}`}
           role="tab"
           aria-selected={tab.key === active}
-          href={HREF[tab.key](projectId)}
+          href={clientRequests ? clientRequestsHref(tab.key) : HREF[tab.key](projectId)}
           title={tab.soon ? `${tab.label} is coming soon` : undefined}
         >
           {tab.label}

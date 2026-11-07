@@ -5,10 +5,8 @@
 
 :root {
   /* Typography */
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: var(--font-sora), var(--font-inter), -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-display: Arial, Helvetica, sans-serif;
   --font-size: 16px;
   --line-height: 24px;
   --fs-11: 11px;
@@ -494,7 +492,23 @@ textarea {
 
 /* Display typography for the authenticated shell only. The login page lives
    outside .app and is intentionally left untouched. */
-.app :is(h1, h2, h3, h4),
+:is(h1, h2, h3, h4, h5, h6),
+.app :is(h1, h2, h3, h4, h5, h6),
+.topnav-brand-name,
+.modal-title,
+.dialog-title,
+.drawer-title,
+.panel-title,
+.toolbar-title h1,
+.board-title,
+.ts-public-title,
+.rpt-page-title,
+.rpt-section-heading,
+.rpt-detail-title,
+.rpt-modal-title,
+.auth-split-brand-name,
+.auth-split-tagline,
+.auth-split-heading h1,
 .app .topnav-brand-name {
   font-family: var(--font-display);
   letter-spacing: -0.01em;
@@ -925,6 +939,7 @@ textarea {
 
 .nav-section-head {
   gap: 2px;
+  font-size: calc(var(--fs-13) + 2px);
 }
 
 .nav-section:first-child > .nav-section-head {
@@ -3832,7 +3847,7 @@ textarea {
 
 .form-parent strong {
   color: var(--text-link);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
 }
 
 /* Work cell */
@@ -3854,7 +3869,7 @@ textarea {
   border: none;
   background: none;
   color: var(--text-link);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: 500;
   cursor: pointer;
@@ -4574,7 +4589,7 @@ textarea {
   border-radius: 4px;
   background: var(--bg);
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
 }
 
@@ -5044,7 +5059,7 @@ textarea {
   border-radius: 7px;
   background: #ffffff;
   color: #1e293b;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 12px;
   line-height: 18px;
 }
@@ -5671,7 +5686,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-surface);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text);
 }
@@ -10442,14 +10457,15 @@ input.inline-input.tm-title-edit {
 .ts-upper-section,
 .ts-board,
 .ts-public {
-  font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Highlight the Task Sheet Heading */
 .ts-page-header .toolbar-title h1,
 .ts-board .toolbar-title h1,
 .ts-public-title {
-  font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em !important;
   font-size: 26px;
   font-weight: 700;
   line-height: 32px;
@@ -10954,7 +10970,7 @@ input.inline-input.tm-title-edit {
   border-radius: 4px;
   background: #ebecf0;
   color: #44546f;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
 }
 
 .ts-github-badge.is-open {
@@ -11164,7 +11180,7 @@ input.inline-input.tm-title-edit {
 
 .ts-ticket-link {
   color: var(--text-link);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: 500;
   white-space: nowrap;
@@ -12601,7 +12617,7 @@ input.inline-input.tm-title-edit {
 
 .docs-body pre,
 .docs-body code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-sans);
   font-size: 13px;
 }
 
@@ -17136,7 +17152,7 @@ input[type='text'].rpt-hub-search-input:focus,
 }
 
 .support-email-display {
-  font-family: monospace;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -17690,4 +17706,37 @@ input[type='text'].rpt-hub-search-input:focus,
 
 [data-theme='dark'] .rpt-collapsed-prompt {
   color: var(--text-link);
+}
+
+.spellcheck-suggestions {
+  position: fixed;
+  z-index: 2147483000;
+  min-width: 180px;
+  max-width: 240px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: var(--shadow-popup);
+  color: var(--text);
+  font-size: var(--fs-13);
+}
+
+.spellcheck-suggestion {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spellcheck-suggestion:hover,
+.spellcheck-suggestion:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
 }

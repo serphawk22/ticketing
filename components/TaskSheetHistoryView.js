@@ -10,22 +10,12 @@ import { ClockIcon } from '@/components/ticket/icons';
 import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
 import HappySheetHistoryView from '@/components/HappySheetHistoryView';
 import downloadTaskSheetPng from '@/components/taskSheetPng';
+import { indiaToday } from '@/lib/indiaDate';
 
 const STATE_META = {
   completed: { label: 'Completed', className: 'is-done' },
   not_completed: { label: 'Not Completed', className: 'is-open' },
 };
-
-function indiaToday() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const value = (type) => parts.find((part) => part.type === type)?.value;
-  return `${value('year')}-${value('month')}-${value('day')}`;
-}
 
 /**
  * The admin's view of both daily sheets.
@@ -52,8 +42,8 @@ export default function TaskSheetHistoryView({
   const [rows, setRows] = useState(initial);
   const [name, setName] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(indiaToday);
+  const [to, setTo] = useState(indiaToday);
   const [reportDate, setReportDate] = useState(indiaToday);
   const [sendingReport, setSendingReport] = useState(false);
   const pending = useRef(null);

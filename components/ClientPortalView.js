@@ -190,6 +190,7 @@ export default function ClientPortalView({ currentUser, tickets, comments }) {
                         onChange={(e) => setReply(e.target.value)}
                         placeholder="Add a reply for the team…"
                         autoFocus
+                        spellCheck="true"
                       />
                       <div className="client-reply-actions">
                         <button
