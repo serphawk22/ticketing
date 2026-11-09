@@ -1027,3 +1027,47 @@ BEGIN
     ALTER TABLE employee_attendance ADD COLUMN is_lop integer NOT NULL DEFAULT 0;
   END IF;
 END $$;
+<<<<<<< Updated upstream
+=======
+
+CREATE INDEX IF NOT EXISTS departments_ws_idx ON departments (workspace_id);
+CREATE INDEX IF NOT EXISTS designations_ws_dept_idx ON designations (workspace_id, department_id);
+CREATE INDEX IF NOT EXISTS employees_dept_idx ON employees (department_id);
+CREATE INDEX IF NOT EXISTS employees_desig_idx ON employees (designation_id);
+CREATE INDEX IF NOT EXISTS employees_manager_idx ON employees (reporting_manager_id);
+CREATE INDEX IF NOT EXISTS employees_status_idx ON employees (employment_status);
+CREATE INDEX IF NOT EXISTS onb_wf_emp_idx ON onboarding_workflows (employee_id);
+CREATE INDEX IF NOT EXISTS onb_wf_ws_idx ON onboarding_workflows (workspace_id);
+CREATE INDEX IF NOT EXISTS onb_chk_wf_idx ON onboarding_checklist_items (workflow_id);
+CREATE INDEX IF NOT EXISTS exit_req_emp_idx ON exit_requests (employee_id);
+CREATE INDEX IF NOT EXISTS exit_req_ws_idx ON exit_requests (workspace_id);
+CREATE INDEX IF NOT EXISTS exit_chk_req_idx ON exit_checklist_items (exit_request_id);
+CREATE INDEX IF NOT EXISTS assets_ws_idx ON company_assets (workspace_id);
+CREATE INDEX IF NOT EXISTS assets_tag_idx ON company_assets (asset_tag);
+CREATE INDEX IF NOT EXISTS asset_alloc_emp_idx ON asset_allocations (employee_id);
+CREATE INDEX IF NOT EXISTS asset_alloc_asset_idx ON asset_allocations (asset_id);
+CREATE INDEX IF NOT EXISTS emp_docs_emp_idx ON employee_documents (employee_id);
+CREATE INDEX IF NOT EXISTS emp_docs_ws_idx ON employee_documents (workspace_id);
+
+CREATE TABLE IF NOT EXISTS ai_progress_summaries (
+  id                    BIGSERIAL PRIMARY KEY,
+  scope_type            TEXT NOT NULL CHECK (scope_type IN ('overall', 'project')),
+  project_id            BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  health_status         TEXT NOT NULL CHECK (health_status IN ('on_track', 'at_risk', 'critical', 'completed')),
+  headline              TEXT NOT NULL DEFAULT '',
+  summary_text          TEXT NOT NULL DEFAULT '',
+  achievements_json     TEXT NOT NULL DEFAULT '[]',
+  blockers_json         TEXT NOT NULL DEFAULT '[]',
+  recommendations_json  TEXT NOT NULL DEFAULT '[]',
+  metrics_snapshot_json TEXT NOT NULL DEFAULT '{}',
+  model_name            TEXT NOT NULL DEFAULT 'gemini-2.5-flash',
+  generated_by          BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_summary_overall ON ai_progress_summaries (scope_type) WHERE project_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_summary_project ON ai_progress_summaries (scope_type, project_id) WHERE project_id IS NOT NULL;
+
+
+>>>>>>> Stashed changes
