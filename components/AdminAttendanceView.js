@@ -148,8 +148,8 @@ export default function AdminAttendanceView({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '8px 16px',
-                background: '#0c66e4',
-                color: '#ffffff',
+                background: 'var(--primary)',
+                color: 'var(--primary-text)',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '13px',
@@ -164,7 +164,7 @@ export default function AdminAttendanceView({
         />
 
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #ebecf0', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '20px' }}>
           <button
             type="button"
             onClick={() => setActiveTab('roster')}
@@ -175,8 +175,8 @@ export default function AdminAttendanceView({
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
-              color: activeTab === 'roster' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'roster' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'roster' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'roster' ? '2px solid var(--text-link)' : '2px solid transparent',
             }}
           >
             📅 Workforce Attendance
@@ -191,8 +191,8 @@ export default function AdminAttendanceView({
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
-              color: activeTab === 'leaves' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'leaves' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'leaves' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'leaves' ? '2px solid var(--text-link)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
               gap: '6px'
@@ -201,8 +201,8 @@ export default function AdminAttendanceView({
             🏖️ Leave Applications
             {pendingLeaveCount > 0 && (
               <span style={{
-                background: '#fff0b3',
-                color: '#172b4d',
+                background: 'var(--warning-banner-bg)',
+                color: 'var(--text)',
                 fontSize: '11px',
                 padding: '1px 6px',
                 borderRadius: '10px',
@@ -222,8 +222,8 @@ export default function AdminAttendanceView({
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
-              color: activeTab === 'settings' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'settings' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'settings' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'settings' ? '2px solid var(--text-link)' : '2px solid transparent',
             }}
           >
             Official Schedules & Grace Period
@@ -238,8 +238,8 @@ export default function AdminAttendanceView({
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
-              color: activeTab === 'balances' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'balances' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'balances' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'balances' ? '2px solid var(--text-link)' : '2px solid transparent',
             }}
           >
             📊 Leave Balances & Policy
@@ -254,8 +254,8 @@ export default function AdminAttendanceView({
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
-              color: activeTab === 'holidays' ? '#0c66e4' : '#626f86',
-              borderBottom: activeTab === 'holidays' ? '2px solid #0c66e4' : '2px solid transparent',
+              color: activeTab === 'holidays' ? 'var(--text-link)' : 'var(--text-subtle)',
+              borderBottom: activeTab === 'holidays' ? '2px solid var(--text-link)' : '2px solid transparent',
             }}
           >
             Company Holidays
@@ -263,7 +263,7 @@ export default function AdminAttendanceView({
         </div>
 
         {error && (
-          <div style={{ background: '#ffebe6', color: '#ae2e24', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' }}>
+          <div style={{ background: '#ffebe6', color: 'var(--danger)', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' }}>
             {error}
           </div>
         )}
@@ -278,30 +278,30 @@ export default function AdminAttendanceView({
               gap: '14px',
               alignItems: 'center',
               justifyContent: 'space-between',
-              background: '#ffffff',
+              background: 'var(--bg-elevated)',
               padding: '16px 20px',
               borderRadius: '8px',
-              border: '1px solid #ebecf0',
+              border: '1px solid var(--border-subtle)',
               marginBottom: '16px',
               boxShadow: '0 1px 2px rgba(9, 30, 66, 0.05)'
             }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, color: '#172b4d' }}>Date:</label>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Date:</label>
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => handleDateChange(e.target.value)}
-                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d' }}
+                    style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)' }}
                   />
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, color: '#172b4d' }}>Department:</label>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Department:</label>
                   <select
                     value={department}
                     onChange={(e) => handleDeptChange(e.target.value)}
-                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', color: '#172b4d', background: '#fff' }}
+                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--text)', background: 'var(--bg-elevated)' }}
                   >
                     <option value="all">All Departments</option>
                     <option value="Engineering">Engineering</option>
@@ -319,11 +319,11 @@ export default function AdminAttendanceView({
                   placeholder="Search employee..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '13px', width: '200px' }}
+                  style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '13px', width: '200px' }}
                 />
                 <button
                   type="submit"
-                  style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: '#0c66e4', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: 'var(--primary-text)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
                 >
                   Search
                 </button>
@@ -332,53 +332,53 @@ export default function AdminAttendanceView({
 
             {/* Daily Status Banner if Holiday or Sunday */}
             {data.isSunday && (
-              <div style={{ background: '#f1f2f4', padding: '10px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', color: '#44546f', fontWeight: 500 }}>
+              <div style={{ background: 'var(--bg-hover)', padding: '10px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', color: 'var(--neutral-text)', fontWeight: 500 }}>
                 📅 <strong>Sunday Official Weekly Off:</strong> Normal working day requirements do not apply.
               </div>
             )}
             {data.holiday?.isHoliday && (
-              <div style={{ background: '#e9f2ff', padding: '10px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', color: '#0c66e4', fontWeight: 500 }}>
+              <div style={{ background: 'var(--bg-selected)', padding: '10px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-link)', fontWeight: 500 }}>
                 🎉 <strong>Official Company Holiday:</strong> {data.holiday.name} {data.holiday.fallsOnSunday ? '(Sunday)' : ''}. Employees are not expected to work.
               </div>
             )}
 
             {/* Quick KPI Count Bar */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Total Employees</span>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#172b4d' }}>{counts.totalEmployees || 0}</div>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Total Employees</span>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>{counts.totalEmployees || 0}</div>
               </div>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Present / Full Day</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Present / Full Day</span>
                 <div style={{ fontSize: '20px', fontWeight: 700, color: '#166534' }}>{counts.presentTotal || 0}</div>
               </div>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Late Arrivals</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Late Arrivals</span>
                 <div style={{ fontSize: '20px', fontWeight: 700, color: '#974f00' }}>{counts.lateTotal || 0}</div>
               </div>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Half Days</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Half Days</span>
                 <div style={{ fontSize: '20px', fontWeight: 700, color: '#6b21a8' }}>{counts.halfDayTotal || 0}</div>
               </div>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Approved Leaves</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Approved Leaves</span>
                 <div style={{ fontSize: '20px', fontWeight: 700, color: '#581c87' }}>{counts.onLeaveTotal || 0}</div>
               </div>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Confirmed Absences</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Confirmed Absences</span>
                 <div style={{ fontSize: '20px', fontWeight: 700, color: '#991b1b' }}>{counts.confirmedAbsentTotal || 0}</div>
               </div>
-              <div style={{ background: '#fff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #ebecf0' }}>
-                <span style={{ fontSize: '11px', color: '#626f86', textTransform: 'uppercase', fontWeight: 600 }}>Unrecorded / Review</span>
+              <div style={{ background: 'var(--bg-elevated)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Unrecorded / Review</span>
                 <div style={{ fontSize: '20px', fontWeight: 700, color: '#d97706' }}>{counts.unrecordedTotal || 0}</div>
               </div>
             </div>
 
             {/* Roster Table */}
-            <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #ebecf0', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ background: '#f7f8f9', borderBottom: '1px solid #dfe1e6', color: '#626f86' }}>
+                  <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', color: 'var(--text-subtle)' }}>
                     <th style={{ padding: '12px 16px', fontWeight: 600 }}>Employee</th>
                     <th style={{ padding: '12px 16px', fontWeight: 600 }}>Department</th>
                     <th style={{ padding: '12px 16px', fontWeight: 600 }}>Check-In</th>
@@ -396,19 +396,19 @@ export default function AdminAttendanceView({
                     const st = item.displayStatus;
 
                     return (
-                      <tr key={emp.id} style={{ borderBottom: '1px solid #f1f2f4' }}>
+                      <tr key={emp.id} style={{ borderBottom: '1px solid var(--bg-hover)' }}>
                         <td style={{ padding: '12px 16px' }}>
-                          <strong style={{ color: '#172b4d', display: 'block' }}>{emp.name}</strong>
-                          <span style={{ fontSize: '12px', color: '#626f86' }}>{emp.email || '—'}</span>
+                          <strong style={{ color: 'var(--text)', display: 'block' }}>{emp.name}</strong>
+                          <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>{emp.email || '—'}</span>
                         </td>
-                        <td style={{ padding: '12px 16px', color: '#626f86' }}>{emp.department || 'General'}</td>
-                        <td style={{ padding: '12px 16px', color: '#172b4d' }}>
+                        <td style={{ padding: '12px 16px', color: 'var(--text-subtle)' }}>{emp.department || 'General'}</td>
+                        <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
                           {att?.check_in_time ? formatKolkataTime(att.check_in_time) : '—'}
                         </td>
-                        <td style={{ padding: '12px 16px', color: '#172b4d' }}>
-                          {att?.check_out_time ? formatKolkataTime(att.check_out_time) : att && att.status !== 'on_leave' && att.status !== 'absent' ? <span style={{ color: '#ae2e24', fontWeight: 500 }}>In Progress</span> : '—'}
+                        <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
+                          {att?.check_out_time ? formatKolkataTime(att.check_out_time) : att && att.status !== 'on_leave' && att.status !== 'absent' ? <span style={{ color: 'var(--danger)', fontWeight: 500 }}>In Progress</span> : '—'}
                         </td>
-                        <td style={{ padding: '12px 16px', color: '#172b4d' }}>
+                        <td style={{ padding: '12px 16px', color: 'var(--text)' }}>
                           {att ? formatMinutes(att.net_duration_minutes) : '—'}
                         </td>
                         <td style={{ padding: '12px 16px' }}>
@@ -456,10 +456,10 @@ export default function AdminAttendanceView({
                               ⚠️ Unrecorded / Review
                             </span>
                           )}
-                          {st === 'not_checked_in' && <span style={{ color: '#8590a2', fontSize: '12px' }}>Not Checked In</span>}
-                          {st === 'weekly_off' && <span style={{ color: '#8590a2', fontSize: '12px' }}>Weekly Off</span>}
-                          {st === 'holiday' && <span style={{ color: '#0c66e4', fontSize: '12px', fontWeight: 500 }}>Holiday ({item.holidayName})</span>}
-                          {st === 'not_employed' && <span style={{ color: '#8590a2', fontSize: '12px' }}>Not Joined Yet</span>}
+                          {st === 'not_checked_in' && <span style={{ color: 'var(--text-disabled)', fontSize: '12px' }}>Not Checked In</span>}
+                          {st === 'weekly_off' && <span style={{ color: 'var(--text-disabled)', fontSize: '12px' }}>Weekly Off</span>}
+                          {st === 'holiday' && <span style={{ color: 'var(--text-link)', fontSize: '12px', fontWeight: 500 }}>Holiday ({item.holidayName})</span>}
+                          {st === 'not_employed' && <span style={{ color: 'var(--text-disabled)', fontSize: '12px' }}>Not Joined Yet</span>}
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                           <button
@@ -468,9 +468,9 @@ export default function AdminAttendanceView({
                             style={{
                               padding: '5px 12px',
                               borderRadius: '4px',
-                              border: '1px solid #dfe1e6',
-                              background: '#fff',
-                              color: '#0c66e4',
+                              border: '1px solid var(--border)',
+                              background: 'var(--bg-elevated)',
+                              color: 'var(--text-link)',
                               fontSize: '12px',
                               fontWeight: 600,
                               cursor: 'pointer'
@@ -500,8 +500,8 @@ export default function AdminAttendanceView({
 
         {/* Tab 3: Settings */}
         {activeTab === 'settings' && (
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #ebecf0', maxWidth: '600px' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#172b4d' }}>
+          <div style={{ background: 'var(--bg-elevated)', padding: '24px', borderRadius: '8px', border: '1px solid var(--border-subtle)', maxWidth: '600px' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
               Official Work Timings & Grace Configuration
             </h3>
 
@@ -514,56 +514,56 @@ export default function AdminAttendanceView({
             <form onSubmit={handleSettingsSubmit}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                     Work Start Time
                   </label>
                   <input
                     type="time"
                     value={settings.work_start_time}
                     onChange={(e) => setSettings({ ...settings, work_start_time: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '14px' }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                     Work End Time
                   </label>
                   <input
                     type="time"
                     value={settings.work_end_time}
                     onChange={(e) => setSettings({ ...settings, work_end_time: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '14px' }}
                   />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                     Lunch Start Time
                   </label>
                   <input
                     type="time"
                     value={settings.lunch_start_time}
                     onChange={(e) => setSettings({ ...settings, lunch_start_time: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '14px' }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                     Lunch End Time
                   </label>
                   <input
                     type="time"
                     value={settings.lunch_end_time}
                     onChange={(e) => setSettings({ ...settings, lunch_end_time: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '14px' }}
                   />
                 </div>
               </div>
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#44546f', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--neutral-text)', marginBottom: '6px' }}>
                   Grace Period (Minutes, Max 180):
                 </label>
                 <input
@@ -572,9 +572,9 @@ export default function AdminAttendanceView({
                   max="180"
                   value={settings.grace_period_minutes}
                   onChange={(e) => setSettings({ ...settings, grace_period_minutes: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #dfe1e6', fontSize: '14px' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-elevated)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: '14px' }}
                 />
-                <span style={{ fontSize: '12px', color: '#626f86', marginTop: '4px', display: 'block' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
                   Company default is 150 minutes (arrival up to 11:30 AM is Present). Fixed threshold priority: 12:01 PM onward is always Half Day.
                 </span>
               </div>
@@ -586,8 +586,8 @@ export default function AdminAttendanceView({
                   padding: '10px 20px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: '#0c66e4',
-                  color: '#fff',
+                  background: 'var(--primary)',
+                  color: 'var(--primary-text)',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: settingsSaving ? 'not-allowed' : 'pointer'
@@ -606,13 +606,13 @@ export default function AdminAttendanceView({
 
         {/* Tab 4: Holidays */}
         {activeTab === 'holidays' && (
-          <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #ebecf0', padding: '20px', overflowX: 'auto' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#172b4d' }}>
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', padding: '20px', overflowX: 'auto' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
               Official Company Holiday Calendar (2026)
             </h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
-                <tr style={{ background: '#f7f8f9', borderBottom: '1px solid #dfe1e6', color: '#626f86' }}>
+                <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', color: 'var(--text-subtle)' }}>
                   <th style={{ padding: '10px 14px' }}>Date</th>
                   <th style={{ padding: '10px 14px' }}>Holiday Name</th>
                   <th style={{ padding: '10px 14px' }}>Type</th>
@@ -621,21 +621,21 @@ export default function AdminAttendanceView({
               </thead>
               <tbody>
                 {holidays.map((h) => (
-                  <tr key={h.id || h.holiday_date} style={{ borderBottom: '1px solid #f1f2f4' }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 600, color: '#172b4d' }}>{h.holiday_date}</td>
-                    <td style={{ padding: '10px 14px', color: '#172b4d' }}>{h.name}</td>
+                  <tr key={h.id || h.holiday_date} style={{ borderBottom: '1px solid var(--bg-hover)' }}>
+                    <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--text)' }}>{h.holiday_date}</td>
+                    <td style={{ padding: '10px 14px', color: 'var(--text)' }}>{h.name}</td>
                     <td style={{ padding: '10px 14px' }}>
                       {h.is_recurring === 1 ? (
-                        <span style={{ background: '#e9f2ff', color: '#0c66e4', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        <span style={{ background: 'var(--bg-selected)', color: 'var(--text-link)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
                           Recurring Annual
                         </span>
                       ) : (
-                        <span style={{ background: '#f1f2f4', color: '#44546f', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        <span style={{ background: 'var(--bg-hover)', color: 'var(--neutral-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
                           2026 Festival
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '10px 14px', color: '#626f86' }}>
+                    <td style={{ padding: '10px 14px', color: 'var(--text-subtle)' }}>
                       {h.falls_on_sunday === 1 ? 'Yes (Sunday off, no carry-forward)' : 'No'}
                     </td>
                   </tr>

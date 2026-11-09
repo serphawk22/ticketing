@@ -104,7 +104,19 @@ function DocEditor({
   onMove,
   onDelete,
   onOpenTicket,
+  clientRequests = false,
 }) {
+  const docsApiBase = clientRequests
+    ? '/api/client-requests/docs'
+    : `/api/projects/${project.id}/docs`;
+  const docsHref = (docId) =>
+    clientRequests
+      ? docId
+        ? `/client-requests/docs/${docId}`
+        : '/client-requests/docs'
+      : docId
+        ? `/projects/${project.id}/docs/${docId}`
+        : `/projects/${project.id}/docs`;
   const titleRef = useRef(null);
   const editorRef = useRef(null);
   const timer = useRef(null);
@@ -128,7 +140,7 @@ function DocEditor({
     if (timer.current) clearTimeout(timer.current);
     const payload = pending.current;
     if (!payload) return;
-    fetch(`/api/projects/${project.id}/docs/${doc.id}`, {
+    fetch(`${docsApiBase}/${doc.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -143,7 +155,7 @@ function DocEditor({
   async function save(nextTitle, nextBody) {
     setStatus('Saving…');
     try {
-      const res = await fetch(`/api/projects/${project.id}/docs/${doc.id}`, {
+      const res = await fetch(`${docsApiBase}/${doc.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: nextTitle, body: nextBody }),
@@ -227,7 +239,7 @@ function DocEditor({
 
   function insertIssue(ticket) {
     const key = ticketKey(ticket);
-    const href = `/projects/${project.id}/docs/${doc.id}?selectedIssue=${encodeURIComponent(key)}`;
+    const href = `${docsHref(doc.id)}?selectedIssue=${encodeURIComponent(key)}`;
     editorRef.current?.focus();
     document.execCommand(
       'insertHTML',
@@ -372,6 +384,7 @@ function DocEditor({
           ref={editorRef}
           className="docs-body"
           contentEditable
+          spellCheck="true"
           role="textbox"
           aria-multiline="true"
           aria-label="Doc content"
@@ -445,8 +458,20 @@ export default function DocsView({
   projectCounts,
   myIssuesCount,
   currentUser,
+  clientRequests = false,
 }) {
   const router = useRouter();
+  const docsApiBase = clientRequests
+    ? '/api/client-requests/docs'
+    : `/api/projects/${project.id}/docs`;
+  const docsHref = (docId) =>
+    clientRequests
+      ? docId
+        ? `/client-requests/docs/${docId}`
+        : '/client-requests/docs'
+      : docId
+        ? `/projects/${project.id}/docs/${docId}`
+        : `/projects/${project.id}/docs`;
   const modal = useTicketModal({ visible: tickets, lookup: tickets });
   const { toasts, push, dismiss, pause, resume } = useToasts();
   const [docs, setDocs] = useState(initialDocs);
@@ -474,7 +499,7 @@ export default function DocsView({
 
   async function createPage(parentId) {
     setError('');
-    const res = await fetch(`/api/projects/${project.id}/docs`, {
+    const res = await fetch(docsApiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent_id: parentId || null }),
@@ -484,14 +509,14 @@ export default function DocsView({
       setError(data.error || 'Could not create the doc.');
       return;
     }
-    router.push(`/projects/${project.id}/docs/${data.doc.id}`);
+    router.push(docsHref(data.doc.id));
     router.refresh();
   }
 
   async function duplicatePage() {
     if (!activeDoc) return;
     setError('');
-    const res = await fetch(`/api/projects/${project.id}/docs`, {
+    const res = await fetch(docsApiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ duplicate_of: activeDoc.id }),
@@ -502,14 +527,14 @@ export default function DocsView({
       return;
     }
     push({ message: 'Doc duplicated.' });
-    router.push(`/projects/${project.id}/docs/${data.doc.id}`);
+    router.push(docsHref(data.doc.id));
     router.refresh();
   }
 
   async function movePage(direction) {
     if (!activeDoc) return;
     setError('');
-    const res = await fetch(`/api/projects/${project.id}/docs/${activeDoc.id}`, {
+    const res = await fetch(`${docsApiBase}/${activeDoc.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ move: direction }),
@@ -526,13 +551,13 @@ export default function DocsView({
     const target = pendingDelete;
     if (!target) return;
     try {
-      const res = await fetch(`/api/projects/${project.id}/docs/${target.id}`, { method: 'DELETE' });
+      const res = await fetch(`${docsApiBase}/${target.id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not delete the doc.');
       setPendingDelete(null);
       push({ message: `${docLabel(target)} deleted.` });
       if (Number(activeDoc?.id) === Number(target.id)) {
-        router.push(data.parent_id ? `/projects/${project.id}/docs/${data.parent_id}` : `/projects/${project.id}/docs`);
+        router.push(docsHref(data.parent_id || null));
       }
       router.refresh();
     } catch (err) {
@@ -552,11 +577,13 @@ export default function DocsView({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      view="summary"
+      view={clientRequests ? 'client-requests' : 'summary'}
       filter="all"
       onFilterChange={() => {}}
       projectId={String(project.id)}
-      onProjectChange={(id) => router.push(`/projects/${id}/docs`)}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/docs' : `/projects/${id}/docs`)
+      }
     >
       <div className="board">
         {error && (
@@ -567,14 +594,22 @@ export default function DocsView({
         )}
 
         <PageHeader
-          breadcrumb={[
-            { label: 'Projects', href: '/projects' },
-            { label: project.name, href: `/projects/${project.id}/summary` },
-            { label: 'Docs' },
-          ]}
+          breadcrumb={
+            clientRequests
+              ? [{ label: 'Client requests', href: '/client-requests' }, { label: 'Docs' }]
+              : [
+                  { label: 'Workspaces', href: '/projects' },
+                  { label: project.name, href: `/projects/${project.id}/summary` },
+                  { label: 'Docs' },
+                ]
+          }
           project={project}
           title="Docs"
-          subtitle="Pages for decisions, specs, and notes in this project."
+          subtitle={
+            clientRequests
+              ? 'Pages for decisions, specs, and notes about client requests.'
+              : 'Pages for decisions, specs, and notes in this project.'
+          }
           actions={(
             <button type="button" className="btn-primary" onClick={() => createPage(null)}>
               <PlusIcon />
@@ -582,7 +617,7 @@ export default function DocsView({
             </button>
           )}
         />
-        <ProjectTabs projectId={project.id} active="docs" />
+        <ProjectTabs projectId={project.id} active="docs" clientRequests={clientRequests} />
 
         {docs.length === 0 ? (
           <EmptyState
@@ -633,7 +668,7 @@ export default function DocsView({
                           ) : (
                             <span className="docs-twist-spacer" />
                           )}
-                          <Link href={`/projects/${project.id}/docs/${doc.id}`}>
+                          <Link href={docsHref(doc.id)}>
                             <PageIcon />
                             <span>{docLabel(doc)}</span>
                           </Link>
@@ -662,6 +697,7 @@ export default function DocsView({
                 onMove={movePage}
                 onDelete={() => setPendingDelete(activeDoc)}
                 onOpenTicket={openTicket}
+                clientRequests={clientRequests}
               />
             ) : (
               <div className="docs-main docs-main-empty">

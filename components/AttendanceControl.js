@@ -118,8 +118,8 @@ export default function AttendanceControl({ initialData = null }) {
       }
       return (
         <span style={{
-          background: '#f1f2f4',
-          color: '#44546f',
+          background: 'var(--bg-hover)',
+          color: 'var(--neutral-text)',
           padding: '4px 10px',
           borderRadius: '12px',
           fontSize: '12px',
@@ -136,8 +136,8 @@ export default function AttendanceControl({ initialData = null }) {
     if (isCheckedOut) {
       return (
         <span style={{
-          background: '#e9f2ff',
-          color: '#0c66e4',
+          background: 'var(--bg-selected)',
+          color: 'var(--text-link)',
           padding: '4px 10px',
           borderRadius: '12px',
           fontSize: '12px',
@@ -211,12 +211,12 @@ export default function AttendanceControl({ initialData = null }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 600, color: '#172b4d' }}>
+              <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>
                 Employee Attendance
               </h2>
               {getStatusBadge()}
             </div>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#626f86' }}>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-subtle)' }}>
               Official Hours: <strong>9:00 AM – 5:00 PM</strong> · Lunch: <strong>12:30 PM – 1:00 PM</strong> (Asia/Kolkata)
             </p>
           </div>
@@ -230,8 +230,8 @@ export default function AttendanceControl({ initialData = null }) {
                 padding: '8px 18px',
                 borderRadius: '6px',
                 border: 'none',
-                background: (isCheckedIn && !isFirstHalfLeave) || isOnLeave ? '#f1f2f4' : '#0c66e4',
-                color: (isCheckedIn && !isFirstHalfLeave) || isOnLeave ? '#8590a2' : '#ffffff',
+            background: (isCheckedIn && !isFirstHalfLeave) || isOnLeave ? 'var(--bg-hover)' : 'var(--primary)',
+            color: (isCheckedIn && !isFirstHalfLeave) || isOnLeave ? 'var(--text-disabled)' : 'var(--primary-text)',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: (isCheckedIn && !isFirstHalfLeave) || isOnLeave ? 'not-allowed' : 'pointer',
@@ -251,9 +251,9 @@ export default function AttendanceControl({ initialData = null }) {
               style={{
                 padding: '8px 18px',
                 borderRadius: '6px',
-                border: '1px solid #dfe1e6',
-                background: !isCheckedIn || isCheckedOut || isOnLeave ? '#f1f2f4' : '#ffffff',
-                color: !isCheckedIn || isCheckedOut || isOnLeave ? '#8590a2' : '#ae2e24',
+          border: '1px solid var(--border)',
+          background: !isCheckedIn || isCheckedOut || isOnLeave ? 'var(--bg-hover)' : 'var(--bg-elevated)',
+          color: !isCheckedIn || isCheckedOut || isOnLeave ? 'var(--text-disabled)' : 'var(--danger)',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: !isCheckedIn || isCheckedOut || isOnLeave ? 'not-allowed' : 'pointer',
@@ -341,36 +341,36 @@ export default function AttendanceControl({ initialData = null }) {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '12px',
-          background: '#f7f8f9',
+          background: 'var(--bg-surface)',
           padding: '12px 16px',
           borderRadius: '6px',
           fontSize: '13px',
-          color: '#44546f'
-        }}>
+        color: 'var(--neutral-text)'
+      }}>
           <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#626f86', display: 'block' }}>Check-In Time</span>
-            <strong style={{ color: '#172b4d', fontSize: '14px' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-subtle)', display: 'block' }}>Check-In Time</span>
+            <strong style={{ color: 'var(--text)', fontSize: '14px' }}>
               {formatKolkataTime(attendance?.check_in_time)}
             </strong>
           </div>
 
           <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#626f86', display: 'block' }}>Check-Out Time</span>
-            <strong style={{ color: '#172b4d', fontSize: '14px' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-subtle)', display: 'block' }}>Check-Out Time</span>
+            <strong style={{ color: 'var(--text)', fontSize: '14px' }}>
               {formatKolkataTime(attendance?.check_out_time)}
             </strong>
           </div>
 
           <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#626f86', display: 'block' }}>Lunch Deduction</span>
-            <strong style={{ color: '#172b4d', fontSize: '14px' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-subtle)', display: 'block' }}>Lunch Deduction</span>
+            <strong style={{ color: 'var(--text)', fontSize: '14px' }}>
               {formatMinutes(attendance?.break_duration_minutes || 0)}
             </strong>
           </div>
 
           <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#626f86', display: 'block' }}>Net Duration</span>
-            <strong style={{ color: isCheckedOut ? '#0c66e4' : '#172b4d', fontSize: '14px' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-subtle)', display: 'block' }}>Net Duration</span>
+            <strong style={{ color: isCheckedOut ? 'var(--text-link)' : 'var(--text)', fontSize: '14px' }}>
               {formatMinutes(attendance?.net_duration_minutes || 0)}
             </strong>
           </div>

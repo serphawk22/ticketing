@@ -48,6 +48,8 @@ export default function InlineDropdownField({
   value = '',
   options = [],
   onSelect,
+  multiple = false,
+  values = [],
   searchable = true,
   allowCustom = false,
   readOnly = false,
@@ -79,12 +81,27 @@ export default function InlineDropdownField({
     () => options.find((o) => o.value === value) || null,
     [options, value]
   );
+  const selectedValues = useMemo(() => {
+    if (!multiple) return value === '' || value == null ? [] : [value];
+    return Array.isArray(values) ? values : [];
+  }, [multiple, value, values]);
+  const selectedOptions = useMemo(
+    () => options.filter((o) => selectedValues.includes(o.value)),
+    [options, selectedValues]
+  );
 
   // A value with no matching option is still a real value: a ticket raised by a
   // client keeps that client as its reporter even though the roster is the team
   // directory. Falling back to the empty-state text would claim it is unset.
-  const currentLabel =
-    current ? current.label : value === '' || value == null ? emptyText : String(value);
+  const currentLabel = multiple
+    ? selectedOptions.length > 0
+      ? selectedOptions.map((o) => o.label).join(', ')
+      : emptyText
+    : current
+      ? current.label
+      : value === '' || value == null
+        ? emptyText
+        : String(value);
 
   // Filtering is by label plus whatever extra words the caller attached, so a
   // person can be found by email or a status by any word of its name.
@@ -190,6 +207,13 @@ export default function InlineDropdownField({
 
   function commit(option) {
     if (!option) return;
+    if (multiple) {
+      const next = selectedValues.includes(option.value)
+        ? selectedValues.filter((v) => v !== option.value)
+        : [...selectedValues, option.value];
+      onSelect?.(next);
+      return;
+    }
     if (option.value !== value) onSelect?.(option.value);
     close({ focusTrigger: true });
   }
@@ -262,7 +286,14 @@ export default function InlineDropdownField({
           // Land the keyboard cursor on the value already in the field, not the
           // top of the list, so opening and pressing Enter confirms the current
           // choice instead of silently jumping to the first option.
-          setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+          setActive(
+            Math.max(
+              0,
+              options.findIndex((o) =>
+                multiple ? selectedValues.includes(o.value) : o.value === value
+              )
+            )
+          );
           setOpen(true);
         }}
         aria-disabled={readOnly || undefined}
@@ -291,10 +322,16 @@ export default function InlineDropdownField({
       {scroll.top && (
         <span className="idf-chev idf-chev-top" aria-hidden="true" />
       )}
-      <div className="idf-scroll" ref={listRef} id={listId} role="listbox">
+      <div
+        className="idf-scroll"
+        ref={listRef}
+        id={listId}
+        role="listbox"
+        aria-multiselectable={multiple || undefined}
+      >
         {visible.length === 0 && <p className="idf-empty">{emptyText}</p>}
         {visible.map((option, i) => {
-          const isCurrent = option.value === value;
+          const isCurrent = selectedValues.includes(option.value);
           return (
             <button
               key={option.value === '' ? '__empty' : option.value}

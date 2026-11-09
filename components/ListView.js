@@ -33,6 +33,7 @@ import {
   STATUS_ORDER,
   PRIORITY_META,
   PRIORITY_ORDER,
+  CATEGORY_ORDER,
   TYPE_META,
   TYPE_ORDER,
   LOZENGE_TINTS,
@@ -78,6 +79,15 @@ const DEFAULT_HIDDEN = [];
 // lib/ticketMeta so the calendar draws them from the same source.
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITY_ORDER.map((p, i) => [p, i]));
+const CLIENT_REQUEST_ASSIGNEE_NAMES = new Set([
+  'bhavana',
+  'lucky',
+  'vijayendar',
+  'anjali',
+  'pinku',
+  'varshith',
+  'harshitha',
+]);
 
 function SearchIcon() {
   return (
@@ -224,11 +234,37 @@ export default function ListView({
   projectCounts,
   myIssuesCount,
   currentUser,
+  allTickets = [],
+  clientRequests = false,
 }) {
   const router = useRouter();
-  const [tickets, setTickets] = useState(initialTickets);
+  const [tickets, setTickets] = useState(() => {
+    const base = initialTickets || [];
+    const projectIdInit = project?.id ?? null;
+    if (projectIdInit == null || !Array.isArray(allTickets) || allTickets.length === 0) {
+      return base;
+    }
+    const merged = new Map();
+    for (const t of base) merged.set(t.id, t);
+    for (const t of allTickets) {
+      if (t.project_id == projectIdInit) {
+        if (!merged.has(t.id)) merged.set(t.id, t);
+      } else if (merged.has(t.parent_id)) {
+        // Include children that might belong to different project but reference parent in this project
+        if (!merged.has(t.id)) merged.set(t.id, t);
+      }
+    }
+    return Array.from(merged.values());
+  });
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
+  const [filters, setFilters] = useState({
+    assignee: 'all',
+    reporter: 'all',
+    priority: 'all',
+    status: 'all',
+    category: 'all',
+    type: 'all',
+  });
   const [group, setGroup] = useState('none');
   const [sort, setSort] = useState({ key: 'created', dir: 'desc' });
   const [hidden, setHidden] = useState(() => new Set(DEFAULT_HIDDEN));
@@ -270,7 +306,7 @@ export default function ListView({
   // Creating is a team action, not an admin one: a developer files work the
   // same way an admin does, including picking who it goes to. (The list routes
   // only ever hand this view a team role, so a client cannot land here.)
-  const canCreate = isAdmin || currentUser.role === 'developer';
+  const canCreate = !clientRequests && (isAdmin || currentUser.role === 'developer');
   // Moving a ticket is open to any signed-in user, matching the board.
   const canUpdate = true;
 
@@ -357,14 +393,62 @@ export default function ListView({
 
   const people = useMemo(() => {
     const byId = new Map();
+    const clientRequestEmployeeIds = new Set();
+    if (clientRequests) {
+      for (const employee of employees) {
+        if (!CLIENT_REQUEST_ASSIGNEE_NAMES.has((employee.name || '').trim().toLowerCase())) continue;
+        const id = String(employee.id);
+        clientRequestEmployeeIds.add(id);
+        byId.set(id, { id: employee.id, name: employee.name, count: 0 });
+      }
+    }
     for (const t of tickets) {
       if (t.employee_id == null) continue;
-      if (!byId.has(t.employee_id)) {
-        byId.set(t.employee_id, { id: t.employee_id, name: t.employee_name, count: 0 });
+      const id = String(t.employee_id);
+      if (clientRequests && !clientRequestEmployeeIds.has(id)) continue;
+      if (!byId.has(id)) {
+        byId.set(id, { id: t.employee_id, name: t.employee_name, count: 0 });
       }
-      byId.get(t.employee_id).count += 1;
+      byId.get(id).count += 1;
     }
     return [...byId.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [tickets, employees, clientRequests]);
+
+  const unassignedCount = useMemo(
+    () => tickets.filter((t) => t.employee_id == null).length,
+    [tickets]
+  );
+
+  const reporterFilterOptions = useMemo(() => {
+    const byId = new Map();
+    for (const ticket of tickets) {
+      if (ticket.created_by == null) continue;
+      const id = String(ticket.created_by);
+      if (!byId.has(id)) {
+        byId.set(id, { id, name: ticket.created_by_name || 'Unknown reporter', count: 0 });
+      }
+      byId.get(id).count += 1;
+    }
+    return [...byId.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [tickets]);
+
+  const categoryFilterOptions = useMemo(() => {
+    const counts = new Map();
+    for (const ticket of tickets) {
+      const category = ticket.category || '';
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([value, count]) => ({ value, label: value || 'None', count }))
+      .sort((a, b) => {
+        const aRank = CATEGORY_ORDER.indexOf(a.value);
+        const bRank = CATEGORY_ORDER.indexOf(b.value);
+        if (aRank !== -1 || bRank !== -1) {
+          return (aRank === -1 ? CATEGORY_ORDER.length : aRank) -
+            (bRank === -1 ? CATEGORY_ORDER.length : bRank);
+        }
+        return a.label.localeCompare(b.label);
+      });
   }, [tickets]);
 
   // The people an inline picker can offer: the same assignable roster ticket
@@ -403,8 +487,10 @@ export default function ListView({
         const key = t.employee_id == null ? 'unassigned' : String(t.employee_id);
         if (key !== filters.assignee) return false;
       }
+      if (filters.reporter !== 'all' && String(t.created_by) !== filters.reporter) return false;
       if (filters.priority !== 'all' && t.priority !== filters.priority) return false;
       if (filters.status !== 'all' && t.status !== filters.status) return false;
+      if (filters.category !== 'all' && (t.category || '') !== filters.category) return false;
       if (filters.type !== 'all' && (t.type || 'task') !== filters.type) return false;
       if (!q) return true;
       return (
@@ -535,14 +621,16 @@ export default function ListView({
 
   const hasActiveFilters =
     filters.assignee !== 'all' ||
+    filters.reporter !== 'all' ||
     filters.priority !== 'all' ||
     filters.status !== 'all' ||
+    filters.category !== 'all' ||
     filters.type !== 'all' ||
     search.trim() !== '';
 
   function clearFilters() {
     setSearch('');
-    setFilters({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
+    setFilters({ assignee: 'all', reporter: 'all', priority: 'all', status: 'all', category: 'all', type: 'all' });
   }
 
   function toggleSort(key) {
@@ -753,8 +841,18 @@ export default function ListView({
 
   const applyTicketUpdate = useCallback((next) => {
     if (!next) return;
-    setTickets((ts) => ts.map((t) => (t.id === next.id ? { ...t, ...next } : t)));
-  }, []);
+    setTickets((ts) => {
+      const exists = ts.some((t) => t.id === next.id);
+      if (exists) {
+        return ts.map((t) => (t.id === next.id ? { ...t, ...next } : t));
+      }
+      // If we don't have it in the current project list, try to include it if it belongs to this project
+      if (projectId != null && next.project_id == projectId) {
+        return [...ts, next];
+      }
+      return ts;
+    });
+  }, [projectId]);
 
   function openTicket(id) {
     const found = tickets.find((t) => t.id === id);
@@ -1172,11 +1270,13 @@ export default function ListView({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      view="summary"
+      view={clientRequests ? 'client-requests' : 'summary'}
       filter="all"
       onFilterChange={() => {}}
       projectId={projectId == null ? null : String(projectId)}
-      onProjectChange={(id) => router.push(`/projects/${id}/list`)}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/list' : `/projects/${id}/list`)
+      }
       onCreate={canCreate ? () => setShowCreate(true) : undefined}
     >
       <div className="board" ref={rootRef}>
@@ -1197,10 +1297,14 @@ export default function ListView({
         )}
 
         <PageHeader
-          breadcrumb={[
-            { label: 'Projects', href: '/projects' },
-            { label: project?.name || 'All work items' },
-          ]}
+          breadcrumb={
+            clientRequests
+              ? [{ label: 'Client requests' }]
+              : [
+                  { label: 'Workspaces', href: '/projects' },
+                  { label: project?.name || 'All work items' },
+                ]
+          }
           title={project?.name || 'All work items'}
           project={project || { name: 'All work items' }}
           subtitle={
@@ -1210,7 +1314,9 @@ export default function ListView({
 
         {/* The project tab strip has no meaning without a single project, so
             the cross-project list shows the heading on its own. */}
-        {project && <ProjectTabs projectId={projectId} active="list" />}
+        {project && (
+          <ProjectTabs projectId={projectId} active="list" clientRequests={clientRequests} />
+        )}
 
         <div className="list-toolbar">
           <div className="search-field list-search">
@@ -1224,6 +1330,20 @@ export default function ListView({
           </div>
 
           <div className="list-people" aria-label="Filter by assignee">
+            <button
+              type="button"
+              className={`list-person-btn${filters.assignee === 'unassigned' ? ' is-active' : ''}`}
+              onClick={() =>
+                setFilters((f) => ({
+                  ...f,
+                  assignee: f.assignee === 'unassigned' ? 'all' : 'unassigned',
+                }))
+              }
+              title={`Unassigned - ${unassignedCount}`}
+              aria-pressed={filters.assignee === 'unassigned'}
+            >
+              <Avatar name="Unassigned" assigned={false} size={24} unassignedIcon showTitle={false} />
+            </button>
             {people.map((p) => {
               const active = filters.assignee === String(p.id);
               return (
@@ -1244,7 +1364,7 @@ export default function ListView({
           <div className="list-menu-wrap">
             <button
               type="button"
-              className={`filter-btn${filters.status !== 'all' || filters.priority !== 'all' || filters.type !== 'all' || filters.assignee !== 'all' ? ' active' : ''}`}
+              className={`filter-btn${filters.status !== 'all' || filters.priority !== 'all' || filters.type !== 'all' || filters.assignee !== 'all' || filters.reporter !== 'all' || filters.category !== 'all' ? ' active' : ''}`}
               aria-expanded={openMenu === 'filter'}
               aria-haspopup="true"
               onClick={() => setOpen(openMenu === 'filter' ? null : 'filter')}
@@ -1261,6 +1381,18 @@ export default function ListView({
                   <span className="menu-item-text">Everyone</span>
                   {filters.assignee === 'all' && <MenuCheck />}
                 </button>
+                <button
+                  type="button"
+                  className="menu-item"
+                  role="menuitemradio"
+                  aria-checked={filters.assignee === 'unassigned'}
+                  onClick={() => pickAssignee('unassigned')}
+                >
+                  <Avatar name="Unassigned" assigned={false} size={20} unassignedIcon showTitle={false} />
+                  <span className="menu-item-text">Unassigned</span>
+                  <span className="menu-count">{unassignedCount}</span>
+                  {filters.assignee === 'unassigned' && <MenuCheck />}
+                </button>
                 {people.map((p) => (
                   <button
                     key={p.id}
@@ -1274,6 +1406,27 @@ export default function ListView({
                     <span className="menu-item-text">{p.name}</span>
                     <span className="menu-count">{p.count}</span>
                     {filters.assignee === String(p.id) && <MenuCheck />}
+                  </button>
+                ))}
+
+                <p className="list-menu-label">Reporter</p>
+                <button type="button" className="menu-item" role="menuitemradio" aria-checked={filters.reporter === 'all'} onClick={() => setFilters((f) => ({ ...f, reporter: 'all' }))}>
+                  <span className="menu-item-text">Any reporter</span>
+                  {filters.reporter === 'all' && <MenuCheck />}
+                </button>
+                {reporterFilterOptions.map((reporter) => (
+                  <button
+                    key={reporter.id}
+                    type="button"
+                    className="menu-item"
+                    role="menuitemradio"
+                    aria-checked={filters.reporter === reporter.id}
+                    onClick={() => setFilters((f) => ({ ...f, reporter: reporter.id }))}
+                  >
+                    <Avatar name={reporter.name} assigned size={20} showTitle={false} />
+                    <span className="menu-item-text">{reporter.name}</span>
+                    <span className="menu-count">{reporter.count}</span>
+                    {filters.reporter === reporter.id && <MenuCheck />}
                   </button>
                 ))}
 
@@ -1300,6 +1453,26 @@ export default function ListView({
                     <PriorityIcon color={PRIORITY_META[p].color} arrow={PRIORITY_META[p].arrow} />
                     <span className="menu-item-text">{PRIORITY_META[p].label}</span>
                     {filters.priority === p && <MenuCheck />}
+                  </button>
+                ))}
+
+                <p className="list-menu-label">Category</p>
+                <button type="button" className="menu-item" role="menuitemradio" aria-checked={filters.category === 'all'} onClick={() => setFilters((f) => ({ ...f, category: 'all' }))}>
+                  <span className="menu-item-text">Any category</span>
+                  {filters.category === 'all' && <MenuCheck />}
+                </button>
+                {categoryFilterOptions.map((category) => (
+                  <button
+                    key={category.value || 'uncategorized'}
+                    type="button"
+                    className="menu-item"
+                    role="menuitemradio"
+                    aria-checked={filters.category === category.value}
+                    onClick={() => setFilters((f) => ({ ...f, category: category.value }))}
+                  >
+                    <span className="menu-item-text">{category.label}</span>
+                    <span className="menu-count">{category.count}</span>
+                    {filters.category === category.value && <MenuCheck />}
                   </button>
                 ))}
 
@@ -1360,7 +1533,7 @@ export default function ListView({
           </div>
 
           <ListOverflowMenu
-            isAdmin={isAdmin}
+            isAdmin={isAdmin && !clientRequests}
             hideDone={hideDone}
             showHierarchy={showHierarchyPref}
             selectedCount={selected.size}
@@ -1371,7 +1544,7 @@ export default function ListView({
             columns={columnsMenu}
             resetView={() => {
               setSearch('');
-              setFilters({ assignee: 'all', priority: 'all', status: 'all', type: 'all' });
+              setFilters({ assignee: 'all', reporter: 'all', priority: 'all', status: 'all', category: 'all', type: 'all' });
               setGroup('none');
               setSort({ key: 'created', dir: 'desc' });
               setHidden(new Set(DEFAULT_HIDDEN));
@@ -1583,7 +1756,28 @@ export default function ListView({
           onClose={modal.close}
           onNext={modal.next}
           onPrev={modal.prev}
-          onTicketChanged={applyTicketUpdate}
+          onTicketChanged={(updated) => {
+            if (!updated) return;
+            setTickets((ts) => {
+              const exists = ts.some((t) => t.id === updated.id);
+              if (exists) {
+                return ts.map((t) => (t.id === updated.id ? { ...t, ...updated } : t));
+              }
+              if (projectId != null && updated.project_id == projectId) {
+                return [...ts, updated];
+              }
+              return ts;
+            });
+            // Ensure parent branch is expanded to show new child
+            if (updated.parent_id) {
+              setCollapsedParents((prev) => {
+                const next = new Set(prev);
+                next.delete(updated.parent_id);
+                writeCollapsed(projectId, next);
+                return next;
+              });
+            }
+          }}
           onArchiveChange={(change) => setTickets((current) => mergeArchiveChange(current, change, 'active'))}
           onOpenTicket={openTicket}
         />
@@ -1672,7 +1866,7 @@ export default function ListView({
         />
       )}
 
-      {showCreate && (
+      {canCreate && showCreate && (
         <CreateTicketModal
           employees={employees}
           projects={projects}
@@ -1686,16 +1880,36 @@ export default function ListView({
             setShowCreate(false);
             const parent = createParent;
             setCreateParent(null);
-            const res = await fetch('/api/tickets');
+            const res = await fetch(projectId != null ? `/api/tickets?projectId=${projectId}` : '/api/tickets');
             const data = await res.json();
             if (!res.ok) return;
-            setTickets(data.tickets.filter((t) => t.project_id === projectId));
+            if (data.tickets) {
+              const projectScoped = projectId != null ? data.tickets.filter((t) => t.project_id === projectId) : data.tickets;
+              setTickets((prev) => {
+                const merged = new Map();
+                for (const t of prev) merged.set(t.id, t);
+                for (const t of projectScoped) merged.set(t.id, t);
+                // also ensure any child whose parent is in project is included
+                if (projectId != null) {
+                  for (const t of data.tickets) {
+                    if (t.parent_id && merged.has(t.parent_id) && t.project_id == projectId) {
+                      merged.set(t.id, t);
+                    } else if (t.parent_id && merged.has(t.parent_id)) {
+                      // include child even if project differs
+                      merged.set(t.id, t);
+                    }
+                  }
+                }
+                return Array.from(merged.values());
+              });
+            }
             // Make sure the branch that just grew is open, so the new child is
             // on screen without the user having to go looking for it.
             if (parent) {
               setCollapsedParents((prev) => {
                 const next = new Set(prev);
                 next.delete(parent.id);
+                writeCollapsed(projectId, next);
                 return next;
               });
             }

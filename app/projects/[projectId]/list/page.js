@@ -41,6 +41,7 @@ export default async function ProjectListPage({ params }) {
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       currentUser={session.user}
+      allTickets={allTickets}
     />
   );
 }

@@ -167,6 +167,7 @@ export default function CalendarView({
   myIssuesCount = 0,
   currentUser,
   today,
+  clientRequests = false,
 }) {
   const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
@@ -203,6 +204,7 @@ export default function CalendarView({
 
   const shellRef = useRef(null);
   const isAdmin = currentUser?.role === 'admin';
+  const canCreate = isAdmin && !clientRequests;
 
   const modal = useTicketModal({ visible: tickets, lookup: tickets });
 
@@ -520,18 +522,20 @@ export default function CalendarView({
       >
         <div className="cal-cell-head">
           <span className={`cal-day${isToday ? ' is-today' : ''}`}>{date.getUTCDate()}</span>
-          <button
-            type="button"
-            className="cal-cell-add"
-            onClick={() => {
-              setCreateDueDate(iso);
-              setShowCreate(true);
-            }}
-            aria-label={`Create a work item due ${iso}`}
-            title={`Create a work item due ${iso}`}
-          >
-            <PlusIcon />
-          </button>
+          {canCreate && (
+            <button
+              type="button"
+              className="cal-cell-add"
+              onClick={() => {
+                setCreateDueDate(iso);
+                setShowCreate(true);
+              }}
+              aria-label={`Create a work item due ${iso}`}
+              title={`Create a work item due ${iso}`}
+            >
+              <PlusIcon />
+            </button>
+          )}
         </div>
 
         <div className="cal-cell-body">
@@ -597,12 +601,14 @@ export default function CalendarView({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      view="summary"
+      view={clientRequests ? 'client-requests' : 'summary'}
       filter="all"
       onFilterChange={() => {}}
       projectId={String(project.id)}
-      onProjectChange={(id) => router.push(`/projects/${id}/calendar`)}
-      onCreate={isAdmin ? () => { setCreateDueDate(null); setShowCreate(true); } : undefined}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/calendar' : `/projects/${id}/calendar`)
+      }
+      onCreate={canCreate ? () => { setCreateDueDate(null); setShowCreate(true); } : undefined}
     >
       <div className="board cal-view" ref={shellRef}>
         {error && (
@@ -613,13 +619,17 @@ export default function CalendarView({
         )}
 
         <PageHeader
-          breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: project.name }]}
+          breadcrumb={
+            clientRequests
+              ? [{ label: 'Client requests' }]
+              : [{ label: 'Workspaces', href: '/projects' }, { label: project.name }]
+          }
           title={project.name}
           project={project}
           subtitle={project.description}
         />
 
-        <ProjectTabs projectId={project.id} active="calendar" />
+        <ProjectTabs projectId={project.id} active="calendar" clientRequests={clientRequests} />
 
         <div className="cal-toolbar">
           <div className="search-field cal-search">
@@ -900,7 +910,7 @@ export default function CalendarView({
         />
       )}
 
-      {showCreate && (
+      {canCreate && showCreate && (
         <CreateTicketModal
           employees={employees}
           projects={projects}

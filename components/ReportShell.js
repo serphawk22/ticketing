@@ -15,6 +15,7 @@ export default function ReportShell({
   subtitle,
   breadcrumb,
   projectPath = (id) => `/projects/${id}/reports`,
+  clientRequests = false,
   children,
 }) {
   const router = useRouter();
@@ -25,12 +26,15 @@ export default function ReportShell({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      projectId={project.id}
-      onProjectChange={(id) => router.push(projectPath(id))}
+      view={clientRequests ? 'client-requests' : undefined}
+      projectId={String(project.id)}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/reports' : projectPath(id))
+      }
     >
       <div className="board">
         <PageHeader breadcrumb={breadcrumb} title={title} project={project} subtitle={subtitle} />
-        <ProjectTabs projectId={project.id} active="reports" />
+        <ProjectTabs projectId={project.id} active="reports" clientRequests={clientRequests} />
         {children}
       </div>
     </AppShell>

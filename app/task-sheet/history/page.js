@@ -3,6 +3,8 @@ import { getAllProjects } from '@/lib/projects';
 import { getAllTickets } from '@/lib/tickets';
 import { listHappyFacets, listHappySubmissions } from '@/lib/happySheet';
 import { listSubmissionFacets, listSubmissions } from '@/lib/taskSheet';
+import { getActiveEmployees } from '@/lib/employees';
+import { indiaToday } from '@/lib/indiaDate';
 import TaskSheetHistoryView from '@/components/TaskSheetHistoryView';
 
 export const dynamic = 'force-dynamic';
@@ -18,16 +20,20 @@ export default async function TaskSheetHistoryPage() {
   // requireTeamUser already keeps clients out; the history is open to admins
   // and developers alike, so there is no further role check here.
   const session = await requireTeamUser();
+  const today = indiaToday();
 
-  const [submissions, facets, happySubmissions, happyFacets, projects, tickets] =
+  const [submissions, facets, happySubmissions, happyFacets, projects, tickets, activeEmployees] =
     await Promise.all([
-      listSubmissions(),
+      listSubmissions({ from: today, to: today }),
       listSubmissionFacets(),
-      listHappySubmissions(),
+      listHappySubmissions({ day: today }),
       listHappyFacets(),
       getAllProjects(),
       getAllTickets(),
+      getActiveEmployees(),
     ]);
+
+  const activeNames = new Set((activeEmployees || []).map((e) => e?.name).filter(Boolean));
 
   const projectCounts = {};
   for (const t of tickets) {
@@ -40,16 +46,30 @@ export default async function TaskSheetHistoryPage() {
     (t) => t.created_by === userId || t.assigned_to === userId
   ).length;
 
+  const filteredSubmissions = activeNames.size
+    ? submissions.filter((s) => s && s.name && activeNames.has(s.name))
+    : submissions;
+  const filteredHappySubmissions = activeNames.size
+    ? happySubmissions.filter((s) => s && s.name && activeNames.has(s.name))
+    : happySubmissions;
+
+  const filterFacets = (f) => {
+    if (!f || !Array.isArray(f.names)) return f;
+    if (!activeNames.size) return f;
+    const names = f.names.filter((n) => activeNames.has(n));
+    return { ...f, names };
+  };
+
   return (
     <TaskSheetHistoryView
       currentUser={session.user}
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      initial={submissions}
-      facets={facets}
-      happyInitial={happySubmissions}
-      happyFacets={happyFacets}
+      initial={filteredSubmissions}
+      facets={filterFacets(facets)}
+      happyInitial={filteredHappySubmissions}
+      happyFacets={filterFacets(happyFacets)}
     />
   );
 }

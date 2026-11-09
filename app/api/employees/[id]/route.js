@@ -16,6 +16,7 @@ import {
   deleteUserByEmail,
   deleteUserSessions,
   getUserById,
+  purgeUserSafely,
 } from '@/lib/users';
 import { syncEmployeeEmploymentTypeLeaveEligibility } from '@/lib/attendance';
 import { db } from '@/lib/db';
@@ -309,7 +310,7 @@ export async function DELETE(request, { params }) {
   // Removing yourself would delete the account making the request.
   const isRemovingSelf =
     (session.user.id && existing.user_id && session.user.id === existing.user_id) ||
-    (session.user.email && existing.email && session.user.email === existing.email);
+    (session.user.email && existing.email && session.user.email.toLowerCase() === existing.email.toLowerCase());
   if (isRemovingSelf) {
     return NextResponse.json(
       { error: 'You cannot remove your own account.' },
@@ -317,56 +318,38 @@ export async function DELETE(request, { params }) {
     );
   }
 
-  // Body is optional: without it the old behaviour stands and an employee who
-  // still owns work is refused rather than silently stripped of it.
-  let body = {};
   try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-
-  const assigned = await employeeTicketCount(id);
-
-  if (assigned > 0 && body.reassign !== 'unassign') {
-    return NextResponse.json(
-      {
-        error: `${existing.name} still has ${assigned} assigned ${
-          assigned === 1 ? 'ticket' : 'tickets'
-        }. Reassign them or deactivate the employee instead.`,
-        assigned,
-      },
-      { status: 409 }
-    );
-  }
-
-  // Unassign before deleting so no ticket is left pointing at a missing row.
-  const unassigned = assigned > 0 ? await unassignEmployeeTickets(id) : 0;
-
-  await deleteEmployee(id);
-
-  // The directory entry and the login account are linked, so removing one
-  // without the other would leave someone able to sign in to a workspace they
-  // are no longer part of.
-  try {
-    const account = existing.user_id
-      ? await getUserById(existing.user_id)
-      : await getUserByEmail(existing.email);
-    if (account) {
-      await deleteUserSessions(account.id);
-      await db.prepare('DELETE FROM users WHERE id = ?').run(account.id);
+    // 1. Identify all user account IDs associated with this employee
+    const userIds = new Set();
+    if (existing.user_id) {
+      userIds.add(Number(existing.user_id));
     }
+    if (existing.email) {
+      const u = await getUserByEmail(existing.email);
+      if (u) userIds.add(Number(u.id));
+    }
+
+    const userIdList = Array.from(userIds);
+
+    // 2. Unassign tickets from employee & linked user accounts
+    const unassigned = await unassignEmployeeTickets(id, userIdList);
+
+    // 3. Purge linked user account(s) safely before deleting the directory entry
+    for (const uid of userIdList) {
+      if (uid !== session.user.id) {
+        await purgeUserSafely(uid, session.user.id);
+      }
+    }
+
+    // 4. Permanently delete the employee directory record
+    await deleteEmployee(id);
+
+    return NextResponse.json({ deleted: true, unassigned, name: existing.name });
   } catch (error) {
-    console.error(`[employees] removed ${existing.email || existing.name} but could not delete login:`, error);
+    console.error(`[employees] failed to permanently remove ${existing.email || existing.name}:`, error);
     return NextResponse.json(
-      {
-        error:
-          'The employee was removed from the directory but their login could not be deleted. Remove it manually to revoke access.',
-        unassigned,
-      },
+      { error: error.message || 'Failed to remove employee.' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ deleted: true, unassigned, name: existing.name });
 }

@@ -573,7 +573,7 @@ export default function AdminLeaveBalancesView() {
                     <td style={{ padding: '10px 12px', fontWeight: 700, color: '#172b4d' }}>
                       {cat.name}
                     </td>
-                    <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: '#626f86' }}>
+                    <td style={{ padding: '10px 12px', fontFamily: 'var(--font-sans)', color: '#626f86' }}>
                       {cat.code}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#0c66e4' }}>
@@ -797,7 +797,7 @@ export default function AdminLeaveBalancesView() {
                 ) : (
                   holidays.map((h) => (
                     <tr key={h.id || h.holiday_date} style={{ borderBottom: '1px solid #f4f5f7' }}>
-                      <td style={{ padding: '6px 10px', fontFamily: 'monospace', color: '#172b4d' }}>
+                      <td style={{ padding: '6px 10px', fontFamily: 'var(--font-sans)', color: '#172b4d' }}>
                         {h.holiday_date}
                       </td>
                       <td style={{ padding: '6px 10px', fontWeight: 600, color: '#172b4d' }}>

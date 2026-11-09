@@ -132,6 +132,7 @@ export default function ProjectSummary({
   employees = [],
   projectCounts,
   myIssuesCount,
+  clientRequests = false,
 }) {
   const [data, setData] = useState(initialSummary);
   const [isLoading, setIsLoading] = useState(false);
@@ -145,6 +146,11 @@ export default function ProjectSummary({
   const requestId = useRef(0);
   const projectId = initialSummary.project.id;
   const router = useRouter();
+  const summaryApi = clientRequests
+    ? '/api/client-requests/summary'
+    : `/api/projects/${projectId}/summary`;
+  const boardHref = clientRequests ? '/client-requests/board' : `/?project=${projectId}`;
+  const canCreate = currentUser.role === 'admin' && !clientRequests;
 
   useEffect(() => {
     try {
@@ -188,7 +194,7 @@ export default function ProjectSummary({
     setIsLoading(true);
     setError('');
 
-    fetch(`/api/projects/${projectId}/summary?assignee=${encodeURIComponent(assignee)}`, {
+    fetch(`${summaryApi}?assignee=${encodeURIComponent(assignee)}`, {
       signal: controller.signal,
     })
       .then((res) => res.json())
@@ -206,7 +212,7 @@ export default function ProjectSummary({
       });
 
     return () => controller.abort();
-  }, [assignee, projectId, initialSummary]);
+  }, [assignee, projectId, initialSummary, summaryApi]);
 
   function dismissBanner() {
     setBannerDismissed(true);
@@ -267,12 +273,14 @@ export default function ProjectSummary({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      view="summary"
+      view={clientRequests ? 'client-requests' : 'summary'}
       filter="all"
       onFilterChange={() => {}}
       projectId={String(projectId)}
-      onProjectChange={(id) => router.push(`/projects/${id}/summary`)}
-      onCreate={currentUser.role === 'admin' ? () => setShowCreate(true) : undefined}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests' : `/projects/${id}/summary`)
+      }
+      onCreate={canCreate ? () => setShowCreate(true) : undefined}
     >
       <div className="board">
         {error && (
@@ -284,7 +292,11 @@ export default function ProjectSummary({
 
         <PageHeader
           className="summary-toolbar"
-          breadcrumb={[{ label: 'Projects', href: '/projects' }, { label: data.project.name }]}
+          breadcrumb={
+            clientRequests
+              ? [{ label: 'Client requests' }]
+              : [{ label: 'Workspaces', href: '/projects' }, { label: data.project.name }]
+          }
           title={data.project.name}
           project={data.project}
           subtitle={data.project.description}
@@ -324,7 +336,7 @@ export default function ProjectSummary({
           }
         />
 
-        <ProjectTabs projectId={projectId} active="summary" />
+        <ProjectTabs projectId={projectId} active="summary" clientRequests={clientRequests} />
 
         {!bannerDismissed && (
           <div className="summary-banner">
@@ -335,15 +347,17 @@ export default function ProjectSummary({
               <p className="summary-banner-title">
                 {selected
                   ? `Showing work assigned to ${selected.name}`
-                  : 'Get a quick read on how this project is tracking'}
+                  : clientRequests
+                    ? 'Get a quick read on incoming client requests'
+                    : 'Get a quick read on how this project is tracking'}
               </p>
               <p className="summary-banner-body">
                 {selected
-                  ? 'Every count below is filtered to this person. Clear the filter to see the whole project.'
+                  ? `Every count below is filtered to this person. Clear the filter to see all ${clientRequests ? 'client requests' : 'project work'}.`
                   : `Done recently, created and updated cover the last ${windowDays} days. Use the filter to narrow everything to one person.`}
               </p>
             </div>
-            <Link className="summary-banner-link" href={`/?project=${projectId}`}>
+            <Link className="summary-banner-link" href={boardHref}>
               Open the board
             </Link>
             <span className="summary-banner-art" aria-hidden="true">
@@ -458,7 +472,7 @@ export default function ProjectSummary({
             title="Status overview"
             description="How work is distributed across the board right now."
             action={
-              <Link className="card-link" href={`/?project=${projectId}`}>
+              <Link className="card-link" href={boardHref}>
                 View all work items
               </Link>
             }
@@ -472,7 +486,9 @@ export default function ProjectSummary({
                 description={
                   isFiltered
                     ? 'No work items are assigned to this person yet.'
-                    : 'Create your first ticket to see how work is distributed.'
+                    : clientRequests
+                      ? 'New client requests will show up here.'
+                      : 'Create your first ticket to see how work is distributed.'
                 }
               />
             ) : (
@@ -558,7 +574,7 @@ export default function ProjectSummary({
         </div>
       </div>
 
-      {showCreate && (
+      {canCreate && showCreate && (
         <CreateTicketModal
           employees={employees}
           projects={projects}

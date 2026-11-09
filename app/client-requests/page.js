@@ -1,49 +1,43 @@
-import { redirect } from 'next/navigation';
-import requireTeamUser from '@/lib/requireTeamUser';
-import { getClientRequestQueue, getAllTickets } from '@/lib/tickets';
+import requireAdminUser from '@/lib/requireAdminUser';
+import { getAllTickets } from '@/lib/tickets';
 import { getAllProjects } from '@/lib/projects';
 import { getEmployees } from '@/lib/employees';
-import ClientRequestsView from '@/components/ClientRequestsView';
+import { getClientRequestSummary } from '@/lib/clientRequests';
+import { CLIENT_REQUESTS_PROJECT } from '@/lib/clientRequestsProject';
+import ProjectSummary from '@/components/ProjectSummary';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * The client request queue as a full page.
- *
- * The sidebar carries the same list for routing at a glance; this is where an
- * admin opens one, reads it, and decides who should own it. Admin only, because
- * routing other people's requests is not something a developer or a client does.
- */
-export default async function ClientRequestsPage() {
-  const session = await requireTeamUser();
-  if (session.user.role !== 'admin') redirect('/');
+export default async function ClientRequestsSummaryPage() {
+  const session = await requireAdminUser();
 
-  const [requests, employees, projects, tickets] = await Promise.all([
-    getClientRequestQueue(),
-    getEmployees({ includeInactive: false }),
+  const [summary, employees, projects, allTickets] = await Promise.all([
+    getClientRequestSummary(),
+    getEmployees(),
     getAllProjects(),
     getAllTickets(),
   ]);
 
+  const userId = session.user.id;
+  const myIssuesCount = allTickets.filter(
+    (t) => t.created_by === userId || t.assigned_to === userId
+  ).length;
+
   const projectCounts = {};
-  for (const t of tickets) {
+  for (const t of allTickets) {
     if (t.project_id == null) continue;
     projectCounts[t.project_id] = (projectCounts[t.project_id] || 0) + 1;
   }
 
-  const userId = session.user.id;
-  const myIssuesCount = tickets.filter(
-    (t) => t.created_by === userId || t.assigned_to === userId
-  ).length;
-
   return (
-    <ClientRequestsView
+    <ProjectSummary
+      initialSummary={{ project: CLIENT_REQUESTS_PROJECT, ...summary }}
       currentUser={session.user}
-      requests={requests}
-      assignable={employees.filter((e) => e.role !== 'client')}
       projects={projects}
+      employees={employees}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
+      clientRequests
     />
   );
 }

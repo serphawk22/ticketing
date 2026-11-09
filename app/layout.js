@@ -1,24 +1,10 @@
-import { Inter, Sora } from 'next/font/google';
 import './globals.css';
 import { getSession } from '@/lib/auth';
 import { getAllWorkspaces } from '@/lib/workspaces';
 import WorkspacesProvider from '@/components/WorkspacesProvider';
 import ThemeProvider from '@/components/ThemeProvider';
+import SpellcheckProvider from '@/components/SpellcheckProvider';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-const sora = Sora({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  variable: '--font-sora',
-  display: 'swap',
-});
 
 export const metadata = {
   title: 'Ticket Manager',
@@ -37,11 +23,11 @@ export default async function RootLayout({ children }) {
     // difference is safe to ignore.
     <html
       lang="en"
-      className={`${inter.variable} ${sora.variable}`}
       suppressHydrationWarning
     >
-      <body>
+      <body lang="en" spellCheck="true">
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <SpellcheckProvider />
         <ThemeProvider>
           <WorkspacesProvider workspaces={workspaces}>
             {children}

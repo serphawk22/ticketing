@@ -112,6 +112,9 @@ export const HistoryIcon = (p) => (
 export const CommentIcon = (p) => (
   <Svg {...p}><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.5 8.5 0 01-3.8-.9L3 21l1.9-5.1A8.4 8.4 0 013 11.5 8.5 8.5 0 0112 3a8.4 8.4 0 019 8.5z" /></Svg>
 );
+export const SendIcon = (p) => (
+  <Svg {...p}><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></Svg>
+);
 export const ArrowRightIcon = (p) => (
   <Svg {...p}><path d="M5 12h14M13 6l6 6-6 6" /></Svg>
 );

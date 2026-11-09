@@ -34,6 +34,7 @@ export default function ClientRequestsView({
   projects,
   projectCounts,
   myIssuesCount,
+  view = 'client-requests',
 }) {
   const router = useRouter();
   // Both lists are the queue: the rows on screen are the whole set, and the
@@ -79,7 +80,7 @@ export default function ClientRequestsView({
       projectCounts={projectCounts}
       employeeCount={null}
       myIssuesCount={myIssuesCount}
-      view="client-requests"
+      view={view}
       filter="all"
       onFilterChange={() => router.push('/?filter=mine')}
       projectId="all"

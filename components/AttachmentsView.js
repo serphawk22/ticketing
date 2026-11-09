@@ -173,6 +173,7 @@ export default function AttachmentsView({
   projectCounts,
   myIssuesCount,
   currentUser,
+  clientRequests = false,
 }) {
   const router = useRouter();
   const { toasts, push, dismiss, pause, resume } = useToasts();
@@ -260,10 +261,11 @@ export default function AttachmentsView({
     router.refresh();
   }
 
+  const scopeLabel = clientRequests ? 'client requests' : 'this project';
   const subtitle =
     files.length === 1
-      ? '1 file attached to work items in this project.'
-      : `${files.length} files attached to work items in this project.`;
+      ? `1 file attached to work items in ${scopeLabel}.`
+      : `${files.length} files attached to work items in ${scopeLabel}.`;
 
   return (
     <AppShell
@@ -271,11 +273,13 @@ export default function AttachmentsView({
       projects={projects}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
-      view="summary"
+      view={clientRequests ? 'client-requests' : 'summary'}
       filter="all"
       onFilterChange={() => {}}
       projectId={String(project.id)}
-      onProjectChange={(id) => router.push(`/projects/${id}/attachments`)}
+      onProjectChange={(id) =>
+        router.push(clientRequests ? '/client-requests/attachments' : `/projects/${id}/attachments`)
+      }
     >
       <div className="board">
         {error && (
@@ -286,16 +290,20 @@ export default function AttachmentsView({
         )}
 
         <PageHeader
-          breadcrumb={[
-            { label: 'Projects', href: '/projects' },
-            { label: project.name, href: `/projects/${project.id}/summary` },
-            { label: 'Attachments' },
-          ]}
+          breadcrumb={
+            clientRequests
+              ? [{ label: 'Client requests', href: '/client-requests' }, { label: 'Attachments' }]
+              : [
+                  { label: 'Workspaces', href: '/projects' },
+                  { label: project.name, href: `/projects/${project.id}/summary` },
+                  { label: 'Attachments' },
+                ]
+          }
           project={project}
           title="Attachments"
           subtitle={subtitle}
         />
-        <ProjectTabs projectId={project.id} active="attachments" />
+        <ProjectTabs projectId={project.id} active="attachments" clientRequests={clientRequests} />
 
         <div className="att-toolbar">
           <div className="search-field">

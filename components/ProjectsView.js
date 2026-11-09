@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import AppShell from '@/components/AppShell';
+import AppShell, { StarIcon } from '@/components/AppShell';
 import ProjectModal from '@/components/ProjectModal';
 import ConfirmModal from '@/components/ConfirmModal';
 
@@ -14,7 +14,49 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');
+  const [preferences, setPreferences] = useState({});
   const router = useRouter();
+
+  useEffect(() => {
+    fetch('/api/user-preferences')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.preferences) setPreferences(data.preferences);
+      })
+      .catch(() => {});
+  }, []);
+
+  function toggleProjectFavorite(projectId) {
+    const key = String(projectId);
+    setPreferences((prev) => {
+      const nextProjects = {
+        ...(prev.projects || {}),
+        [key]: {
+          ...prev.projects?.[key],
+          favorite: !prev.projects?.[key]?.favorite,
+        },
+      };
+      const nextPrefs = {
+        ...prev,
+        projects: nextProjects,
+      };
+      fetch('/api/user-preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferences: nextPrefs }),
+      }).catch(() => {});
+      return nextPrefs;
+    });
+  }
+
+  function sortProjectsWithFavorites(items) {
+    return [...items].sort((a, b) => {
+      const aFav = Boolean(preferences.projects?.[String(a.id)]?.favorite);
+      const bFav = Boolean(preferences.projects?.[String(b.id)]?.favorite);
+      if (aFav !== bFav) return bFav ? 1 : -1;
+      return 0;
+    });
+  }
 
   const isAdmin = currentUser.role === 'admin';
 
@@ -60,6 +102,19 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
     router.refresh();
   }
 
+  async function handleWorkspaceCreated() {
+    try {
+      const res = await fetch('/api/workspaces');
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspaces(data.workspaces || []);
+      }
+    } catch {
+      // The modal keeps the newly created workspace in its own list.
+    }
+    router.refresh();
+  }
+
   async function handleDelete() {
     setError('');
     try {
@@ -84,8 +139,9 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
   );
 
   function renderProjectCard(p) {
+    const isFav = Boolean(preferences.projects?.[String(p.id)]?.favorite);
     return (
-      <article key={p.id} className="project-card">
+      <article key={p.id} className={`project-card${isFav ? ' is-favorite' : ''}`}>
         <header className="project-card-head">
           <span
             className="project-dot project-dot-lg"
@@ -98,6 +154,16 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
             </h2>
             <span className="project-key">{p.key}</span>
           </div>
+          <button
+            type="button"
+            className={`project-card-favorite${isFav ? ' is-active' : ''}`}
+            onClick={() => toggleProjectFavorite(p.id)}
+            aria-pressed={isFav}
+            aria-label={`${isFav ? 'Unfavorite' : 'Favorite'} ${p.name}`}
+            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <StarIcon filled={isFav} size={16} />
+          </button>
         </header>
 
         {p.description && <p className="project-card-desc">{p.description}</p>}
@@ -160,9 +226,9 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
           </span>
         </header>
         {isEmpty ? (
-          <p className="workspace-group-empty">No projects in this work space yet.</p>
+          <p className="workspace-group-empty">No projects in this workspace yet.</p>
         ) : (
-          <div className="project-grid">{items.map(renderProjectCard)}</div>
+          <div className="project-grid">{sortProjectsWithFavorites(items).map(renderProjectCard)}</div>
         )}
       </section>
     );
@@ -194,11 +260,11 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
         <div className="board-toolbar">
           <div className="toolbar-title">
             <nav className="breadcrumb" aria-label="Breadcrumb">
-              <Link href="/projects">Projects</Link>
+              <Link href="/projects">Workspaces</Link>
             </nav>
-            <h1>Projects</h1>
+            <h1>Workspaces</h1>
             <p className="board-subtitle">
-              {projects.length} {projects.length === 1 ? 'project' : 'projects'}
+              {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
             </p>
           </div>
 
@@ -255,6 +321,7 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
           clients={clients}
           onClose={() => setEditing(null)}
           onSave={handleSave}
+          onWorkspaceCreated={handleWorkspaceCreated}
         />
       )}
 

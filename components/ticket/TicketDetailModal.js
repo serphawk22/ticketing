@@ -71,6 +71,7 @@ export default function TicketDetailModal({
   const [linkQuery, setLinkQuery] = useState('');
   const [linkType, setLinkType] = useState('relates_to');
   const [commentDraft, setCommentDraft] = useState('');
+  const [refreshingComments, setRefreshingComments] = useState(false);
   const [attachmentsOpen, setAttachmentsOpen] = useState(true);
   const [childOpen, setChildOpen] = useState(true);
   const [linkedOpen, setLinkedOpen] = useState(true);
@@ -94,6 +95,8 @@ export default function TicketDetailModal({
   const scrollSide = useRef(null);
 
   const id = ticket?.id;
+  const activeTicketId = useRef(id);
+  activeTicketId.current = id;
   const isAdmin = currentUser?.role === 'admin';
   // Routing work -- naming an assignee or nesting it in the tree -- is the same
   // team decision the create and edit routes make, so the child form follows it.
@@ -158,6 +161,22 @@ export default function TicketDetailModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, onNext, onPrev]);
+
+  const refreshComments = useCallback(async () => {
+    if (!id || refreshingComments) return;
+    const requestedId = id;
+    setRefreshingComments(true);
+    try {
+      const data = await call(`/api/tickets/${requestedId}/comments`);
+      if (activeTicketId.current === requestedId && Array.isArray(data.comments)) {
+        setDetail((prev) => ({ ...prev, comments: data.comments }));
+      }
+    } catch (err) {
+      if (activeTicketId.current === requestedId) setError(err.message);
+    } finally {
+      setRefreshingComments(false);
+    }
+  }, [id, refreshingComments]);
 
   const patch = useCallback(
     async (fields) => {
@@ -378,6 +397,7 @@ export default function TicketDetailModal({
           priority: childPriority,
           employee_id: childAssignee ? Number(childAssignee) : null,
           parent_id: id,
+          project_id: t?.project_id || detail?.ticket?.project_id || null,
         }),
       });
       setChildTitle('');
@@ -1102,6 +1122,8 @@ export default function TicketDetailModal({
             )}
 
             <ActivityFeed
+              ticket={t}
+              watchers={detail.watchers}
               activity={detail.activity}
               comments={detail.comments}
               timeLogs={detail.timeLogs}
@@ -1111,6 +1133,9 @@ export default function TicketDetailModal({
               onAddComment={addComment}
               onEditComment={editComment}
               onDeleteComment={deleteComment}
+              onRefreshComments={refreshComments}
+              refreshingComments={refreshingComments}
+              isSubmitting={busy}
             />
           </div>
 
