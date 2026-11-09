@@ -243,6 +243,20 @@ export async function PATCH(request, { params }) {
     payment_status,
     employment_type,
     workspace_id,
+    department_id: body.department_id !== undefined ? (body.department_id ? Number(body.department_id) : null) : existing.department_id,
+    designation_id: body.designation_id !== undefined ? (body.designation_id ? Number(body.designation_id) : null) : existing.designation_id,
+    reporting_manager_id: body.reporting_manager_id !== undefined ? (body.reporting_manager_id ? Number(body.reporting_manager_id) : null) : existing.reporting_manager_id,
+    employment_status: body.employment_status !== undefined ? body.employment_status : existing.employment_status,
+    phone: body.phone !== undefined ? String(body.phone).trim() : existing.phone,
+    dob: body.dob !== undefined ? body.dob : existing.dob,
+    gender: body.gender !== undefined ? String(body.gender).trim() : existing.gender,
+    current_address: body.current_address !== undefined ? String(body.current_address).trim() : existing.current_address,
+    permanent_address: body.permanent_address !== undefined ? String(body.permanent_address).trim() : existing.permanent_address,
+    emergency_contact_name: body.emergency_contact_name !== undefined ? String(body.emergency_contact_name).trim() : existing.emergency_contact_name,
+    emergency_contact_relation: body.emergency_contact_relation !== undefined ? String(body.emergency_contact_relation).trim() : existing.emergency_contact_relation,
+    emergency_contact_phone: body.emergency_contact_phone !== undefined ? String(body.emergency_contact_phone).trim() : existing.emergency_contact_phone,
+    blood_group: body.blood_group !== undefined ? String(body.blood_group).trim() : existing.blood_group,
+    joining_date: body.joining_date !== undefined ? body.joining_date : existing.joining_date,
   });
 
   // Automatically allocate leave entitlements if employment type or workspace changes

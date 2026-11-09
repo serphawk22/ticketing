@@ -33,13 +33,36 @@ export async function PATCH(request) {
 
     // Security: Only allow personal fields to be modified
     // Rejects or ignores any attempt to change role, email, base_salary, etc.
-    const { name, age, github_url, linkedin_url } = body;
+    const {
+      name,
+      age,
+      github_url,
+      linkedin_url,
+      phone,
+      dob,
+      gender,
+      current_address,
+      permanent_address,
+      emergency_contact_name,
+      emergency_contact_relation,
+      emergency_contact_phone,
+      blood_group,
+    } = body;
 
     const updated = await updatePersonalProfile(session.user.id, {
       name,
       age,
       github_url,
       linkedin_url,
+      phone,
+      dob,
+      gender,
+      current_address,
+      permanent_address,
+      emergency_contact_name,
+      emergency_contact_relation,
+      emergency_contact_phone,
+      blood_group,
     });
 
     return NextResponse.json({ profile: updated });
