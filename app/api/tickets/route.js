@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getAllTickets, getTicket, getTicketsForClient, getTicketsForProject } from '@/lib/tickets';
+import { getAllTickets, getTicket, getTicketsForClient, getTicketsForProject, getTicketsForEmployee } from '@/lib/tickets';
 import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
 import { notifyTicketAssigned, notifyTicketCreated } from '@/lib/notifications';
@@ -17,6 +17,16 @@ export async function GET(request) {
   const projectId = projectIdParam ? Number(projectIdParam) : null;
   const excludeClosed = url?.searchParams.get('excludeClosed') === 'true' || url?.searchParams.get('excludeClosed') === '1';
   const userName = (url?.searchParams.get('userName') || url?.searchParams.get('user') || '').trim();
+  const employeeIdParam = url?.searchParams.get('employee_id') ?? url?.searchParams.get('employeeId');
+  let employeeId = null;
+
+  if (employeeIdParam !== null && employeeIdParam !== undefined && employeeIdParam !== '') {
+    const parsed = Number(employeeIdParam);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return NextResponse.json({ error: 'Invalid employee ID.' }, { status: 400 });
+    }
+    employeeId = parsed;
+  }
 
   // If unauthenticated but requesting project-specific tickets for the task sheet:
   if (!session) {
@@ -29,6 +39,9 @@ export async function GET(request) {
         tickets = tickets.filter(
           (t) => t.employee_name === userName || t.assigned_to_name === userName
         );
+      }
+      if (employeeId !== null) {
+        tickets = tickets.filter((t) => Number(t.employee_id) === employeeId);
       }
       const safeTickets = tickets.map((t) => ({
         id: t.id,
@@ -58,6 +71,8 @@ export async function GET(request) {
     }
   } else if (projectId && Number.isInteger(projectId)) {
     tickets = await getTicketsForProject(projectId);
+  } else if (employeeId !== null) {
+    tickets = await getTicketsForEmployee(employeeId);
   } else {
     tickets = await getAllTickets();
   }
@@ -70,6 +85,10 @@ export async function GET(request) {
     tickets = tickets.filter(
       (t) => t.employee_name === userName || t.assigned_to_name === userName
     );
+  }
+
+  if (employeeId !== null) {
+    tickets = tickets.filter((t) => Number(t.employee_id) === employeeId);
   }
 
   return NextResponse.json({

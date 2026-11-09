@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import ClientShell from '@/components/ClientShell';
 import Avatar from '@/components/Avatar';
+import EmployeeDocumentsTab from '@/components/EmployeeDocumentsTab';
 import { useToasts, Toaster } from '@/components/Toaster';
 import { formatSalary } from '@/lib/currency';
 
@@ -131,6 +132,15 @@ export default function ProfileView({
   const [age, setAge] = useState(initialProfile?.age !== null ? String(initialProfile?.age ?? '') : '');
   const [githubUrl, setGithubUrl] = useState(initialProfile?.github_url || '');
   const [linkedinUrl, setLinkedinUrl] = useState(initialProfile?.linkedin_url || '');
+  const [phone, setPhone] = useState(initialProfile?.phone || '');
+  const [dob, setDob] = useState(initialProfile?.dob || '');
+  const [gender, setGender] = useState(initialProfile?.gender || '');
+  const [bloodGroup, setBloodGroup] = useState(initialProfile?.blood_group || '');
+  const [currentAddress, setCurrentAddress] = useState(initialProfile?.current_address || '');
+  const [permanentAddress, setPermanentAddress] = useState(initialProfile?.permanent_address || '');
+  const [emergencyContactName, setEmergencyContactName] = useState(initialProfile?.emergency_contact_name || '');
+  const [emergencyContactRelation, setEmergencyContactRelation] = useState(initialProfile?.emergency_contact_relation || '');
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(initialProfile?.emergency_contact_phone || '');
   const [personalSaving, setPersonalSaving] = useState(false);
   const [personalError, setPersonalError] = useState('');
 
@@ -157,6 +167,15 @@ export default function ProfileView({
     setAge(profile?.age !== null && profile?.age !== undefined ? String(profile.age) : '');
     setGithubUrl(profile?.github_url || '');
     setLinkedinUrl(profile?.linkedin_url || '');
+    setPhone(profile?.phone || '');
+    setDob(profile?.dob || '');
+    setGender(profile?.gender || '');
+    setBloodGroup(profile?.blood_group || '');
+    setCurrentAddress(profile?.current_address || '');
+    setPermanentAddress(profile?.permanent_address || '');
+    setEmergencyContactName(profile?.emergency_contact_name || '');
+    setEmergencyContactRelation(profile?.emergency_contact_relation || '');
+    setEmergencyContactPhone(profile?.emergency_contact_phone || '');
     setPersonalError('');
   }
 
@@ -190,6 +209,15 @@ export default function ProfileView({
           age: age.trim() === '' ? null : age.trim(),
           github_url: githubUrl.trim(),
           linkedin_url: linkedinUrl.trim(),
+          phone: phone.trim(),
+          dob: dob || null,
+          gender: gender || null,
+          blood_group: bloodGroup || null,
+          current_address: currentAddress.trim(),
+          permanent_address: permanentAddress.trim(),
+          emergency_contact_name: emergencyContactName.trim(),
+          emergency_contact_relation: emergencyContactRelation.trim(),
+          emergency_contact_phone: emergencyContactPhone.trim(),
         }),
       });
 
@@ -203,6 +231,15 @@ export default function ProfileView({
       setAge(data.profile.age !== null ? String(data.profile.age) : '');
       setGithubUrl(data.profile.github_url || '');
       setLinkedinUrl(data.profile.linkedin_url || '');
+      setPhone(data.profile.phone || '');
+      setDob(data.profile.dob || '');
+      setGender(data.profile.gender || '');
+      setBloodGroup(data.profile.blood_group || '');
+      setCurrentAddress(data.profile.current_address || '');
+      setPermanentAddress(data.profile.permanent_address || '');
+      setEmergencyContactName(data.profile.emergency_contact_name || '');
+      setEmergencyContactRelation(data.profile.emergency_contact_relation || '');
+      setEmergencyContactPhone(data.profile.emergency_contact_phone || '');
 
       push({ message: 'Personal details updated successfully.', tone: 'success' });
       startTransition(() => {
@@ -518,6 +555,129 @@ export default function ProfileView({
               </div>
             </div>
 
+            {currentUser.role !== 'client' && (
+              <>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="profile-phone">Phone Number</label>
+                    <input
+                      id="profile-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+1 (555) 000-0000"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="profile-dob">Date of Birth</label>
+                    <input
+                      id="profile-dob"
+                      type="date"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="profile-gender">Gender</label>
+                    <select
+                      id="profile-gender"
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="profile-blood-group">Blood Group</label>
+                    <select
+                      id="profile-blood-group"
+                      value={bloodGroup}
+                      onChange={(e) => setBloodGroup(e.target.value)}
+                    >
+                      <option value="">Select Blood Group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="profile-curr-address">Current Address</label>
+                  <textarea
+                    id="profile-curr-address"
+                    rows="2"
+                    value={currentAddress}
+                    onChange={(e) => setCurrentAddress(e.target.value)}
+                    placeholder="Residential address"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="profile-perm-address">Permanent Address</label>
+                  <textarea
+                    id="profile-perm-address"
+                    rows="2"
+                    value={permanentAddress}
+                    onChange={(e) => setPermanentAddress(e.target.value)}
+                    placeholder="Permanent / Home address"
+                  />
+                </div>
+
+                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
+                  <h3 style={{ fontSize: '0.8125rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
+                    Emergency Contact
+                  </h3>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="profile-emer-name">Contact Name</label>
+                      <input
+                        id="profile-emer-name"
+                        type="text"
+                        value={emergencyContactName}
+                        onChange={(e) => setEmergencyContactName(e.target.value)}
+                        placeholder="Emergency contact full name"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="profile-emer-rel">Relationship</label>
+                      <input
+                        id="profile-emer-rel"
+                        type="text"
+                        value={emergencyContactRelation}
+                        onChange={(e) => setEmergencyContactRelation(e.target.value)}
+                        placeholder="e.g. Spouse, Parent, Sibling"
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="profile-emer-phone">Emergency Phone</label>
+                    <input
+                      id="profile-emer-phone"
+                      type="tel"
+                      value={emergencyContactPhone}
+                      onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                      placeholder="+1 (555) 000-0000"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="profile-form-actions">
               <button
                 type="button"
@@ -543,23 +703,53 @@ export default function ProfileView({
               <BriefcaseIcon />
             </div>
             <div>
-              <h2>Salary & Department</h2>
+              <h2>Employment & Organization</h2>
               <p>Set by your administrator</p>
             </div>
           </div>
 
           <div className="profile-employment-grid">
             <div className="profile-employment-item">
-              <span className="profile-emp-label">Base Salary</span>
+              <span className="profile-emp-label">Department</span>
               <span className="profile-emp-value">
-                {formatSalary(profile?.base_salary, profile?.salary_currency)}
+                {profile?.department_name || profile?.department || '—'}
               </span>
             </div>
 
             <div className="profile-employment-item">
-              <span className="profile-emp-label">Department</span>
+              <span className="profile-emp-label">Designation / Role</span>
               <span className="profile-emp-value">
-                {profile?.department || '—'}
+                {profile?.designation_title || profile?.title || '—'}
+              </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Reporting Manager</span>
+              <span className="profile-emp-value">
+                {profile?.reporting_manager_name || 'None'}
+              </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Employment Status</span>
+              <span className="profile-emp-value">
+                <span className={`pill ${profile?.employment_status === 'active' || !profile?.employment_status ? 'pill-active' : 'pill-inactive'}`}>
+                  {(profile?.employment_status || 'active').replace('_', ' ').toUpperCase()}
+                </span>
+              </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Joining Date</span>
+              <span className="profile-emp-value">
+                {profile?.joining_date ? formatDate(profile.joining_date) : '—'}
+              </span>
+            </div>
+
+            <div className="profile-employment-item">
+              <span className="profile-emp-label">Base Salary</span>
+              <span className="profile-emp-value">
+                {formatSalary(profile?.base_salary, profile?.salary_currency)}
               </span>
             </div>
 
@@ -684,6 +874,17 @@ export default function ProfileView({
           </div>
         </form>
       </div>
+
+      {/* Employee Documents Card */}
+      {currentUser.role !== 'client' && profile?.employee_id && (
+        <div className="profile-card profile-card-documents">
+          <EmployeeDocumentsTab
+            employeeId={profile.employee_id}
+            isAdmin={currentUser.role === 'admin'}
+            currentUserId={currentUser.id}
+          />
+        </div>
+      )}
 
       <Toaster toasts={toasts} dismiss={dismiss} pause={pause} resume={resume} />
     </div>
