@@ -9,32 +9,42 @@ import EmployeeModal from '@/components/EmployeeModal';
 import { useToasts, Toaster } from '@/components/Toaster';
 import ConfirmModal from '@/components/ConfirmModal';
 import Avatar from '@/components/Avatar';
+import OnboardingView from '@/components/OnboardingView';
+import AssetsView from '@/components/AssetsView';
+import ExitManagementView from '@/components/ExitManagementView';
+import DepartmentsRolesView from '@/components/DepartmentsRolesView';
 import { formatFullDateTime, STATUS_ORDER, STATUS_META } from '@/components/meta';
 import { formatSalary } from '@/lib/currency';
 
 const TABS = [
   { id: 'directory', label: 'Directory' },
+  { id: 'org', label: 'Departments & Roles' },
+  { id: 'onboarding', label: 'Onboarding' },
+  { id: 'assets', label: 'Assets' },
+  { id: 'exit', label: 'Exit Management' },
   { id: 'notifications', label: 'Notifications' },
 ];
 
 const BASE_COLUMNS = [
   { id: 'name', label: 'Employee' },
   { id: 'department', label: 'Department' },
-  { id: 'role', label: 'Role' },
+  { id: 'title', label: 'Designation' },
+  { id: 'reporting_manager_name', label: 'Manager' },
   { id: 'open_count', label: 'Open', num: true },
   { id: 'assigned_count', label: 'Assigned', num: true },
-  { id: 'active', label: 'Status' },
+  { id: 'employment_status', label: 'Status' },
 ];
 
 const ADMIN_COLUMNS = [
   { id: 'name', label: 'Employee' },
   { id: 'department', label: 'Department' },
-  { id: 'role', label: 'Role' },
+  { id: 'title', label: 'Designation' },
+  { id: 'reporting_manager_name', label: 'Manager' },
   { id: 'open_count', label: 'Open', num: true },
   { id: 'assigned_count', label: 'Assigned', num: true },
   { id: 'base_salary', label: 'Salary', num: true },
   { id: 'payment_status', label: 'Payment' },
-  { id: 'active', label: 'Status' },
+  { id: 'employment_status', label: 'Status' },
 ];
 
 function SortIcon({ dir }) {
@@ -254,7 +264,10 @@ export default function EmployeesView({
 
   const departments = useMemo(() => {
     const set = new Set();
-    for (const e of employees) if (e.department) set.add(e.department);
+    for (const e of employees) {
+      const d = e.department_name || e.department;
+      if (d) set.add(d);
+    }
     return Array.from(set).sort();
   }, [employees]);
 
@@ -263,15 +276,22 @@ export default function EmployeesView({
     const list = employees.filter((e) => {
       if (!showInactive && !e.active) return false;
       if (roleFilter !== 'all' && e.role !== roleFilter) return false;
-      if (statusFilter === 'active' && !e.active) return false;
-      if (statusFilter === 'inactive' && e.active) return false;
-      if (deptFilter !== 'all' && e.department !== deptFilter) return false;
+      if (statusFilter === 'active' && (!e.active || ['resigned', 'terminated'].includes(e.employment_status))) return false;
+      if (statusFilter === 'inactive' && e.active && !['resigned', 'terminated'].includes(e.employment_status)) return false;
+      if (statusFilter !== 'all' && statusFilter !== 'active' && statusFilter !== 'inactive') {
+        if (e.employment_status !== statusFilter) return false;
+      }
+      if (deptFilter !== 'all' && (e.department_name || e.department) !== deptFilter) return false;
       if (!query) return true;
       return (
         e.name.toLowerCase().includes(query) ||
-        e.email.toLowerCase().includes(query) ||
-        e.department.toLowerCase().includes(query) ||
-        e.title.toLowerCase().includes(query) ||
+        (e.email && e.email.toLowerCase().includes(query)) ||
+        (e.department && e.department.toLowerCase().includes(query)) ||
+        (e.department_name && e.department_name.toLowerCase().includes(query)) ||
+        (e.title && e.title.toLowerCase().includes(query)) ||
+        (e.designation_title && e.designation_title.toLowerCase().includes(query)) ||
+        (e.reporting_manager_name && e.reporting_manager_name.toLowerCase().includes(query)) ||
+        (e.employment_status && e.employment_status.toLowerCase().includes(query)) ||
         (e.payment_status && e.payment_status.toLowerCase().includes(query))
       );
     });
@@ -423,6 +443,11 @@ export default function EmployeesView({
                   >
                     <option value="all">All</option>
                     <option value="active">Active</option>
+                    <option value="probation">Probation</option>
+                    <option value="on_leave">On Leave</option>
+                    <option value="notice_period">Notice Period</option>
+                    <option value="resigned">Resigned</option>
+                    <option value="terminated">Terminated</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </label>
@@ -521,14 +546,15 @@ export default function EmployeesView({
                             </div>
                           </button>
                         </td>
-                        <td>{e.department || '—'}</td>
+                        <td>{e.department_name || e.department || '—'}</td>
                         <td>
-                          <span className={`role-tag role-${e.role}`}>{e.role}</span>
+                          <div style={{ fontWeight: 500 }}>
+                            {e.designation_title || e.title || (e.role !== 'client' ? e.role : 'Client')}
+                          </div>
                           {e.role !== 'client' && (
                             <span style={{
-                              marginLeft: '6px',
                               fontSize: '11px',
-                              padding: '2px 6px',
+                              padding: '1px 5px',
                               borderRadius: '4px',
                               background: e.employment_type === 'full_time' || !e.employment_type ? '#e3fcef' : '#fff0b3',
                               color: e.employment_type === 'full_time' || !e.employment_type ? '#006644' : '#172b4d',
@@ -537,6 +563,15 @@ export default function EmployeesView({
                             }}>
                               {(e.employment_type || 'full_time').replace('_', ' ')}
                             </span>
+                          )}
+                        </td>
+                        <td>
+                          {e.reporting_manager_name ? (
+                            <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+                              {e.reporting_manager_name}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-subtle)', fontSize: '12px' }}>—</span>
                           )}
                         </td>
                         <td className="num">{e.open_count}</td>
@@ -570,10 +605,18 @@ export default function EmployeesView({
                         <td>
                           <span
                             className={`pill ${
-                              e.active ? 'pill-active' : 'pill-inactive'
+                              (e.employment_status === 'active' || (!e.employment_status && e.active))
+                                ? 'pill-active'
+                                : e.employment_status === 'probation'
+                                ? 'pill-neutral'
+                                : e.employment_status === 'on_leave' || e.employment_status === 'notice_period'
+                                ? 'pill-warning'
+                                : 'pill-inactive'
                             }`}
                           >
-                            {e.active ? 'Active' : 'Inactive'}
+                            {(e.employment_status || (e.active ? 'active' : 'inactive'))
+                              .replace('_', ' ')
+                              .replace(/\b\w/g, (c) => c.toUpperCase())}
                           </span>
                         </td>
                         {isAdmin && (
@@ -679,6 +722,22 @@ export default function EmployeesView({
               )}
             </div>
           </>
+        ) : tab === 'org' ? (
+          <div style={{ marginTop: 16 }}>
+            <DepartmentsRolesView currentUser={currentUser} />
+          </div>
+        ) : tab === 'onboarding' ? (
+          <div style={{ marginTop: 16 }}>
+            <OnboardingView currentUser={currentUser} employees={employees} />
+          </div>
+        ) : tab === 'assets' ? (
+          <div style={{ marginTop: 16 }}>
+            <AssetsView currentUser={currentUser} employees={employees} />
+          </div>
+        ) : tab === 'exit' ? (
+          <div style={{ marginTop: 16 }}>
+            <ExitManagementView currentUser={currentUser} employees={employees} />
+          </div>
         ) : (
           <div className="table-scroll">
             <div className={`smtp-banner${smtpConfigured ? ' smtp-on' : ''}`}>

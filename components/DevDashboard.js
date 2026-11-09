@@ -130,11 +130,33 @@ export default function DevDashboard({
   const [toMeProjectId, setToMeProjectId] = useState('all');
   const [byMeProjectId, setByMeProjectId] = useState('all');
   const [groupTab, setGroupTab] = useState('to');
+  const [toMeEmployeeId, setToMeEmployeeId] = useState('all');
+  const [byMeEmployeeId, setByMeEmployeeId] = useState('all');
   const [priority, setPriority] = useState('all');
   const [error, setError] = useState('');
   const [draggingId, setDraggingId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+
+  const activeEmployees = useMemo(
+    () => (employees || []).filter((e) => Boolean(e.active)),
+    [employees]
+  );
+
+  const handleEmployeeFilterChange = useCallback(async (setter, val) => {
+    setter(val);
+    try {
+      const res = await fetch('/api/tickets');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.tickets)) {
+          setTickets(data.tickets);
+        }
+      }
+    } catch {
+      // Keep working with local state if background refresh fails
+    }
+  }, []);
 
   const projectCounts = useMemo(() => {
     const counts = {};
@@ -207,10 +229,13 @@ export default function DevDashboard({
   );
 
   const applyFilters = useCallback(
-    (list, projectFilter) => {
+    (list, projectFilter, employeeFilter = 'all') => {
       const q = search.trim().toLowerCase();
       return list.filter((t) => {
         if (projectFilter !== 'all' && String(t.project_id) !== String(projectFilter)) {
+          return false;
+        }
+        if (employeeFilter !== 'all' && String(t.employee_id) !== String(employeeFilter)) {
           return false;
         }
         if (priority !== 'all' && t.priority !== priority) return false;
@@ -263,12 +288,12 @@ export default function DevDashboard({
   );
 
   const toMeVisible = useMemo(
-    () => applyFilters(assignedToMe, toMeProjectId),
-    [applyFilters, assignedToMe, toMeProjectId]
+    () => applyFilters(assignedToMe, toMeProjectId, toMeEmployeeId),
+    [applyFilters, assignedToMe, toMeProjectId, toMeEmployeeId]
   );
   const byMeVisible = useMemo(
-    () => applyFilters(assignedByMe, byMeProjectId),
-    [applyFilters, assignedByMe, byMeProjectId]
+    () => applyFilters(assignedByMe, byMeProjectId, byMeEmployeeId),
+    [applyFilters, assignedByMe, byMeProjectId, byMeEmployeeId]
   );
 
   const toMeBuckets = useMemo(() => makeBuckets(toMeVisible), [makeBuckets, toMeVisible]);
@@ -467,8 +492,73 @@ export default function DevDashboard({
     );
   }
 
-  // One project filter per ownership group. Rendered inside that group so the
-  // two filters stay independent, with "All projects" as the no-op default.
+  // Project & employee filters per ownership group. Rendered inside that group so the
+  // filters stay independent, with "All projects" and "All employees" as no-op defaults.
+  function renderGroupFilters({
+    projectId,
+    projectValue,
+    onProjectChange,
+    projectLabel,
+    employeeSelectId,
+    employeeValue,
+    onEmployeeChange,
+    employeeLabel,
+  }) {
+    return (
+      <div className="dash-group-filter">
+        <label htmlFor={projectId}>Project</label>
+        <div className="select-field">
+          <select
+            id={projectId}
+            value={projectValue}
+            onChange={(e) => onProjectChange(e.target.value)}
+            aria-label={projectLabel}
+          >
+            <option value="all">All projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {isAdmin && (
+          <>
+            <label htmlFor={employeeSelectId}>Employee</label>
+            <div className="select-field">
+              <select
+                id={employeeSelectId}
+                value={employeeValue}
+                onChange={(e) => handleEmployeeFilterChange(onEmployeeChange, e.target.value)}
+                aria-label={employeeLabel}
+              >
+                <option value="all">All employees</option>
+                {activeEmployees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {employeeValue !== 'all' && (
+              <button
+                type="button"
+                className="link-button"
+                style={{ fontSize: 'var(--fs-12)', marginLeft: '4px' }}
+                onClick={() => handleEmployeeFilterChange(onEmployeeChange, 'all')}
+                title="Clear employee filter"
+                aria-label="Clear employee filter"
+              >
+                Clear
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
   function renderProjectFilter(id, value, onChange, label) {
     return (
       <div className="dash-group-filter">
@@ -628,12 +718,16 @@ export default function DevDashboard({
                 <span className="dash-group-hint">Work handed to you</span>
                 <span className="dash-group-count">{toMeVisible.length}</span>
               </header>
-              {renderProjectFilter(
-                'to-me-project',
-                toMeProjectId,
-                setToMeProjectId,
-                'Filter assigned to me by project'
-              )}
+              {renderGroupFilters({
+                projectId: 'to-me-project',
+                projectValue: toMeProjectId,
+                onProjectChange: setToMeProjectId,
+                projectLabel: 'Filter assigned to me by project',
+                employeeSelectId: 'to-me-employee',
+                employeeValue: toMeEmployeeId,
+                onEmployeeChange: setToMeEmployeeId,
+                employeeLabel: 'Filter assigned to me by employee',
+              })}
               {renderDashSections('to', toMeBuckets)}
             </section>
           ) : (
@@ -648,12 +742,16 @@ export default function DevDashboard({
                 <span className="dash-group-hint">Tickets you raised</span>
                 <span className="dash-group-count">{byMeVisible.length}</span>
               </header>
-              {renderProjectFilter(
-                'by-me-project',
-                byMeProjectId,
-                setByMeProjectId,
-                'Filter assigned by me by project'
-              )}
+              {renderGroupFilters({
+                projectId: 'by-me-project',
+                projectValue: byMeProjectId,
+                onProjectChange: setByMeProjectId,
+                projectLabel: 'Filter assigned by me by project',
+                employeeSelectId: 'by-me-employee',
+                employeeValue: byMeEmployeeId,
+                onEmployeeChange: setByMeEmployeeId,
+                employeeLabel: 'Filter assigned by me by employee',
+              })}
               {renderDashSections('by', byMeBuckets)}
             </section>
           )}

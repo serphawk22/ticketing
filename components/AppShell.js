@@ -827,17 +827,37 @@ export default function AppShell({
 
     if (id === 'people') {
       return (
-        <Link
-          href="/employees"
-          className={`nav-item${view === 'employees' ? ' active' : ''}`}
-          onClick={() => setSidebarOpen(false)}
-        >
-          <PeopleIcon />
-          <span className="nav-text">Employees</span>
-          {employeeCount != null && (
-            <span className="nav-count">{employeeCount}</span>
+        <>
+          <Link
+            href="/employees"
+            className={`nav-item${view === 'employees' ? ' active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <PeopleIcon />
+            <span className="nav-text">Employee Management</span>
+            {employeeCount != null && (
+              <span className="nav-count">{employeeCount}</span>
+            )}
+          </Link>
+          {isAdmin && (
+            <Link
+              href="/payroll"
+              className={`nav-item${view === 'payroll' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <BarChartIcon />
+              <span className="nav-text">Payroll</span>
+            </Link>
           )}
-        </Link>
+          <Link
+            href="/my-payslips"
+            className={`nav-item${view === 'my-payslips' ? ' active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <ClipboardIcon />
+            <span className="nav-text">My Payslips</span>
+          </Link>
+        </>
       );
     }
 

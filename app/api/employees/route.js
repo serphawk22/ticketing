@@ -57,6 +57,20 @@ export async function POST(request) {
     payment_status = '',
     employment_type = 'full_time',
     workspace_id = null,
+    department_id = null,
+    designation_id = null,
+    reporting_manager_id = null,
+    phone = '',
+    dob = null,
+    gender = '',
+    current_address = '',
+    permanent_address = '',
+    emergency_contact_name = '',
+    emergency_contact_relation = '',
+    emergency_contact_phone = '',
+    blood_group = '',
+    employment_status = 'active',
+    joining_date = null,
   } = await request.json();
 
   const cleanName = String(name ?? '').trim();
@@ -259,6 +273,20 @@ export async function POST(request) {
     user_id: account.id,
     employment_type: employment_type || 'full_time',
     workspace_id: workspace_id ? Number(workspace_id) : null,
+    department_id: department_id ? Number(department_id) : null,
+    designation_id: designation_id ? Number(designation_id) : null,
+    reporting_manager_id: reporting_manager_id ? Number(reporting_manager_id) : null,
+    phone,
+    dob,
+    gender,
+    current_address,
+    permanent_address,
+    emergency_contact_name,
+    emergency_contact_relation,
+    emergency_contact_phone,
+    blood_group,
+    employment_status: employment_status || 'active',
+    joining_date,
   });
 
   // Automatically allocate leave balances for the employee's workspace
