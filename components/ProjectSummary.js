@@ -10,6 +10,7 @@ import Avatar from './Avatar';
 import CreateTicketModal from './CreateTicketModal';
 import DonutChart, { BarChart } from './DonutChart';
 import { SummaryCard, MetricCard, EmptyState } from './SummaryCard';
+import AiProgressSummaryCard from './AiProgressSummaryCard';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -468,109 +469,119 @@ export default function ProjectSummary({
         </div>
 
         <div className="summary-grid">
-          <SummaryCard
-            title="Status overview"
-            description="How work is distributed across the board right now."
-            action={
-              <Link className="card-link" href={boardHref}>
-                View all work items
-              </Link>
-            }
-            isLoading={isLoading}
-            skeletonRows={3}
-          >
-            {total === 0 ? (
-              <EmptyState
-                illustration={<EmptyArt />}
-                title="No activity yet"
-                description={
-                  isFiltered
-                    ? 'No work items are assigned to this person yet.'
-                    : clientRequests
-                      ? 'New client requests will show up here.'
-                      : 'Create your first ticket to see how work is distributed.'
-                }
-              />
-            ) : (
-              <div className="status-overview">
-                <DonutChart segments={statusSegments} total={total} size={150} thickness={16} />
-                <ul className="donut-legend">
-                  {statusSegments.map((s) => (
-                    <li key={s.key}>
-                      <span className="legend-swatch" style={{ background: s.color }} aria-hidden="true" />
-                      <span className="legend-label">{s.label}</span>
-                      <span className="legend-value">{s.value}</span>
+          <div className="summary-column">
+            <SummaryCard
+              title="Status overview"
+              description="How work is distributed across the board right now."
+              action={
+                <Link className="card-link" href={boardHref}>
+                  View all work items
+                </Link>
+              }
+              isLoading={isLoading}
+              skeletonRows={3}
+            >
+              {total === 0 ? (
+                <EmptyState
+                  illustration={<EmptyArt />}
+                  title="No activity yet"
+                  description={
+                    isFiltered
+                      ? 'No work items are assigned to this person yet.'
+                      : clientRequests
+                        ? 'New client requests will show up here.'
+                        : 'Create your first ticket to see how work is distributed.'
+                  }
+                />
+              ) : (
+                <div className="status-overview">
+                  <DonutChart segments={statusSegments} total={total} size={150} thickness={16} />
+                  <ul className="donut-legend">
+                    {statusSegments.map((s) => (
+                      <li key={s.key}>
+                        <span className="legend-swatch" style={{ background: s.color }} aria-hidden="true" />
+                        <span className="legend-label">{s.label}</span>
+                        <span className="legend-value">{s.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </SummaryCard>
+
+            <AiProgressSummaryCard
+              projectId={projectId}
+              projectName={data.project?.name}
+              currentUser={currentUser}
+            />
+
+            <SummaryCard
+              title="Priority breakdown"
+              description="What is urgent versus what can wait."
+              action={
+                <span className="card-link is-static" title="How priority works in this app">
+                  How priorities work
+                </span>
+              }
+              isLoading={isLoading}
+              skeletonRows={4}
+            >
+              <BarChart rows={priorityRows} emptyLabel="No priorities to show yet" />
+            </SummaryCard>
+          </div>
+
+          <div className="summary-column">
+            <SummaryCard
+              title="Recent activity"
+              description="The latest changes to work items in this project."
+              isLoading={isLoading}
+              skeletonRows={4}
+            >
+              {activity.length === 0 ? (
+                <EmptyState
+                  illustration={<EmptyArt />}
+                  title="No activity yet"
+                  description="Create work items or invite teammates to get started."
+                />
+              ) : (
+                <ul className="activity-list">
+                  {activity.map((item) => (
+                    <li key={item.id} className="activity-item">
+                      <Avatar name={item.employee_name} assigned={Boolean(item.employee_name)} size={24} />
+                      <div className="activity-text">
+                        <p>
+                          <strong>{item.employee_name || item.created_by_name}</strong>{' '}
+                          updated <span className="activity-key">{`${data.project?.key || 'TM'}-${item.id}`}</span> {item.title}
+                        </p>
+                        <span className="activity-time">
+                          <RelativeTime value={item.updated_at} /> · {STATUS_META[item.status]?.label}
+                        </span>
+                      </div>
+                      <span
+                        className="status-field-dot"
+                        style={{ background: STATUS_META[item.status]?.color }}
+                        aria-hidden="true"
+                      />
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
-          </SummaryCard>
+              )}
+            </SummaryCard>
 
-          <SummaryCard
-            title="Recent activity"
-            description="The latest changes to work items in this project."
-            isLoading={isLoading}
-            skeletonRows={4}
-          >
-            {activity.length === 0 ? (
-              <EmptyState
-                illustration={<EmptyArt />}
-                title="No activity yet"
-                description="Create work items or invite teammates to get started."
-              />
-            ) : (
-              <ul className="activity-list">
-                {activity.map((item) => (
-                  <li key={item.id} className="activity-item">
-                    <Avatar name={item.employee_name} assigned={Boolean(item.employee_name)} size={24} />
-                    <div className="activity-text">
-                      <p>
-                        <strong>{item.employee_name || item.created_by_name}</strong>{' '}
-                        updated <span className="activity-key">{`${data.project?.key || 'TM'}-${item.id}`}</span> {item.title}
-                      </p>
-                      <span className="activity-time">
-                        <RelativeTime value={item.updated_at} /> · {STATUS_META[item.status]?.label}
-                      </span>
-                    </div>
-                    <span
-                      className="status-field-dot"
-                      style={{ background: STATUS_META[item.status]?.color }}
-                      aria-hidden="true"
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SummaryCard>
-
-          <SummaryCard
-            title="Priority breakdown"
-            description="What is urgent versus what can wait."
-            action={
-              <span className="card-link is-static" title="How priority works in this app">
-                How priorities work
-              </span>
-            }
-            isLoading={isLoading}
-            skeletonRows={4}
-          >
-            <BarChart rows={priorityRows} emptyLabel="No priorities to show yet" />
-          </SummaryCard>
-
-          <SummaryCard
-            title="Types of work"
-            description="The mix of bugs, stories and tasks being worked on."
-            action={
-              <span className="card-link is-static" title="How issue types are used here">
-                About issue types
-              </span>
-            }
-            isLoading={isLoading}
-            skeletonRows={4}
-          >
-            <BarChart rows={typeRows} emptyLabel="No issues to show yet" />
-          </SummaryCard>
+            <SummaryCard
+              title="Types of work"
+              description="The mix of bugs, stories and tasks being worked on."
+              action={
+                <span className="card-link is-static" title="How issue types are used here">
+                  About issue types
+                </span>
+              }
+              isLoading={isLoading}
+              skeletonRows={4}
+            >
+              <BarChart rows={typeRows} emptyLabel="No issues to show yet" />
+            </SummaryCard>
+          </div>
         </div>
       </div>
 

@@ -1232,3 +1232,22 @@ CREATE INDEX IF NOT EXISTS asset_alloc_asset_idx ON asset_allocations (asset_id)
 CREATE INDEX IF NOT EXISTS emp_docs_emp_idx ON employee_documents (employee_id);
 CREATE INDEX IF NOT EXISTS emp_docs_ws_idx ON employee_documents (workspace_id);
 
+CREATE TABLE IF NOT EXISTS ai_progress_summaries (
+  id                    BIGSERIAL PRIMARY KEY,
+  scope_type            TEXT NOT NULL CHECK (scope_type IN ('overall', 'project')),
+  project_id            BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  health_status         TEXT NOT NULL CHECK (health_status IN ('on_track', 'at_risk', 'critical', 'completed')),
+  headline              TEXT NOT NULL DEFAULT '',
+  summary_text          TEXT NOT NULL DEFAULT '',
+  achievements_json     TEXT NOT NULL DEFAULT '[]',
+  blockers_json         TEXT NOT NULL DEFAULT '[]',
+  recommendations_json  TEXT NOT NULL DEFAULT '[]',
+  metrics_snapshot_json TEXT NOT NULL DEFAULT '{}',
+  model_name            TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+  generated_by          BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_summary_overall ON ai_progress_summaries (scope_type) WHERE project_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_summary_project ON ai_progress_summaries (scope_type, project_id) WHERE project_id IS NOT NULL;

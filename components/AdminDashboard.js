@@ -6,6 +6,7 @@ import AppShell from './AppShell';
 import KpiCard from './reports/KpiCard';
 import { DonutChart, BarChart } from './reports/ReportCharts';
 import ReportFilterBar from './reports/ReportFilterBar';
+import AiProgressSummaryCard from './AiProgressSummaryCard';
 import { REPORT_SECTIONS } from '@/lib/reportMasterCatalog';
 import {
   DASHBOARD_PROFILES,
@@ -329,6 +330,17 @@ export default function AdminDashboard({
             </>
           )}
         </div>
+
+        {/* AI Progress Summary (Synchronized with filters.projectId) */}
+        <AiProgressSummaryCard
+          projectId={filters.projectId}
+          projectName={
+            filters.projectId === 'all'
+              ? 'All Projects'
+              : projects.find((p) => String(p.id) === String(filters.projectId))?.name || ''
+          }
+          currentUser={currentUser}
+        />
 
         {/* ========================================================= */}
         {/* Main Content Grid: Profile-Tailored Charts & Summaries    */}
