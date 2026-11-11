@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getProject } from '@/lib/projects';
 import { getProjectSummary } from '@/lib/projectSummary';
+import { assertCanViewProject } from '@/lib/rbac';
 
 export async function GET(request, { params }) {
   const session = await requireAuth();
@@ -11,6 +12,11 @@ export async function GET(request, { params }) {
   const project = await getProject(id);
   if (!project) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
+  }
+
+  const access = await assertCanViewProject(session.user, project.id);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
   const { searchParams } = new URL(request.url);

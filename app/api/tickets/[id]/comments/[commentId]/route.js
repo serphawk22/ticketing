@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getComments } from '@/lib/ticketDetail';
+import { isAdminOrOwner } from '@/lib/rbac';
 
 async function load(request, { params }) {
   const session = await requireAuth();
@@ -29,7 +30,7 @@ export async function PATCH(request, { params }) {
   if (ctx.error) return ctx.error;
   const { session, ticketId, comment } = ctx;
 
-  if (comment.author_id !== session.user.id && session.user.role !== 'admin') {
+  if (comment.author_id !== session.user.id && !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'You can only edit your own comments.' }, { status: 403 });
   }
 
@@ -51,7 +52,7 @@ export async function DELETE(request, { params }) {
   if (ctx.error) return ctx.error;
   const { session, ticketId, comment } = ctx;
 
-  if (comment.author_id !== session.user.id && session.user.role !== 'admin') {
+  if (comment.author_id !== session.user.id && !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'You can only delete your own comments.' }, { status: 403 });
   }
 

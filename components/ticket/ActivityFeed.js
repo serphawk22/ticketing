@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Avatar from '../Avatar';
 import TicketGroupChat from './TicketGroupChat';
+import TicketText from '../TicketText';
 import { PRIORITY_META, STATUS_META, INCLUSION_META, FIELD_META, formatFullDateTime, formatDuration, ticketKey } from '../meta';
 import { ArrowRightIcon, CommentIcon, HistoryIcon, SortDescIcon } from './icons';
 
@@ -105,7 +106,15 @@ function ActivityRow({ entry }) {
   );
 }
 
-function CommentRow({ comment, currentUser, onEdit, onDelete }) {
+function CommentRow({
+  comment,
+  currentUser,
+  onEdit,
+  onDelete,
+  onOpenTicket,
+  validPrefixes,
+  existingKeys,
+}) {
   const mine = currentUser && comment.author_id === currentUser.id;
   return (
     <li className="tm-comment">
@@ -116,7 +125,15 @@ function CommentRow({ comment, currentUser, onEdit, onDelete }) {
           <time>{formatFullDateTime(comment.created_at)}</time>
           {comment.updated_at !== comment.created_at && <em className="tm-edited">edited</em>}
         </p>
-        <p className="tm-comment-text">{comment.body}</p>
+        <p className="tm-comment-text">
+          <TicketText
+            text={comment.body}
+            validPrefixes={validPrefixes}
+            existingKeys={existingKeys}
+            onOpenTicket={onOpenTicket}
+            linkClassName="ai-ticket-link"
+          />
+        </p>
         {mine && (
           <div className="tm-comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>Edit</button>
@@ -144,6 +161,9 @@ export default function ActivityFeed({
   refreshingComments,
   isSubmitting,
   initialTab,
+  onOpenTicket = null,
+  validPrefixes = null,
+  existingKeys = null,
 }) {
   const [tab, setTab] = useState(initialTab || 'all');
   const [editingId, setEditingId] = useState(null);
@@ -233,6 +253,9 @@ export default function ActivityFeed({
           onRefreshComments={onRefreshComments}
           refreshingComments={refreshingComments}
           isSubmitting={isSubmitting}
+          onOpenTicket={onOpenTicket}
+          validPrefixes={validPrefixes}
+          existingKeys={existingKeys}
         />
       ) : tab === 'worklog' ? (
         <ul className="tm-activity-list">
@@ -267,6 +290,9 @@ export default function ActivityFeed({
                 currentUser={currentUser}
                 onEdit={startEdit}
                 onDelete={onDeleteComment}
+                onOpenTicket={onOpenTicket}
+                validPrefixes={validPrefixes}
+                existingKeys={existingKeys}
               />
             ) : entry.kind === 'worklog' ? (
               <li key={`w-${entry.id}`} className="tm-activity-row">

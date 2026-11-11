@@ -46,6 +46,7 @@ export default async function ClientRequestsDocsPage() {
       docs={docs}
       activeDoc={null}
       tickets={tickets}
+      allTickets={allTickets}
       project={CLIENT_REQUESTS_PROJECT}
       projects={projects}
       employees={employees}

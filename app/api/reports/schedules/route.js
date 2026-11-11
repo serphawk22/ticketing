@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { isAdminOrOwner } from '@/lib/rbac';
 import {
   getReportSchedules,
   createReportSchedule,
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const session = await requireAuth();
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
@@ -22,7 +23,7 @@ export async function GET() {
 
 export async function POST(request) {
   const session = await requireAuth();
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
@@ -64,7 +65,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   const session = await requireAuth();
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 

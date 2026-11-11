@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getAttachments } from '@/lib/ticketDetail';
+import { isAdminOrOwner } from '@/lib/rbac';
 import {
   attachmentKey,
   attachmentOpenUrl,
@@ -144,7 +145,7 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Attachment not found.' }, { status: 404 });
   }
 
-  if (attachment.uploaded_by !== session.user.id && session.user.role !== 'admin') {
+  if (attachment.uploaded_by !== session.user.id && !isAdminOrOwner(session.user)) {
     return NextResponse.json(
       { error: 'You can only remove your own attachments.' },
       { status: 403 }

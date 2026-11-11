@@ -374,7 +374,7 @@ export default function ReportView({
         onTicketChanged={() => router.refresh()}
         onOpenTicket={(id) => {
           const ticket = tickets.find((item) => item.id === Number(id));
-          if (ticket) modal.select(ticket);
+          modal.open(ticket || id);
         }}
       />
     </ReportShell>

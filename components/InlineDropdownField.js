@@ -56,6 +56,7 @@ export default function InlineDropdownField({
   label = 'Value',
   emptyText = 'No results found',
   className = '',
+  panelClassName = '',
   variant = 'cell',
   renderValue,
   renderOption,
@@ -316,7 +317,7 @@ export default function InlineDropdownField({
   const panel = createPortal(
     <div
       ref={panelRef}
-      className="idf-panel"
+      className={`idf-panel${panelClassName ? ` ${panelClassName}` : ''}`}
       style={{ top: pos.top, left: pos.left, minWidth: Math.max(pos.width, 180) }}
     >
       {scroll.top && (

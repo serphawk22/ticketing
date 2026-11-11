@@ -8,9 +8,13 @@ import PageHeader from './PageHeader';
 import ProjectTabs from './ProjectTabs';
 import Avatar from './Avatar';
 import CreateTicketModal from './CreateTicketModal';
+import TicketDetailModal from './ticket/TicketDetailModal';
+import useTicketModal from './useTicketModal';
+import TicketText, { TicketModalStatus, TicketRefLink } from './TicketText';
 import DonutChart, { BarChart } from './DonutChart';
 import { SummaryCard, MetricCard, EmptyState } from './SummaryCard';
 import AiProgressSummaryCard from './AiProgressSummaryCard';
+import { buildExistingKeySet, buildValidPrefixSet } from '../lib/ticketRefs';
 import {
   STATUS_META,
   STATUS_ORDER,
@@ -21,6 +25,7 @@ import {
   PriorityIcon,
   TypeIcon,
   formatShortDate,
+  ticketKey,
 } from './meta';
 
 const BANNER_KEY = 'project-summary-banner-dismissed';
@@ -131,6 +136,7 @@ export default function ProjectSummary({
   currentUser,
   projects,
   employees = [],
+  allTickets = [],
   projectCounts,
   myIssuesCount,
   clientRequests = false,
@@ -147,6 +153,12 @@ export default function ProjectSummary({
   const requestId = useRef(0);
   const projectId = initialSummary.project.id;
   const router = useRouter();
+  const validPrefixes = useMemo(() => buildValidPrefixSet(projects), [projects]);
+  const knownKeys = useMemo(
+    () => (allTickets.length ? buildExistingKeySet(allTickets) : null),
+    [allTickets]
+  );
+  const modal = useTicketModal({ visible: [], lookup: allTickets });
   const summaryApi = clientRequests
     ? '/api/client-requests/summary'
     : `/api/projects/${projectId}/summary`;
@@ -290,6 +302,7 @@ export default function ProjectSummary({
             <button type="button" onClick={() => setError('')}>Dismiss</button>
           </div>
         )}
+        <TicketModalStatus modal={modal} />
 
         <PageHeader
           className="summary-toolbar"
@@ -300,7 +313,17 @@ export default function ProjectSummary({
           }
           title={data.project.name}
           project={data.project}
-          subtitle={data.project.description}
+          subtitle={
+            data.project.description ? (
+              <TicketText
+                text={data.project.description}
+                validPrefixes={validPrefixes}
+                existingKeys={knownKeys}
+                onOpenTicket={modal.open}
+                linkClassName="ai-ticket-link"
+              />
+            ) : null
+          }
           actions={
             <>
             <button className="icon-btn" type="button" title="Share project" aria-label="Share project">
@@ -513,6 +536,9 @@ export default function ProjectSummary({
               projectId={projectId}
               projectName={data.project?.name}
               currentUser={currentUser}
+              projects={projects}
+              existingKeys={knownKeys}
+              onOpenTicket={modal.open}
             />
 
             <SummaryCard
@@ -545,13 +571,32 @@ export default function ProjectSummary({
                 />
               ) : (
                 <ul className="activity-list">
-                  {activity.map((item) => (
+                  {activity.map((item) => {
+                    const itemKey = ticketKey({
+                      id: item.id,
+                      project_key:
+                        item.project_key ?? (clientRequests ? null : data.project?.key),
+                    });
+                    return (
                     <li key={item.id} className="activity-item">
                       <Avatar name={item.employee_name} assigned={Boolean(item.employee_name)} size={24} />
                       <div className="activity-text">
                         <p>
                           <strong>{item.employee_name || item.created_by_name}</strong>{' '}
-                          updated <span className="activity-key">{`${data.project?.key || 'TM'}-${item.id}`}</span> {item.title}
+                          updated{' '}
+                          <TicketRefLink
+                            ticketKey={itemKey}
+                            label={itemKey}
+                            onOpenTicket={modal.open}
+                            className="activity-key"
+                          />{' '}
+                          <TicketText
+                            text={item.title}
+                            validPrefixes={validPrefixes}
+                            existingKeys={knownKeys}
+                            onOpenTicket={modal.open}
+                            linkClassName="ai-ticket-link"
+                          />
                         </p>
                         <span className="activity-time">
                           <RelativeTime value={item.updated_at} /> · {STATUS_META[item.status]?.label}
@@ -563,7 +608,8 @@ export default function ProjectSummary({
                         aria-hidden="true"
                       />
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </SummaryCard>
@@ -592,6 +638,22 @@ export default function ProjectSummary({
           defaultProjectId={projectId}
           onClose={() => setShowCreate(false)}
           onCreate={() => setShowCreate(false)}
+        />
+      )}
+
+      {modal.selected && (
+        <TicketDetailModal
+          ticket={modal.selected}
+          employees={employees}
+          currentUser={currentUser}
+          siblingTickets={allTickets}
+          projects={projects}
+          canStep={modal.canStep}
+          onClose={modal.close}
+          onNext={modal.next}
+          onPrev={modal.prev}
+          onOpenTicket={modal.open}
+          onTicketChanged={() => router.refresh()}
         />
       )}
     </AppShell>

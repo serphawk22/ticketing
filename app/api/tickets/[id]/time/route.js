@@ -4,6 +4,8 @@ import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getLoggedSeconds, getTimeLogs } from '@/lib/ticketDetail';
 import { logAuditEvent } from '@/lib/audit';
+import { assertCanAccessTicket, isTeamUser } from '@/lib/rbac';
+import { todayKolkataDate } from '@/lib/workLedger';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,9 +20,9 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
   }
 
-  // Clients can only access tickets they raised
-  if (session.user.role === 'client' && ticket.created_by !== session.user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const access = await assertCanAccessTicket(session.user, ticket);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
   const timeLogs = await getTimeLogs(ticketId);
@@ -38,7 +40,7 @@ export async function POST(request, { params }) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Clients are external requesters and cannot record work time
-  if (session.user.role === 'client') {
+  if (!isTeamUser(session.user)) {
     return NextResponse.json({ error: 'Clients are not permitted to log time.' }, { status: 403 });
   }
 
@@ -49,8 +51,13 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
   }
 
+  const access = await assertCanAccessTicket(session.user, ticket);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
   const body = await request.json().catch(() => ({}));
-  const { seconds, duration_minutes, minutes, note, work_date } = body;
+  const { seconds, duration_minutes, minutes, note, work_date, categoryCode, category_code } = body;
 
   let valueInSeconds = 0;
   if (duration_minutes !== undefined && duration_minutes !== null) {
@@ -71,7 +78,7 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Duration cannot exceed 24 hours per work session.' }, { status: 400 });
   }
 
-  let cleanWorkDate = new Date().toISOString().slice(0, 10);
+  let cleanWorkDate = todayKolkataDate();
   if (work_date) {
     const trimmed = String(work_date).trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -116,11 +123,47 @@ export async function POST(request, { params }) {
     }
   }
 
-  await db
-    .prepare(
-      'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, duration_minutes, note, work_date) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .run(ticketId, session.user.id, valueInSeconds, durationMinutes, cleanNote, cleanWorkDate);
+  const cleanCategory = String(categoryCode || category_code || 'development').trim().toLowerCase() || 'development';
+
+  await db.transaction(async (tx) => {
+    const ttlRes = await tx
+      .prepare(
+        'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, duration_minutes, note, work_date) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run(ticketId, session.user.id, valueInSeconds, durationMinutes, cleanNote, cleanWorkDate);
+
+    // Mirror manual ticket time log into the canonical employee_work_logs ledger
+    const empRow = await tx
+      .prepare('SELECT id FROM employees WHERE user_id = ?')
+      .get(Number(session.user.id));
+
+    if (empRow?.id && durationMinutes > 0) {
+      const catRow = await tx
+        .prepare('SELECT code FROM work_categories WHERE code = ? AND is_active = 1')
+        .get(cleanCategory);
+      const validCat = catRow ? catRow.code : 'development';
+
+      await tx
+        .prepare(
+          `INSERT INTO employee_work_logs (
+            employee_id, user_id, work_date, entry_type, entry_kind,
+            project_id, ticket_id, category_code, duration_minutes,
+            work_description, source_type, source_id, source_item_index
+          ) VALUES (?, ?, ?, 'ticket_work', 'initial', ?, ?, ?, ?, ?, 'ticket_time_log', ?, 0)`
+        )
+        .run(
+          Number(empRow.id),
+          Number(session.user.id),
+          cleanWorkDate,
+          ticket.project_id || null,
+          ticketId,
+          validCat,
+          durationMinutes,
+          cleanNote || `Manual ticket time log (#${ticketId})`,
+          Number(ttlRes.lastInsertRowid)
+        );
+    }
+  });
 
   await logAuditEvent({
     actorId: session.user.id,

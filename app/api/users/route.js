@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { isAdminOrOwner } from '@/lib/rbac';
 
 export async function GET() {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

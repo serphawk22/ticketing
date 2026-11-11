@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from '../Avatar';
 import { TYPE_META, TypeIcon, RELATION_META, RELATION_ORDER, relationLabelFor, CHILD_RELATION, ticketKey } from '../meta';
+import { buildExistingKeySet, buildValidPrefixSet, parseTicketKey } from '../../lib/ticketRefs';
 import { AssigneeField, IssueTypeField, PriorityField } from '../TicketFields';
 import {
   ChevronLeft,
@@ -25,6 +26,7 @@ import ArchiveDialog from '../ArchiveDialog';
 import DescriptionEditor from './DescriptionEditor';
 import ActivityFeed from './ActivityFeed';
 import DetailsSidebar from './DetailsSidebar';
+import TicketTimeAuditTab from '../TicketTimeAuditTab';
 import { AttachmentsSection, RelationsSection, SlackSection, VotesSection, WatchersSection, WebLinksSection } from './sections';
 
 const emptyDetail = {
@@ -53,6 +55,7 @@ export default function TicketDetailModal({
   employees = [],
   currentUser,
   siblingTickets = [],
+  projects = [],
   canStep = false,
   onClose,
   onPrev,
@@ -97,10 +100,12 @@ export default function TicketDetailModal({
   const id = ticket?.id;
   const activeTicketId = useRef(id);
   activeTicketId.current = id;
-  const isAdmin = currentUser?.role === 'admin';
-  // Routing work -- naming an assignee or nesting it in the tree -- is the same
-  // team decision the create and edit routes make, so the child form follows it.
-  const canRoute = isAdmin || currentUser?.role === 'developer';
+  const isAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin';
+  const canRoute =
+    isAdmin ||
+    currentUser?.role === 'manager' ||
+    currentUser?.role === 'employee' ||
+    currentUser?.role === 'developer';
   const assignableEmployees = useMemo(
     () =>
       (employees || [])
@@ -603,6 +608,33 @@ export default function TicketDetailModal({
     [siblingTickets, onOpenTicket]
   );
 
+  const validPrefixes = useMemo(
+    () => (projects?.length ? buildValidPrefixSet(projects) : null),
+    [projects]
+  );
+  const existingKeys = useMemo(() => {
+    const known = [...(siblingTickets || []), ...(detail.relations || []), ...(detail.childItems || [])];
+    if (detail.parent) known.push(detail.parent);
+    if (detail.ticket || ticket) known.push(detail.ticket || ticket);
+    return buildExistingKeySet(known);
+  }, [siblingTickets, detail.relations, detail.childItems, detail.parent, detail.ticket, ticket]);
+
+  const openTicketRef = useCallback(
+    (refKey) => {
+      const parsed = parseTicketKey(String(refKey || ''));
+      if (!parsed) return;
+      const local = (siblingTickets || []).find(
+        (x) => ticketKey(x).toUpperCase() === parsed.key
+      );
+      if (local) {
+        onOpenTicket?.(local.id);
+        return;
+      }
+      onOpenTicket?.(parsed.key);
+    },
+    [siblingTickets, onOpenTicket]
+  );
+
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const watchers = detail.watchers || [];
   const meEmployee = useMemo(
@@ -897,6 +929,9 @@ export default function TicketDetailModal({
                 value={t.description}
                 onSave={(v) => patch({ description: v })}
                 canEdit
+                onOpenTicket={onOpenTicket ? openTicketRef : null}
+                validPrefixes={validPrefixes}
+                existingKeys={existingKeys}
               />
             </section>
 
@@ -1136,7 +1171,12 @@ export default function TicketDetailModal({
               onRefreshComments={refreshComments}
               refreshingComments={refreshingComments}
               isSubmitting={busy}
+              onOpenTicket={onOpenTicket ? openTicketRef : null}
+              validPrefixes={validPrefixes}
+              existingKeys={existingKeys}
             />
+
+            <TicketTimeAuditTab ticketId={t.id} isAdminOrOwner={isAdmin} />
           </div>
 
           <DetailsSidebar

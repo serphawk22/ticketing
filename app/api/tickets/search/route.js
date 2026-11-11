@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { resolveUserScope } from '@/lib/rbac';
+import { TASK_SHEET_SESSION_COOKIE, validateTaskSheetCookieSession } from '@/lib/taskSheetTokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +12,7 @@ const SEARCH_CONDITION =
 
 const SEARCH_QUERY = `
   SELECT t.id, t.title, t.status, t.priority, t.type, t.project_id,
+    t.employee_id, t.created_by, t.assigned_to,
     p.key AS project_key, p.name AS project_name, p.color AS project_color,
     e.name AS employee_name, a.name AS assigned_to_name
   FROM tickets t
@@ -28,14 +32,19 @@ const SEARCH_QUERY = `
 // any board.
 export async function GET(request) {
   const session = await requireAuth();
-  const params = new URL(request.url).searchParams;
-  const scopeProject = params.get('projectId');
-
+  let tsSession = null;
   if (!session) {
-    if (!scopeProject || !Number.isInteger(Number(scopeProject))) {
+    const cookieStore = await cookies();
+    const tsCookie = cookieStore.get(TASK_SHEET_SESSION_COOKIE)?.value || '';
+    tsSession = await validateTaskSheetCookieSession({ sessionCookieValue: tsCookie });
+    if (!tsSession) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
+
+  const params = new URL(request.url).searchParams;
+  const scopeProject = params.get('projectId');
+  const scope = session ? await resolveUserScope(session.user) : null;
 
   const q = (params.get('q') || '').trim();
   const exclude = Number(params.get('exclude'));
@@ -77,6 +86,26 @@ export async function GET(request) {
     );
 
   let tickets = Number.isInteger(exclude) ? rows.filter((r) => r.id !== exclude) : rows;
+  if (tsSession) {
+    const empNameLower = tsSession.employee.name.toLowerCase();
+    tickets = tickets.filter(
+      (r) =>
+        Number(r.employee_id) === tsSession.employee.id ||
+        (r.employee_name && r.employee_name.toLowerCase() === empNameLower) ||
+        (r.assigned_to_name && r.assigned_to_name.toLowerCase() === empNameLower) ||
+        (tsSession.employee.user_id && Number(r.assigned_to) === Number(tsSession.employee.user_id))
+    );
+  } else if (scope.isClient) {
+    tickets = tickets.filter((r) => Number(r.created_by) === Number(session.user.id));
+  } else if (scope.isManager) {
+    tickets = tickets.filter(
+      (r) =>
+        (r.employee_id != null && scope.scopedEmployeeIds.has(Number(r.employee_id))) ||
+        (r.project_id != null && scope.scopedProjectIds.has(Number(r.project_id))) ||
+        Number(r.created_by) === Number(session.user.id) ||
+        Number(r.assigned_to) === Number(session.user.id)
+    );
+  }
   if (excludeClosed) {
     tickets = tickets.filter((r) => r.status !== 'closed');
   }

@@ -35,6 +35,7 @@ export default async function ClientRequestsSummaryPage() {
       currentUser={session.user}
       projects={projects}
       employees={employees}
+      allTickets={allTickets}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
       clientRequests

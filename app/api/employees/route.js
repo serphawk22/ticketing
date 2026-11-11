@@ -3,6 +3,13 @@ import { requireAuth } from '@/lib/auth';
 import { getEmployees, createEmployee, getEmployeeByEmail, toSafeEmployee } from '@/lib/employees';
 import { ensureEmployeeLeaveBalances } from '@/lib/attendance';
 import {
+  VALID_DIRECTORY_ROLES,
+  canAssignOrModifyRole,
+  isAdminOrOwner,
+  normalizeRole,
+  resolveUserScope,
+} from '@/lib/rbac';
+import {
   createClientAccount,
   createUserWithTempPassword,
   getUserByEmail,
@@ -13,22 +20,29 @@ import { sendClientPasskey, sendEmployeeInvite } from '@/lib/mail';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Clients are accounts too: they live in the same directory so one page
 // manages every login, but they are never assignable work.
-const VALID_ROLES = ['admin', 'developer', 'client'];
+const VALID_ROLES = VALID_DIRECTORY_ROLES;
 
 export async function GET(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const scope = await resolveUserScope(session.user);
+  if (scope.isClient) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const workspaceId = searchParams.get('workspaceId');
 
-  const isAdmin = session.user.role === 'admin';
   const allEmployees = await getEmployees({
     includeInactive: true,
     workspaceId: workspaceId ? Number(workspaceId) : null,
   });
-  // Safe filtering: non-admins NEVER receive base_salary, last_payment_date, payment_status
-  const employees = allEmployees.map((e) => toSafeEmployee(e, isAdmin));
+  // Safe filtering: only owners/admins or the individual employee see compensation fields
+  const employees = allEmployees.map((e) => {
+    const isSelf = scope.employeeId && Number(e.id) === Number(scope.employeeId);
+    return toSafeEmployee(e, scope.isAdminOrOwner, isSelf);
+  });
 
   return NextResponse.json({ employees });
 }
@@ -37,9 +51,9 @@ export async function POST(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can add employees.' },
+      { error: 'Only Business Owners or Administrators can add employees.' },
       { status: 403 }
     );
   }
@@ -86,12 +100,21 @@ export async function POST(request) {
 
   if (!VALID_ROLES.includes(role)) {
     return NextResponse.json(
-      { error: 'Role must be admin, developer or client.' },
+      { error: 'Role must be owner, admin, manager, employee, or client.' },
       { status: 400 }
     );
   }
 
-  const isClient = role === 'client';
+  const canonicalRole = normalizeRole(role);
+  const roleCheck = canAssignOrModifyRole({
+    actor: session.user,
+    targetNewRole: canonicalRole,
+  });
+  if (!roleCheck.allowed) {
+    return NextResponse.json({ error: roleCheck.reason }, { status: 403 });
+  }
+
+  const isClient = canonicalRole === 'client';
 
   // Secondary email is only permitted for client role
   if (!isClient && cleanSecondaryEmail) {
@@ -257,13 +280,13 @@ export async function POST(request) {
   const account = await createUserWithTempPassword({
     name: cleanName,
     email: cleanEmail,
-    role,
+    role: canonicalRole,
   });
 
   const employee = await createEmployee({
     name: cleanName,
     email: cleanEmail,
-    role,
+    role: canonicalRole,
     department: String(department ?? '').trim(),
     title: String(title ?? '').trim(),
     base_salary,

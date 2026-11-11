@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getWatchers } from '@/lib/ticketDetail';
+import { isAdminOrOwner } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export async function POST(request, { params }) {
   if (!Number.isInteger(requestedId)) {
     return NextResponse.json({ error: 'Invalid user.' }, { status: 400 });
   }
-  if (requestedId !== session.user.id && session.user.role !== 'admin') {
+  if (requestedId !== session.user.id && !isAdminOrOwner(session.user)) {
     return NextResponse.json(
       { error: 'Only admins can add watchers for other people.' },
       { status: 403 }
@@ -84,7 +85,7 @@ export async function DELETE(request, { params }) {
   // Same rule as adding: anyone may stop watching, admins may remove anybody.
   const userId = Number(new URL(request.url).searchParams.get('user'));
   const targetId = Number.isInteger(userId) ? userId : session.user.id;
-  if (targetId !== session.user.id && session.user.role !== 'admin') {
+  if (targetId !== session.user.id && !isAdminOrOwner(session.user)) {
     return NextResponse.json(
       { error: 'Only admins can remove other watchers.' },
       { status: 403 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect } from 'react';
 import Avatar from '../Avatar';
+import TicketText from '../TicketText';
 import { PencilIcon, TrashIcon, SendIcon, CommentIcon } from './icons';
 import { ticketKey } from '../meta';
 
@@ -52,6 +53,9 @@ export default function TicketGroupChat({
   onRefreshComments,
   refreshingComments = false,
   isSubmitting = false,
+  onOpenTicket = null,
+  validPrefixes = null,
+  existingKeys = null,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState('');
@@ -258,7 +262,15 @@ export default function TicketGroupChat({
                           </div>
                         ) : (
                           <>
-                            <div className="tm-chat-text">{comment.body}</div>
+                            <div className="tm-chat-text">
+                              <TicketText
+                                text={comment.body}
+                                validPrefixes={validPrefixes}
+                                existingKeys={existingKeys}
+                                onOpenTicket={onOpenTicket}
+                                linkClassName="ai-ticket-link"
+                              />
+                            </div>
                             <div className="tm-chat-meta">
                               {comment.updated_at !== comment.created_at && (
                                 <span className="tm-chat-edited">(edited)</span>

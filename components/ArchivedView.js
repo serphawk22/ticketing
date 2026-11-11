@@ -111,7 +111,7 @@ export default function ArchivedView({
 
   function openTicket(id) {
     const found = tickets.find((ticket) => ticket.id === id);
-    if (found) modal.select(found);
+    modal.open(found || id);
   }
 
   function toggleSort(key) {

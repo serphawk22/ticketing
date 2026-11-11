@@ -4,6 +4,7 @@ import { getProject, updateProject, deleteProject, clientExists } from '@/lib/pr
 import { parseGithubRepos } from '@/lib/github';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectColor } from '@/lib/projectValidation';
+import { isAdminOrOwner } from '@/lib/rbac';
 
 function normalizeGithubRepo(value) {
   const raw = String(value ?? '').trim();
@@ -17,9 +18,9 @@ export async function PATCH(request, { params }) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can edit projects.' },
+      { error: 'Only Business Owners or Administrators can edit projects.' },
       { status: 403 }
     );
   }
@@ -91,9 +92,9 @@ export async function DELETE(request, { params }) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can delete projects.' },
+      { error: 'Only Business Owners or Administrators can delete projects.' },
       { status: 403 }
     );
   }

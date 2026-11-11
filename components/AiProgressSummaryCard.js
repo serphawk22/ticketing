@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import TicketText from './TicketText';
+import { buildValidPrefixSet } from '../lib/ticketRefs';
 
 function SparklesIcon() {
   return (
@@ -55,6 +57,25 @@ function LightbulbIcon() {
   );
 }
 
+function CodeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#6554c0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function RoadmapIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#0052cc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
 const HEALTH_META = {
   on_track: {
     label: 'On Track',
@@ -99,12 +120,30 @@ export default function AiProgressSummaryCard({
   projectName = '',
   className = '',
   currentUser,
+  projects = [],
+  existingKeys = null,
+  onOpenTicket = null,
 }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const reqSeq = useRef(0);
+
+  const validPrefixes = useMemo(
+    () => (projects?.length ? buildValidPrefixSet(projects) : null),
+    [projects]
+  );
+
+  const renderLinks = (text) => (
+    <TicketText
+      text={text}
+      validPrefixes={validPrefixes}
+      existingKeys={existingKeys}
+      onOpenTicket={onOpenTicket}
+      linkClassName="ai-ticket-link"
+    />
+  );
 
   const canGenerate = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   const isOverall = !projectId || projectId === 'all';
@@ -186,7 +225,7 @@ export default function AiProgressSummaryCard({
                 : `AI Progress Summary · ${projectName || 'Selected Project'}`}
             </div>
             <div className="ai-summary-subheading">
-              Grounded in verified ticket throughput, velocity, and standup blockers
+              Grounded in complete ticket descriptions, comments, and verified metrics
             </div>
           </div>
         </div>
@@ -238,43 +277,43 @@ export default function AiProgressSummaryCard({
         <div className="ai-summary-body">
           {summary.headline && (
             <div className="ai-summary-headline">
-              "{summary.headline}"
+              "{renderLinks(summary.headline)}"
             </div>
           )}
 
           {summary.summaryText && (
             <div className="ai-summary-prose">
               {summary.summaryText.split('\n\n').map((para, i) => (
-                <p key={i}>{para}</p>
+                <p key={i}>{renderLinks(para)}</p>
               ))}
             </div>
           )}
 
-          {/* 3-Column Grounded Insights Grid */}
+          {/* Primary Grounded Insights Grid: Active Dev, Blockers, PM Recommendations */}
           <div className="ai-insights-grid">
-            <div className="ai-insight-column achievements">
+            <div className="ai-insight-column current">
               <div className="ai-insight-title">
-                <CheckIcon /> Key Achievements
+                <CodeIcon /> Current Development
               </div>
-              {summary.achievements?.length ? (
+              {summary.currentDevelopment?.length ? (
                 <ul className="ai-insight-list">
-                  {summary.achievements.map((item, idx) => (
-                    <li key={idx}>{item}</li>
+                  {summary.currentDevelopment.map((item, idx) => (
+                    <li key={idx}>{renderLinks(item)}</li>
                   ))}
                 </ul>
               ) : (
-                <div className="ai-insight-empty">Steady throughput without major releases.</div>
+                <div className="ai-insight-empty">No tickets currently marked in progress.</div>
               )}
             </div>
 
             <div className="ai-insight-column blockers">
               <div className="ai-insight-title">
-                <AlertIcon /> Risks & Blockers
+                <AlertIcon /> Risks & Active Blockers
               </div>
-              {summary.blockers?.length ? (
+              {(summary.activeBlockers || summary.blockers)?.length ? (
                 <ul className="ai-insight-list">
-                  {summary.blockers.map((item, idx) => (
-                    <li key={idx}>{item}</li>
+                  {(summary.activeBlockers || summary.blockers).map((item, idx) => (
+                    <li key={idx}>{renderLinks(item)}</li>
                   ))}
                 </ul>
               ) : (
@@ -289,11 +328,64 @@ export default function AiProgressSummaryCard({
               {summary.recommendations?.length ? (
                 <ul className="ai-insight-list">
                   {summary.recommendations.map((item, idx) => (
-                    <li key={idx}>{item}</li>
+                    <li key={idx}>{renderLinks(item)}</li>
                   ))}
                 </ul>
               ) : (
                 <div className="ai-insight-empty">Continue monitoring scheduled sprint tasks.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Secondary Grid: Deliverables, History, and Upcoming Work / Dependencies */}
+          <div className="ai-insights-grid secondary">
+            <div className="ai-insight-column achievements">
+              <div className="ai-insight-title">
+                <CheckIcon /> Recent Deliverables
+              </div>
+              {(summary.recentAchievements || summary.achievements)?.length ? (
+                <ul className="ai-insight-list">
+                  {(summary.recentAchievements || summary.achievements).map((item, idx) => (
+                    <li key={idx}>{renderLinks(item)}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="ai-insight-empty">No tickets resolved or closed in recent cycle.</div>
+              )}
+            </div>
+
+            <div className="ai-insight-column historical">
+              <div className="ai-insight-title">
+                <SparklesIcon /> Historical Milestones
+              </div>
+              {summary.historicalAchievements?.length ? (
+                <ul className="ai-insight-list">
+                  {summary.historicalAchievements.map((item, idx) => (
+                    <li key={idx}>{renderLinks(item)}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="ai-insight-empty">Foundational milestones tracked in project log.</div>
+              )}
+            </div>
+
+            <div className="ai-insight-column upcoming">
+              <div className="ai-insight-title">
+                <RoadmapIcon /> Upcoming & Dependencies
+              </div>
+              {(summary.upcomingWork?.length || summary.dependencies?.length) ? (
+                <ul className="ai-insight-list">
+                  {(summary.upcomingWork || []).map((item, idx) => (
+                    <li key={`up-${idx}`}>{renderLinks(item)}</li>
+                  ))}
+                  {(summary.dependencies || []).map((item, idx) => (
+                    <li key={`dep-${idx}`} style={{ fontStyle: 'italic' }}>
+                      🔗 {renderLinks(item)}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="ai-insight-empty">No pending dependencies or high-priority backlog.</div>
               )}
             </div>
           </div>
@@ -306,6 +398,11 @@ export default function AiProgressSummaryCard({
               <span className="ai-metric-item">Completion: <strong>{metrics.completionRate}%</strong></span>
               <span className="ai-metric-item">Overdue: <strong style={{ color: metrics.overdueCount > 0 ? '#de350b' : 'inherit' }}>{metrics.overdueCount}</strong></span>
               <span className="ai-metric-item">Logged: <strong>{metrics.totalLoggedHours}h</strong></span>
+              {summary.ticketCoverage && (
+                <span className={`ai-coverage-badge ${summary.ticketCoverage.isComplete ? '' : 'partial'}`}>
+                  ✓ {summary.ticketCoverage.analyzedTickets} of {summary.ticketCoverage.totalTickets} tickets analyzed ({summary.ticketCoverage.isComplete ? '100% complete' : 'partial'})
+                </span>
+              )}
             </div>
           )}
 

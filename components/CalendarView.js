@@ -254,7 +254,7 @@ export default function CalendarView({
 
   const openTicket = useCallback((id) => {
     const hit = tickets.find((t) => t.id === id);
-    if (hit) modal.select(hit);
+    modal.open(hit || id);
   }, [tickets, modal]);
 
   // ---- filtering -----------------------------------------------------------

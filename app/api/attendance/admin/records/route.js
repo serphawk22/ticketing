@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getWorkforceAttendanceForDate } from '@/lib/attendance';
 import { toKolkata } from '@/lib/businessHours';
+import { isAdminOrOwner } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   const session = await requireAuth();
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'Unauthorized: Admin access required.' }, { status: 403 });
   }
 

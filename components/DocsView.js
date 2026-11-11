@@ -10,8 +10,19 @@ import EmptyState from './EmptyState';
 import ConfirmModal from './ConfirmModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
 import useTicketModal from './useTicketModal';
+import { TicketModalStatus, validateTicketKeys } from './TicketText';
 import { useToasts, Toaster } from './Toaster';
 import { TypeIcon, formatListDateTime, ticketKey } from './meta';
+import {
+  buildExistingKeySet,
+  buildValidPrefixSet,
+  extractCandidateTicketKeys,
+  extractCandidateTicketKeysFromHtml,
+  extractTicketRefTokens,
+  linkifyHtmlTicketRefs,
+  parseTicketKey,
+  ticketHref,
+} from '../lib/ticketRefs';
 
 const SLASH = [
   { id: 'h2', label: 'Heading', hint: 'Large section heading' },
@@ -91,10 +102,149 @@ function buildRows(docs, query, collapsed) {
   return rows;
 }
 
+const SKIP_DOC_TAGS = new Set(['A', 'CODE', 'PRE', 'SCRIPT', 'STYLE', 'TEXTAREA']);
+
+function isInsideSkippedDocTag(node, root) {
+  let cursor = node?.nodeType === 3 ? node.parentElement : node;
+  while (cursor && cursor !== root) {
+    if (SKIP_DOC_TAGS.has(cursor.tagName)) return true;
+    cursor = cursor.parentElement;
+  }
+  return false;
+}
+
+function createDocIssueAnchor(key) {
+  const anchor = document.createElement('a');
+  anchor.className = 'doc-issue';
+  anchor.setAttribute('data-key', key);
+  anchor.setAttribute('href', ticketHref(key));
+  anchor.textContent = key;
+  return anchor;
+}
+
+/**
+ * Replaces validated ticket references inside `textNode` with `<a class="doc-issue">`
+ * elements while preserving collapsed caret position if it lies inside `textNode`.
+ */
+function replaceTicketsInTextNode(textNode, validSet, root) {
+  const text = textNode.nodeValue || '';
+  const tokens = extractTicketRefTokens(text, { existingKeys: validSet });
+  if (tokens.length === 0) return false;
+
+  const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+  const hasCaret =
+    selection &&
+    selection.rangeCount > 0 &&
+    selection.isCollapsed &&
+    selection.anchorNode === textNode &&
+    root.contains(textNode);
+  const caretOffset = hasCaret ? selection.anchorOffset : -1;
+
+  const frag = document.createDocumentFragment();
+  let cursor = 0;
+  let targetNode = null;
+  let targetOffset = 0;
+
+  const appendText = (str) => {
+    if (!str) return null;
+    const node = document.createTextNode(str);
+    frag.appendChild(node);
+    return node;
+  };
+
+  for (const tok of tokens) {
+    if (tok.start > cursor) {
+      const beforeStr = text.slice(cursor, tok.start);
+      const beforeNode = appendText(beforeStr);
+      if (hasCaret && !targetNode && caretOffset >= cursor && caretOffset <= tok.start) {
+        targetNode = beforeNode;
+        targetOffset = caretOffset - cursor;
+      }
+    }
+
+    if (tok.bracketed) appendText('[');
+    const anchor = createDocIssueAnchor(tok.key);
+    frag.appendChild(anchor);
+    if (tok.bracketed) appendText(']');
+
+    if (hasCaret && !targetNode && caretOffset > tok.start && caretOffset <= tok.end) {
+      // Place caret immediately after the chip (or closing bracket) if it was at token end.
+      const afterTokenNode = appendText('');
+      targetNode = afterTokenNode;
+      targetOffset = 0;
+    }
+
+    cursor = tok.end;
+  }
+
+  if (cursor < text.length) {
+    const tailStr = text.slice(cursor);
+    const tailNode = appendText(tailStr);
+    if (hasCaret && !targetNode && caretOffset >= cursor) {
+      targetNode = tailNode;
+      targetOffset = caretOffset - cursor;
+    }
+  } else if (hasCaret && !targetNode) {
+    targetNode = appendText('');
+    targetOffset = 0;
+  }
+
+  textNode.parentNode?.replaceChild(frag, textNode);
+
+  if (hasCaret && targetNode && selection) {
+    const nextRange = document.createRange();
+    nextRange.setStart(targetNode, Math.min(targetOffset, targetNode.nodeValue?.length || 0));
+    nextRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(nextRange);
+  }
+
+  return true;
+}
+
+function linkifyDomSubtree(root, validSet) {
+  if (!root || !validSet || validSet.size === 0) return false;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const targets = [];
+  let current;
+  while ((current = walker.nextNode())) {
+    if (!current.nodeValue || isInsideSkippedDocTag(current, root)) continue;
+    targets.push(current);
+  }
+  let changed = false;
+  for (const textNode of targets) {
+    if (replaceTicketsInTextNode(textNode, validSet, root)) {
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function unwrapBrokenDocIssues(root) {
+  if (!root) return false;
+  let changed = false;
+  const links = root.querySelectorAll('a.doc-issue');
+  for (const link of links) {
+    const text = (link.textContent || '').trim();
+    const parsed = parseTicketKey(text);
+    if (!parsed) {
+      link.replaceWith(document.createTextNode(link.textContent || ''));
+      changed = true;
+    } else if (parsed.key !== (link.getAttribute('data-key') || '').toUpperCase()) {
+      link.setAttribute('data-key', parsed.key);
+      link.setAttribute('href', ticketHref(parsed.key));
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function DocEditor({
   doc,
   project,
   tickets,
+  validPrefixes,
+  knownKeys,
   currentUser,
   canMoveUp,
   canMoveDown,
@@ -131,6 +281,33 @@ function DocEditor({
   const [linkUrl, setLinkUrl] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
+
+  const initialBodyHtml = useMemo(
+    () =>
+      linkifyHtmlTicketRefs(doc.body || '', {
+        validPrefixes,
+        existingKeys: knownKeys,
+        requireExisting: true,
+      }),
+    // Only compute when switching documents so auto-save updates never reset the editor caret.
+    [doc.id] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Also resolve any archived or remote ticket references present in the saved doc.
+  useEffect(() => {
+    const candidates = extractCandidateTicketKeysFromHtml(doc.body || '', { validPrefixes });
+    const missing = candidates.filter((k) => !knownKeys.has(k));
+    if (missing.length === 0) return undefined;
+
+    let cancelled = false;
+    validateTicketKeys(missing, knownKeys).then((verified) => {
+      if (cancelled || !editorRef.current || verified.size === 0) return;
+      linkifyDomSubtree(editorRef.current, verified);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!doc.title) titleRef.current?.focus();
@@ -239,7 +416,7 @@ function DocEditor({
 
   function insertIssue(ticket) {
     const key = ticketKey(ticket);
-    const href = `${docsHref(doc.id)}?selectedIssue=${encodeURIComponent(key)}`;
+    const href = ticketHref(key);
     editorRef.current?.focus();
     document.execCommand(
       'insertHTML',
@@ -249,6 +426,57 @@ function DocEditor({
     setPickerOpen(false);
     setPickerQuery('');
     schedule(currentTitle(), readBody());
+  }
+
+  async function linkifyEditor({ checkRemote = false } = {}) {
+    const root = editorRef.current;
+    if (!root) return false;
+
+    let changed = linkifyDomSubtree(root, knownKeys);
+    if (checkRemote) {
+      const candidates = extractCandidateTicketKeys(root.textContent || '', { validPrefixes });
+      const missing = candidates.filter((k) => !knownKeys.has(k));
+      if (missing.length > 0) {
+        const verified = await validateTicketKeys(missing, knownKeys);
+        if (editorRef.current === root && verified.size > 0) {
+          if (linkifyDomSubtree(root, verified)) {
+            changed = true;
+          }
+        }
+      }
+    }
+    return changed;
+  }
+
+  function linkifyAtCaretDelimiter() {
+    const root = editorRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection?.rangeCount || !selection.isCollapsed) return;
+    const node = selection.anchorNode;
+    if (!node || node.nodeType !== 3 || !root.contains(node)) return;
+    if (isInsideSkippedDocTag(node, root)) return;
+
+    const beforeCaret = (node.nodeValue || '').slice(0, selection.anchorOffset);
+    const candidates = extractCandidateTicketKeys(beforeCaret, { validPrefixes });
+    if (candidates.length === 0) return;
+
+    const immediateLocal = new Set(candidates.filter((k) => knownKeys.has(k)));
+    if (immediateLocal.size > 0) {
+      if (replaceTicketsInTextNode(node, immediateLocal, root)) {
+        schedule(currentTitle(), readBody());
+      }
+    }
+
+    const missing = candidates.filter((k) => !knownKeys.has(k));
+    if (missing.length > 0) {
+      const snapshotText = node.nodeValue;
+      validateTicketKeys(missing, knownKeys).then((verified) => {
+        if (!editorRef.current || !node.isConnected || node.nodeValue !== snapshotText) return;
+        if (replaceTicketsInTextNode(node, verified, editorRef.current)) {
+          schedule(currentTitle(), readBody());
+        }
+      });
+    }
   }
 
   function applyLink(event) {
@@ -390,10 +618,32 @@ function DocEditor({
           aria-label="Doc content"
           data-placeholder="Type / to add a heading, list, quote, or work item"
           suppressContentEditableWarning
-          dangerouslySetInnerHTML={{ __html: doc.body || '' }}
-          onInput={() => {
+          dangerouslySetInnerHTML={{ __html: initialBodyHtml }}
+          onInput={(event) => {
             detectSlash();
+            const data = event.nativeEvent?.data;
+            const inputType = event.nativeEvent?.inputType;
+            if (data === ' ' || data === '\u00a0') {
+              linkifyAtCaretDelimiter();
+            } else if (inputType === 'insertParagraph' || inputType === 'insertLineBreak') {
+              linkifyEditor({ checkRemote: true }).then((changed) => {
+                if (changed) schedule(currentTitle(), readBody());
+              });
+            }
             schedule(currentTitle(), readBody());
+          }}
+          onPaste={() => {
+            requestAnimationFrame(async () => {
+              const changed = await linkifyEditor({ checkRemote: true });
+              if (changed) schedule(currentTitle(), readBody());
+            });
+          }}
+          onBlur={async () => {
+            const unwrapped = unwrapBrokenDocIssues(editorRef.current);
+            const changed = await linkifyEditor({ checkRemote: true });
+            if (unwrapped || changed) {
+              schedule(currentTitle(), readBody());
+            }
           }}
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
@@ -420,8 +670,26 @@ function DocEditor({
           onMouseDown={(event) => {
             const link = event.target.closest?.('a.doc-issue');
             if (!link) return;
+            const key = link.dataset.key;
+            if (!key) return;
+            if (event.button === 0 && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              window.open(link.getAttribute('href') || ticketHref(key), '_blank', 'noopener,noreferrer');
+              return;
+            }
+            if (event.button === 0 && !event.shiftKey && !event.altKey) {
+              event.preventDefault();
+              onOpenTicket(key);
+            }
+          }}
+          onAuxClick={(event) => {
+            if (event.button !== 1) return;
+            const link = event.target.closest?.('a.doc-issue');
+            if (!link) return;
+            const key = link.dataset.key;
+            if (!key) return;
             event.preventDefault();
-            onOpenTicket(link.dataset.key);
+            window.open(link.getAttribute('href') || ticketHref(key), '_blank', 'noopener,noreferrer');
           }}
         />
       </div>
@@ -452,6 +720,7 @@ export default function DocsView({
   docs: initialDocs,
   activeDoc,
   tickets,
+  allTickets = null,
   project,
   projects,
   employees,
@@ -472,7 +741,13 @@ export default function DocsView({
       : docId
         ? `/projects/${project.id}/docs/${docId}`
         : `/projects/${project.id}/docs`;
-  const modal = useTicketModal({ visible: tickets, lookup: tickets });
+  const lookupTickets = useMemo(
+    () => (Array.isArray(allTickets) && allTickets.length > 0 ? allTickets : tickets),
+    [allTickets, tickets]
+  );
+  const validPrefixes = useMemo(() => buildValidPrefixSet(projects), [projects]);
+  const knownKeys = useMemo(() => buildExistingKeySet(lookupTickets), [lookupTickets]);
+  const modal = useTicketModal({ visible: tickets, lookup: lookupTickets });
   const { toasts, push, dismiss, pause, resume } = useToasts();
   const [docs, setDocs] = useState(initialDocs);
   const [query, setQuery] = useState('');
@@ -567,8 +842,7 @@ export default function DocsView({
   }
 
   function openTicket(key) {
-    const ticket = tickets.find((item) => ticketKey(item) === key);
-    if (ticket) modal.select(ticket);
+    modal.open(key);
   }
 
   return (
@@ -592,6 +866,7 @@ export default function DocsView({
             <button type="button" onClick={() => setError('')}>Dismiss</button>
           </div>
         )}
+        <TicketModalStatus modal={modal} />
 
         <PageHeader
           breadcrumb={
@@ -686,6 +961,8 @@ export default function DocsView({
                 doc={activeDoc}
                 project={project}
                 tickets={tickets}
+                validPrefixes={validPrefixes}
+                knownKeys={knownKeys}
                 currentUser={currentUser}
                 canMoveUp={siblingIndex > 0}
                 canMoveDown={siblingIndex >= 0 && siblingIndex < siblings.length - 1}
@@ -713,12 +990,13 @@ export default function DocsView({
           ticket={modal.selected}
           employees={employees}
           currentUser={currentUser}
-          siblingTickets={tickets}
+          siblingTickets={lookupTickets}
+          projects={projects}
           canStep={modal.canStep}
           onClose={modal.close}
           onNext={modal.next}
           onPrev={modal.prev}
-          onOpenTicket={modal.select}
+          onOpenTicket={modal.open}
         />
       )}
 

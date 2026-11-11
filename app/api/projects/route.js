@@ -4,6 +4,7 @@ import { getAllProjects, createProject, getProjectByKey, clientExists } from '@/
 import { parseGithubRepos } from '@/lib/github';
 import { workspaceExists } from '@/lib/workspaces';
 import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
+import { isAdminOrOwner, resolveUserScope } from '@/lib/rbac';
 
 function normalizeGithubRepo(value) {
   const raw = String(value ?? '').trim();
@@ -20,9 +21,15 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const all = await getAllProjects();
-  if (session.user.role === 'client') {
+  const scope = await resolveUserScope(session.user);
+  if (scope.isClient) {
     return NextResponse.json({
       projects: all.filter((p) => p.client_id === session.user.id),
+    });
+  }
+  if (scope.isManager) {
+    return NextResponse.json({
+      projects: all.filter((p) => scope.scopedProjectIds.has(Number(p.id))),
     });
   }
 
@@ -33,9 +40,9 @@ export async function POST(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can create projects.' },
+      { error: 'Only Business Owners or Administrators can create projects.' },
       { status: 403 }
     );
   }

@@ -1,7 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { markdownToHtml, htmlToMarkdown } from '../../lib/richText';
+import {
+  extractCandidateTicketKeysFromHtml,
+  linkifyHtmlTicketRefs,
+  ticketHref,
+} from '../../lib/ticketRefs';
+import { useValidatedTicketKeys } from '../TicketText';
 import { BoldIcon, ItalicIcon, LinkIcon, ListIcon } from './icons';
 
 const TOOLS = [
@@ -10,9 +16,35 @@ const TOOLS = [
   { cmd: 'insertUnorderedList', label: 'Bulleted list', Icon: ListIcon },
 ];
 
-export default function DescriptionEditor({ value, onSave, canEdit = true }) {
+export default function DescriptionEditor({
+  value,
+  onSave,
+  canEdit = true,
+  onOpenTicket = null,
+  validPrefixes = null,
+  existingKeys = null,
+}) {
   const [editing, setEditing] = useState(false);
   const editorRef = useRef(null);
+
+  const rawViewHtml = useMemo(() => markdownToHtml(value), [value]);
+  const candidateKeys = useMemo(
+    () => (editing ? [] : extractCandidateTicketKeysFromHtml(rawViewHtml, { validPrefixes })),
+    [editing, rawViewHtml, validPrefixes]
+  );
+  const verifiedKeys = useValidatedTicketKeys(candidateKeys, existingKeys);
+  const viewHtml = useMemo(
+    () =>
+      verifiedKeys.size > 0
+        ? linkifyHtmlTicketRefs(rawViewHtml, {
+            validPrefixes,
+            existingKeys: verifiedKeys,
+            requireExisting: true,
+            className: 'ai-ticket-link',
+          })
+        : rawViewHtml,
+    [rawViewHtml, validPrefixes, verifiedKeys]
+  );
 
   useEffect(() => {
     if (editing && editorRef.current) editorRef.current.focus();
@@ -49,7 +81,29 @@ export default function DescriptionEditor({ value, onSave, canEdit = true }) {
     return (
       <div
         className={`tm-description${empty ? ' is-empty' : ''}${canEdit ? ' is-editable' : ''}`}
-        onClick={() => canEdit && setEditing(true)}
+        onClick={(e) => {
+          const link = e.target.closest?.('a');
+          if (link) {
+            e.stopPropagation();
+            const key = link.getAttribute('data-key');
+            if (
+              key &&
+              onOpenTicket &&
+              e.button === 0 &&
+              !e.metaKey &&
+              !e.ctrlKey &&
+              !e.shiftKey &&
+              !e.altKey
+            ) {
+              e.preventDefault();
+              onOpenTicket(key);
+            } else if (key && !link.getAttribute('href')) {
+              link.setAttribute('href', ticketHref(key));
+            }
+            return;
+          }
+          if (canEdit) setEditing(true);
+        }}
         role={canEdit ? 'button' : undefined}
         tabIndex={canEdit ? 0 : undefined}
         onKeyDown={(e) => {
@@ -63,7 +117,7 @@ export default function DescriptionEditor({ value, onSave, canEdit = true }) {
         {empty ? null : (
           <div
             className="tm-description-body"
-            dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }}
+            dangerouslySetInnerHTML={{ __html: viewHtml }}
           />
         )}
       </div>

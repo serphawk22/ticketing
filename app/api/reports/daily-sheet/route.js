@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { sendDailySheetReport } from '@/lib/dailySheetReport';
+import { isTeamUser } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,7 +15,7 @@ function isReportDate(value) {
 export async function POST(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (session.user.role !== 'admin' && session.user.role !== 'developer') {
+  if (!isTeamUser(session.user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

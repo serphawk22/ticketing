@@ -320,7 +320,7 @@ export default function DevDashboard({
 
   function openTicket(id) {
     const found = tickets.find((t) => t.id === id);
-    if (found) modal.select(found);
+    modal.open(found || id);
   }
 
   // The modal creates the ticket itself (POST /api/tickets) and hands back the

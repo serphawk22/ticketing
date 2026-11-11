@@ -278,13 +278,13 @@ export default function AppShell({
     if (mustChangePassword) router.replace('/change-password');
   }, [mustChangePassword, router]);
 
-  const isAdmin = currentUser.role === 'admin';
-  // The sheet history reads everyone's day, so it used to be admin-only. It is
-  // now shown to every developer as well; clients never reach this shell
-  // because requireTeamUser sends them to their portal.
-  const canReadSheets = isAdmin || currentUser.role === 'developer';
-  const canAccessAdminDashboard = isAdmin || Boolean(currentUser?.can_access_admin_dashboard);
-  const canAccessReports = isAdmin || currentUser.role === 'developer' || Boolean(currentUser?.can_access_reports);
+  const normalizedRole = currentUser.role === 'developer' ? 'employee' : currentUser.role;
+  const isOwner = normalizedRole === 'owner';
+  const isAdmin = isOwner || normalizedRole === 'admin';
+  const isManager = normalizedRole === 'manager';
+  const canReadSheets = isAdmin || isManager || normalizedRole === 'employee';
+  const canAccessAdminDashboard = isAdmin || isManager || Boolean(currentUser?.can_access_admin_dashboard);
+  const canAccessReports = isAdmin || isManager || normalizedRole === 'employee' || Boolean(currentUser?.can_access_reports);
 
   // The sidebar is the one place that groups projects by work space, and it
   // renders on every view, so it loads the list itself rather than adding a
@@ -439,15 +439,22 @@ export default function AppShell({
     if (active) active.scrollIntoView({ block: 'nearest' });
   }, [searchActive, searchOpen]);
   const topNavItems = useMemo(() => {
+    const dashLabel = isOwner
+      ? 'Owner 360°'
+      : isAdmin
+        ? 'Admin 360°'
+        : isManager
+          ? 'Team 360°'
+          : 'Dashboard';
     return [
-      isAdmin
-        ? { id: 'admin-dashboard', label: 'Admin Dashboard', href: '/dashboard' }
+      canAccessAdminDashboard
+        ? { id: 'admin-dashboard', label: dashLabel, href: '/dashboard' }
         : { id: 'employee-dashboard', label: 'Dashboard', href: '/my-dashboard' },
       { id: 'work', label: 'Your work', href: '/?filter=mine' },
       { id: 'workspaces', label: 'Workspaces', href: '/projects' },
       { id: 'reports', label: 'Reports', href: '/reports' },
     ];
-  }, [isAdmin]);
+  }, [isOwner, isAdmin, isManager, canAccessAdminDashboard]);
 
   function isNavActive(item) {
     if (item.id === 'admin-dashboard') return view === 'admin-dashboard';
@@ -748,7 +755,9 @@ export default function AppShell({
               onClick={() => setSidebarOpen(false)}
             >
               <GridIcon />
-              <span className="nav-text">Admin Dashboard</span>
+              <span className="nav-text">
+                {isOwner ? 'Owner 360°' : isManager ? 'Team 360°' : 'Admin 360°'}
+              </span>
             </Link>
           ) : (
             <Link

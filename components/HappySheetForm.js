@@ -102,7 +102,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
         </div>
         <div>
           <h2>Happy sheet submitted</h2>
-          <p className="ts-confirmation-line">
+          <p className="ts-confirmation-line ts-confirmation-user-line">
             <strong>{confirmation.name}</strong> · saved as row #{confirmation.submission.id}.
           </p>
           <p className="ts-confirmation-line ts-confirmation-task">
@@ -152,6 +152,7 @@ export default function HappySheetForm({ people, defaults = {}, onSubmitted }) {
           emptyText="Select your name"
           variant="button"
           className="ts-select"
+          panelClassName="ts-user-dropdown-panel"
         />
         {errors.name ? <span className="error-text">{errors.name}</span> : null}
       </div>

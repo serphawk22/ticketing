@@ -13,7 +13,16 @@ import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
  * of it with no account to their name: no sidebar, no session, just the brand,
  * both cards, and the knowledge that the answers save with the name they pick.
  */
-export default function PublicTaskSheetView({ people, projects, projectNames, defaults }) {
+export default function PublicTaskSheetView({
+  people,
+  projects,
+  projectNames,
+  defaults,
+  verifiedEmployee = null,
+  csrfToken = '',
+  tokenError = null,
+  workCategories = [],
+}) {
   const [taskNote, setTaskNote] = useState(null);
   const [taskName, setTaskName] = useState('');
   const [happyNote, setHappyNote] = useState(null);
@@ -29,58 +38,82 @@ export default function PublicTaskSheetView({ people, projects, projectNames, de
             </Link>
             <h1 className="ts-public-title">Task Sheet</h1>
           </header>
-          <p className="sub">
-            {taskNote ? (
-              <>
-                Submitted just now{taskName ? ` by ${taskName}` : ''} · {taskNote}.
-              </>
-            ) : (
-              'One row per day: what you worked on, on which project, and for how long.'
-            )}
-          </p>
-          <TaskSheetForm
-            people={people}
-            projects={projects || projectNames}
-            projectNames={projectNames}
-            defaults={defaults}
-            onSubmitted={(name) => {
-              setTaskNote(new Date().toLocaleTimeString());
-              setTaskName(name || '');
-            }}
-          />
-        </div>
 
-        <div className="auth-card ts-public-card">
-          <header className="ts-public-happy-head">
-            <span className="ts-public-happy-icon" aria-hidden="true">
-              <SmileIcon size={18} />
-            </span>
-            <div>
-              <h1 className="ts-public-h1">Happy Sheet</h1>
-              <p className="ts-public-sub">
-                {happyNote ? (
+          {!verifiedEmployee ? (
+            <div style={{ padding: '16px 0' }}>
+              <div className="ts-banner" role="alert" style={{ marginBottom: 14 }}>
+                <strong>
+                  {tokenError === 'invalid' || tokenError === 'expired'
+                    ? 'This Task Sheet link is invalid, expired, or revoked.'
+                    : 'Employee Task Sheet Link Required.'}
+                </strong>{' '}
+                Shared Task Sheets are secured with an individual employee link. Request your personal link from an Administrator or sign in to submit your Daily Task Sheet.
+              </div>
+              <Link href="/login" className="btn btn-primary">
+                Sign in to your account
+              </Link>
+            </div>
+          ) : (
+            <>
+              <p className="sub">
+                {taskNote ? (
                   <>
-                    Submitted just now{happyName ? ` by ${happyName}` : ''} · {happyNote}.
+                    Submitted just now{taskName ? ` by ${taskName}` : ''} · {taskNote}.
                   </>
                 ) : (
-                  'Two small questions about what felt good today.'
+                  `Signed in via verified link as ${verifiedEmployee.name} · Record today's completed work, pending tasks, and blockers.`
                 )}
               </p>
-            </div>
-          </header>
-          <HappySheetForm
-            people={people}
-            defaults={defaults}
-            onSubmitted={(name) => {
-              setHappyNote(new Date().toLocaleTimeString());
-              setHappyName(name || '');
-            }}
-          />
-          <footer className="ts-public-foot ts-public-foot-alone">
-            <SmileIcon size={13} />
-            <span>Fills in without signing in — your answer is saved with the name you pick.</span>
-          </footer>
+              <TaskSheetForm
+                people={people}
+                projects={projects || projectNames}
+                projectNames={projectNames}
+                defaults={defaults}
+                identityLocked={true}
+                csrfToken={csrfToken}
+                workCategories={workCategories}
+                onSubmitted={(name) => {
+                  setTaskNote(new Date().toLocaleTimeString());
+                  setTaskName(name || '');
+                }}
+              />
+            </>
+          )}
         </div>
+
+        {verifiedEmployee && (
+          <div className="auth-card ts-public-card">
+            <header className="ts-public-happy-head">
+              <span className="ts-public-happy-icon" aria-hidden="true">
+                <SmileIcon size={18} />
+              </span>
+              <div>
+                <h1 className="ts-public-h1">Happy Sheet</h1>
+                <p className="ts-public-sub">
+                  {happyNote ? (
+                    <>
+                      Submitted just now{happyName ? ` by ${happyName}` : ''} · {happyNote}.
+                    </>
+                  ) : (
+                    'Two small questions about what felt good today.'
+                  )}
+                </p>
+              </div>
+            </header>
+            <HappySheetForm
+              people={people}
+              defaults={defaults}
+              onSubmitted={(name) => {
+                setHappyNote(new Date().toLocaleTimeString());
+                setHappyName(name || '');
+              }}
+            />
+            <footer className="ts-public-foot ts-public-foot-alone">
+              <SmileIcon size={13} />
+              <span>Submitted via your verified employee Task Sheet session.</span>
+            </footer>
+          </div>
+        )}
       </main>
     </div>
   );

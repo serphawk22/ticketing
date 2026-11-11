@@ -7,7 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import TaskSheetForm from '@/components/TaskSheetForm';
 import HappySheetForm from '@/components/HappySheetForm';
 import AttendanceControl from '@/components/AttendanceControl';
-import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
+import { ClipboardIcon, SmileIcon, SparklesIcon } from '@/components/AppShellIcons';
 
 /**
  * The daily sheets as a page.
@@ -26,6 +26,8 @@ export default function TaskSheetView({
   projectNames,
   defaults,
   initialAttendance = null,
+  identityLocked = false,
+  workCategories = [],
 }) {
   const router = useRouter();
   const [submittedAt, setSubmittedAt] = useState(null);
@@ -52,6 +54,18 @@ export default function TaskSheetView({
               ? `Submitted just now · ${submittedAt}`
               : 'One row per day: record your attendance, what you worked on, and task blockers.'
           }
+          actions={
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => router.push('/task-sheet/history?tab=pulse')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+              title="View AI Team Pulse & Summary in Task Sheet History"
+            >
+              <SparklesIcon size={14} />
+              <span>AI Team Pulse</span>
+            </button>
+          }
         />
 
         {/* Attendance Check In / Check Out Control Banner */}
@@ -64,6 +78,8 @@ export default function TaskSheetView({
               projects={projects}
               projectNames={projectNames}
               defaults={defaults}
+              identityLocked={identityLocked}
+              workCategories={workCategories}
               onSubmitted={() => setSubmittedAt(new Date().toLocaleTimeString())}
             />
           </div>

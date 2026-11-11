@@ -2,11 +2,15 @@
 
 import { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import KpiCard from './reports/KpiCard';
 import { DonutChart, BarChart } from './reports/ReportCharts';
 import ReportFilterBar from './reports/ReportFilterBar';
 import AiProgressSummaryCard from './AiProgressSummaryCard';
+import TicketDetailModal from './ticket/TicketDetailModal';
+import useTicketModal from './useTicketModal';
+import { TicketModalStatus, TicketRefLink } from './TicketText';
 import { REPORT_SECTIONS } from '@/lib/reportMasterCatalog';
 import {
   DASHBOARD_PROFILES,
@@ -31,6 +35,8 @@ export default function AdminDashboard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const reqSeqRef = useRef(0);
+  const router = useRouter();
+  const modal = useTicketModal({ visible: [], lookup: [] });
 
   const activeProfile = useMemo(() => {
     return getProfileConfig(selectedProfile);
@@ -148,6 +154,7 @@ export default function AdminDashboard({
         />
 
         {error && <div className="rpt-alert rpt-alert-error">{error}</div>}
+        <TicketModalStatus modal={modal} />
         {loading && <div className="rpt-loading-indicator">Refreshing company metrics...</div>}
 
         {/* Section Navigation Quick Bar (scoped to active profile) */}
@@ -340,6 +347,8 @@ export default function AdminDashboard({
               : projects.find((p) => String(p.id) === String(filters.projectId))?.name || ''
           }
           currentUser={currentUser}
+          projects={projects}
+          onOpenTicket={modal.open}
         />
 
         {/* ========================================================= */}
@@ -492,9 +501,17 @@ export default function AdminDashboard({
                     ) : (
                       exceptions.overdueTickets.map((t) => (
                         <div key={t.id} className="rpt-exception-row">
-                          <Link href={`/t/${encodeURIComponent(t.key)}`} className="rpt-exception-title">
-                            <strong>[{t.key}]</strong> {t.title}
-                          </Link>
+                          <TicketRefLink
+                            ticketKey={t.key}
+                            label={(
+                              <>
+                                <strong>[{t.key}]</strong> {t.title}
+                              </>
+                            )}
+                            onOpenTicket={modal.open}
+                            className="rpt-exception-title"
+                            title={`Open ${t.key}: ${t.title}`}
+                          />
                           <div className="rpt-exception-sub">
                             <span>Due: {t.dueDate}</span> · <span>Assignee: {t.employeeName}</span> ·{' '}
                             <span className={`priority-${t.priority}`}>{t.priority}</span>
@@ -519,9 +536,17 @@ export default function AdminDashboard({
                     ) : (
                       exceptions.pendingApprovals.map((t) => (
                         <div key={t.id} className="rpt-exception-row">
-                          <Link href={`/t/${encodeURIComponent(t.key)}`} className="rpt-exception-title">
-                            <strong>[{t.key}]</strong> {t.title}
-                          </Link>
+                          <TicketRefLink
+                            ticketKey={t.key}
+                            label={(
+                              <>
+                                <strong>[{t.key}]</strong> {t.title}
+                              </>
+                            )}
+                            onOpenTicket={modal.open}
+                            className="rpt-exception-title"
+                            title={`Open ${t.key}: ${t.title}`}
+                          />
                           <div className="rpt-exception-sub">
                             <span>Project: {t.projectName}</span> · <span>Awaiting Review</span>
                           </div>
@@ -585,6 +610,18 @@ export default function AdminDashboard({
           </div>
         </div>
       </div>
+
+      {modal.selected && (
+        <TicketDetailModal
+          ticket={modal.selected}
+          employees={employees}
+          currentUser={currentUser}
+          projects={projects}
+          onClose={modal.close}
+          onOpenTicket={modal.open}
+          onTicketChanged={() => router.refresh()}
+        />
+      )}
     </AppShell>
   );
 }

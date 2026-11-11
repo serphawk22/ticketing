@@ -70,6 +70,7 @@ export default async function TaskSheetHistoryPage() {
       facets={filterFacets(facets)}
       happyInitial={filteredHappySubmissions}
       happyFacets={filterFacets(happyFacets)}
+      employees={activeEmployees}
     />
   );
 }

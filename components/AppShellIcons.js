@@ -88,3 +88,21 @@ export function PeopleIcon({ size = 16 }) {
     </svg>
   );
 }
+
+/** Sparkles AI icon. */
+export function SparklesIcon({ size = 16, className = '' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 2L14.4 7.6L20 10L14.4 12.4L12 18L9.6 12.4L4 10L9.6 7.6L12 2Z" />
+      <path d="M5 2L6 4.5L8.5 5.5L6 6.5L5 9L4 6.5L1.5 5.5L4 4.5L5 2Z" opacity="0.75" />
+    </svg>
+  );
+}
+
