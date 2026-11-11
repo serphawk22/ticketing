@@ -20,11 +20,18 @@ import {
 } from '@/lib/users';
 import { syncEmployeeEmploymentTypeLeaveEligibility } from '@/lib/attendance';
 import { db } from '@/lib/db';
+import {
+  VALID_DIRECTORY_ROLES,
+  assertCanViewEmployee,
+  canAssignOrModifyRole,
+  isAdminOrOwner,
+  normalizeRole,
+} from '@/lib/rbac';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Clients are accounts too: they live in the same directory so one page
 // manages every login, but they are never assignable work.
-const VALID_ROLES = ['admin', 'developer', 'client'];
+const VALID_ROLES = VALID_DIRECTORY_ROLES;
 
 export async function GET(request, { params }) {
   const session = await requireAuth();
@@ -36,10 +43,15 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Employee not found.' }, { status: 404 });
   }
 
-  const isAdmin = session.user.role === 'admin';
+  const access = await assertCanViewEmployee(session.user, employee.id);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  const isAdmin = isAdminOrOwner(session.user);
   const isSelf =
-    (session.user.id && employee.user_id && session.user.id === employee.user_id) ||
-    (session.user.email && employee.email && session.user.email === employee.email);
+    (session.user.id && employee.user_id && Number(session.user.id) === Number(employee.user_id)) ||
+    (session.user.email && employee.email && session.user.email.toLowerCase() === employee.email.toLowerCase());
 
   // Non-admins can only see sensitive salary/payment info for themselves
   const canSeeSalary = isAdmin || isSelf;
@@ -77,9 +89,9 @@ export async function PATCH(request, { params }) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can edit employees.' },
+      { error: 'Only Business Owners or Administrators can edit employees.' },
       { status: 403 }
     );
   }
@@ -91,6 +103,20 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json();
+  const targetRequestedRole = body.role === undefined ? existing.role : body.role;
+
+  if (!VALID_ROLES.includes(targetRequestedRole)) {
+    return NextResponse.json({ error: 'Role must be owner, admin, manager, employee, or client.' }, { status: 400 });
+  }
+
+  const roleCheck = canAssignOrModifyRole({
+    actor: session.user,
+    targetCurrentRole: existing.role,
+    targetNewRole: normalizeRole(targetRequestedRole),
+  });
+  if (!roleCheck.allowed) {
+    return NextResponse.json({ error: roleCheck.reason }, { status: 403 });
+  }
 
   if (body.active !== undefined && Object.keys(body).length === 1) {
     return NextResponse.json({ employee: await setEmployeeActive(id, Boolean(body.active)) });
@@ -104,7 +130,7 @@ export async function PATCH(request, { params }) {
         : ''
       : existing.email || '';
   const email = rawEmail ? rawEmail.toLowerCase() : null;
-  const role = body.role === undefined ? existing.role : body.role;
+  const role = normalizeRole(targetRequestedRole);
   const isClient = role === 'client';
 
   const department = isClient
@@ -158,7 +184,7 @@ export async function PATCH(request, { params }) {
   }
 
   if (!VALID_ROLES.includes(role)) {
-    return NextResponse.json({ error: 'Role must be admin, developer or client.' }, { status: 400 });
+    return NextResponse.json({ error: 'Role must be owner, admin, manager, employee, or client.' }, { status: 400 });
   }
 
   if (!isClient && body.secondary_email !== undefined && body.secondary_email !== null && String(body.secondary_email).trim() !== '') {
@@ -308,9 +334,9 @@ export async function DELETE(request, { params }) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can remove employees.' },
+      { error: 'Only Business Owners or Administrators can remove employees.' },
       { status: 403 }
     );
   }
@@ -319,6 +345,14 @@ export async function DELETE(request, { params }) {
   const existing = await getEmployee(id);
   if (!existing) {
     return NextResponse.json({ error: 'Employee not found.' }, { status: 404 });
+  }
+
+  const roleCheck = canAssignOrModifyRole({
+    actor: session.user,
+    targetCurrentRole: existing.role,
+  });
+  if (!roleCheck.allowed) {
+    return NextResponse.json({ error: roleCheck.reason }, { status: 403 });
   }
 
   // Removing yourself would delete the account making the request.

@@ -707,7 +707,7 @@ export default function ListView({
         const res = await fetch(`/api/tickets/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fields),
+          body: JSON.stringify({ ...fields, source: 'list' }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Update failed.');
@@ -856,7 +856,7 @@ export default function ListView({
 
   function openTicket(id) {
     const found = tickets.find((t) => t.id === id);
-    if (found) modal.select(found);
+    modal.open(found || id);
   }
 
   // Open the create modal pre-loaded with this row as the parent, and open the

@@ -235,19 +235,29 @@ export default function HappySheetHistoryView({ initial, facets }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => {
+              {filtered.map((row, index) => {
                 const { date, time } = formatCell(row.created_at);
+                const isNextDifferentUser =
+                  index === filtered.length - 1 ||
+                  filtered[index + 1]?.name !== row.name;
                 return (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    className={`list-row ts-history-row${
+                      isNextDifferentUser ? ' is-user-boundary' : ''
+                    }`}
+                  >
                     <td className="list-cell">{date}</td>
                     <td className="list-cell">{time}</td>
-                    <td className="list-cell">
-                      <strong>{row.name}</strong>
-                      {row.submitted_by_name && row.name !== row.submitted_by_name && (
-                        <span className="list-cell-note">
-                          filed by {row.submitted_by_name}
-                        </span>
-                      )}
+                    <td className="list-cell ts-user-cell">
+                      <div className="ts-user-info">
+                        <strong className="ts-user-name">{row.name}</strong>
+                        {row.submitted_by_name && row.name !== row.submitted_by_name && (
+                          <span className="list-cell-note">
+                            filed by {row.submitted_by_name}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="list-cell hs-answer">{row.happy_one}</td>
                     <td className="list-cell hs-answer is-muted">

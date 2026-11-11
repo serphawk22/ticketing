@@ -22,6 +22,7 @@ export default async function ProjectsPage() {
     <ProjectsView
       initialProjects={projects}
       initialWorkspaces={workspaces}
+      allTickets={tickets}
       currentUser={session.user}
       myIssuesCount={myIssuesCount}
     />

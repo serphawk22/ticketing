@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { db } from '@/lib/db';
 import { getSession, requireAuth } from '@/lib/auth';
 import {
@@ -7,22 +8,150 @@ import {
   listSubmissions,
   listSubmissionFacets,
 } from '@/lib/taskSheet';
+import {
+  TASK_SHEET_SESSION_COOKIE,
+  validateTaskSheetCookieSession,
+} from '@/lib/taskSheetTokens';
+import {
+  recordTaskSheetWorkLogsTx,
+  todayKolkataDate,
+} from '@/lib/workLedger';
+import { checkRateLimit, extractClientIpPrefix } from '@/lib/rateLimiter';
+import { isAdminOrOwner, isTeamUser, resolveUserScope } from '@/lib/rbac';
+import { transitionTicketStatus } from '@/lib/ticketStageService';
 
 export const dynamic = 'force-dynamic';
 
+function isOriginAllowed(request) {
+  const origin = request.headers.get('origin');
+  if (!origin) return true;
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (!host) return true;
+  try {
+    return new URL(origin).host.toLowerCase() === host.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request) {
-  const session = await getSession();
+  const ipPrefix = extractClientIpPrefix(request);
+  const rl = checkRateLimit(`ts-submit:${ipPrefix}`, { limit: 60, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many Task Sheet submissions. Please wait and try again.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
+  const session = await getSession();
 
-  // The sheet is a shareable link, so POST accepts a signed-out visitor and
-  // records them as an anonymous file. submitted_by is taken from the session
-  // only, never from the body, whatever the name dropdown says: the name answer
-  // is the person's own pick from the list, the way the external form was
-  // answered, and the countersigning session is the one fact the server knows
-  // for certain.
-  const submittedBy = session ? session.user.id : null;
-  const name = String(body.name ?? '').trim();
+  let verifiedEmployeeId = null;
+  let submittedBy = null;
+  let canonicalName = '';
+  let transitionActor = null;
+
+  if (session && isTeamUser(session.user)) {
+    submittedBy = Number(session.user.id);
+    const ownEmp = await db
+      .prepare('SELECT id, name, user_id, active FROM employees WHERE user_id = ? AND active = 1')
+      .get(submittedBy);
+
+    const requestedName = String(body.name ?? '').trim();
+    if (isAdminOrOwner(session.user)) {
+      if (requestedName) {
+        const namedEmp = await db
+          .prepare('SELECT id, name, user_id, active FROM employees WHERE LOWER(name) = LOWER(?) AND active = 1')
+          .get(requestedName);
+        if (!namedEmp && !ownEmp) {
+          return NextResponse.json(
+            { error: 'Please select an active employee profile.' },
+            { status: 400 }
+          );
+        }
+        const resolved = namedEmp || ownEmp;
+        verifiedEmployeeId = Number(resolved.id);
+        canonicalName = resolved.name;
+      } else if (ownEmp) {
+        verifiedEmployeeId = Number(ownEmp.id);
+        canonicalName = ownEmp.name;
+      } else {
+        return NextResponse.json({ error: 'Please select an active employee.' }, { status: 400 });
+      }
+    } else {
+      if (!ownEmp) {
+        return NextResponse.json(
+          { error: 'Your user account is not linked to an active employee profile.' },
+          { status: 403 }
+        );
+      }
+      if (requestedName && requestedName.toLowerCase() !== ownEmp.name.toLowerCase()) {
+        return NextResponse.json(
+          { error: 'Forbidden: You cannot submit a Task Sheet on behalf of another employee.' },
+          { status: 403 }
+        );
+      }
+      verifiedEmployeeId = Number(ownEmp.id);
+      canonicalName = ownEmp.name;
+    }
+
+    transitionActor = {
+      id: session.user.id,
+      name: session.user.name || canonicalName,
+      role: session.user.role,
+    };
+  } else {
+    if (!isOriginAllowed(request)) {
+      return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
+    }
+
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get(TASK_SHEET_SESSION_COOKIE)?.value || '';
+    const csrfHeader = request.headers.get('x-csrf-token') || '';
+
+    const tsSession = await validateTaskSheetCookieSession({
+      sessionCookieValue: sessionCookie,
+      csrfToken: csrfHeader,
+      requireCsrf: true,
+    });
+
+    if (!tsSession) {
+      return NextResponse.json(
+        { error: 'Authentication required. Open your employee-specific Task Sheet link or sign in.' },
+        { status: 401 }
+      );
+    }
+    if (tsSession.csrfInvalid) {
+      return NextResponse.json({ error: 'Invalid or missing CSRF token.' }, { status: 403 });
+    }
+
+    const requestedName = String(body.name ?? '').trim();
+    if (requestedName && requestedName.toLowerCase() !== tsSession.employee.name.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'Forbidden: You cannot submit a Task Sheet on behalf of another employee.' },
+        { status: 403 }
+      );
+    }
+    const requestedEmpId = body.employeeId ?? body.employee_id;
+    if (requestedEmpId != null && Number(requestedEmpId) !== Number(tsSession.employee.id)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Employee identity mismatch.' },
+        { status: 403 }
+      );
+    }
+
+    verifiedEmployeeId = Number(tsSession.employee.id);
+    submittedBy = tsSession.employee.user_id ? Number(tsSession.employee.user_id) : null;
+    canonicalName = tsSession.employee.name;
+    transitionActor = {
+      id: submittedBy || 0,
+      name: canonicalName,
+      role: 'employee',
+    };
+  }
+
+  const name = canonicalName;
   const projects = [
     ...new Set(
       (Array.isArray(body.projects) ? body.projects : [body.project])
@@ -36,11 +165,15 @@ export async function POST(request) {
   const taskState = String(body.taskState ?? '').trim();
   const blocker = String(body.blocker ?? '').trim();
   const hoursWorked = Number(body.hoursWorked);
+  const workDateRaw = String(body.workDate || '').trim();
+  const workDate = /^\d{4}-\d{2}-\d{2}$/.test(workDateRaw) ? workDateRaw : todayKolkataDate();
 
-  // Two optional questions added later. Free text and never required, so an
-  // empty answer is stored as NULL rather than failing the submission.
   const learningProject = String(body.learningProject ?? '').trim() || null;
   const otherActivities = String(body.otherActivities ?? '').trim() || null;
+  const categoryCode = String(body.categoryCode || body.category_code || 'development').trim();
+  const otherActivitiesEntries = Array.isArray(body.otherActivitiesEntries)
+    ? body.otherActivitiesEntries
+    : [];
 
   if (!name) return NextResponse.json({ error: 'Please select your name.' }, { status: 400 });
   if (!project) {
@@ -49,7 +182,7 @@ export async function POST(request) {
 
   const projectPlaceholders = projects.map(() => '?').join(', ');
   const existingProjects = await db
-    .prepare(`SELECT name FROM projects WHERE name IN (${projectPlaceholders})`)
+    .prepare(`SELECT id, name FROM projects WHERE name IN (${projectPlaceholders})`)
     .all(...projects);
   if (existingProjects.length !== projects.length) {
     return NextResponse.json(
@@ -63,42 +196,35 @@ export async function POST(request) {
   if (!taskDescription) {
     return NextResponse.json({ error: 'Please describe the task.' }, { status: 400 });
   }
-  if (!Number.isFinite(hoursWorked) || hoursWorked <= 0) {
+  if (!Number.isFinite(hoursWorked) || hoursWorked <= 0 || hoursWorked > 24) {
     return NextResponse.json(
-      { error: 'Approximate hours worked must be a positive number.' },
+      { error: 'Approximate hours worked must be a positive number up to 24.' },
       { status: 400 }
     );
   }
-  const selectedTickets = Array.isArray(body.selectedTickets) ? body.selectedTickets : [];
 
-  // Allowed dynamic status choices per workState
+  const selectedTickets = Array.isArray(body.selectedTickets) ? body.selectedTickets : [];
   const ALLOWED_NOT_COMPLETED = ['To Do', 'In Progress'];
   const ALLOWED_COMPLETED = ['QA Testing', 'Closed'];
-
-  // Map user-facing task sheet status to internal ticket status in tickets table
   const STATUS_MAP = {
     'To Do': 'open',
     'In Progress': 'in_progress',
     'QA Testing': 'resolved',
-    'Closed': 'closed',
+    Closed: 'closed',
   };
 
-  // Determine overall taskState if selectedTickets are present and body.taskState was omitted/empty
   let effectiveTaskState = taskState;
   if (!effectiveTaskState && selectedTickets.length > 0) {
-    // If all selected tickets are completed, overall is completed; otherwise not_completed
     effectiveTaskState = selectedTickets.every((t) => t.workState === 'completed')
       ? 'completed'
       : 'not_completed';
   } else if (!effectiveTaskState) {
     effectiveTaskState = 'completed';
   }
-
   if (!TASK_STATES.includes(effectiveTaskState)) {
     effectiveTaskState = 'completed';
   }
 
-  // Validate per-ticket statuses and blockers
   if (selectedTickets.length > 0) {
     for (const t of selectedTickets) {
       if (t.workState === 'not_completed') {
@@ -125,13 +251,11 @@ export async function POST(request) {
         }
       }
     }
-  } else {
-    if (effectiveTaskState === 'not_completed' && !blocker) {
-      return NextResponse.json(
-        { error: 'Please describe what is blocking this task.' },
-        { status: 400 }
-      );
-    }
+  } else if (effectiveTaskState === 'not_completed' && !blocker) {
+    return NextResponse.json(
+      { error: 'Please describe what is blocking this task.' },
+      { status: 400 }
+    );
   }
 
   let blockerText = null;
@@ -148,10 +272,8 @@ export async function POST(request) {
     blockerText = effectiveTaskState === 'not_completed' ? blocker : null;
   }
 
-  // The ticket link is a convenience, so an id that does not resolve is dropped
-  // rather than failing the whole sheet: an unlinked timesheet line still says
-  // what was worked on.
   let linkedTicketId = null;
+  const queuedTransitions = [];
 
   if (selectedTickets.length > 0) {
     for (const t of selectedTickets) {
@@ -169,14 +291,13 @@ export async function POST(request) {
           WHERE t.id = ?
         `)
         .get(tid);
+
       if (!exists) {
         return NextResponse.json(
           { error: `Ticket #${t.key || tid} was not found.` },
           { status: 404 }
         );
       }
-
-      // Validate ticket status: must not be Closed
       if (exists.status === 'closed') {
         return NextResponse.json(
           { error: `Ticket #${t.key || tid} is closed and cannot be submitted on the task sheet.` },
@@ -184,75 +305,35 @@ export async function POST(request) {
         );
       }
 
-      // Validate project: ticket must belong to one of the selected projects
       const belongsToSelectedProject =
         !exists.project_name ||
         projects.some((p) => p.toLowerCase() === exists.project_name.toLowerCase());
       if (!belongsToSelectedProject) {
         return NextResponse.json(
-          {
-            error: `Ticket #${t.key || tid} does not belong to any selected project (${projects.join(', ')}).`,
-          },
+          { error: `Ticket #${t.key || tid} does not belong to any selected project (${projects.join(', ')}).` },
           { status: 400 }
         );
       }
 
-      // Validate user assignment: ticket must be assigned to the selected user
-      if (name) {
-        const isAssigned =
-          (exists.employee_name && exists.employee_name.toLowerCase() === name.toLowerCase()) ||
-          (exists.assigned_to_name && exists.assigned_to_name.toLowerCase() === name.toLowerCase());
-        if (!isAssigned) {
-          return NextResponse.json(
-            { error: `Ticket #${t.key || tid} is not assigned to ${name}.` },
-            { status: 400 }
-          );
-        }
+      const isAssigned =
+        (exists.employee_name && exists.employee_name.toLowerCase() === name.toLowerCase()) ||
+        (exists.assigned_to_name && exists.assigned_to_name.toLowerCase() === name.toLowerCase());
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: `Ticket #${t.key || tid} is not assigned to ${name}.` },
+          { status: 400 }
+        );
       }
 
       if (!linkedTicketId) linkedTicketId = tid;
 
-        // Synchronize linked project task status directly from the user's selected status
-        const selectedStatusLabel = t.taskStatus || (t.workState === 'completed' ? 'QA Testing' : 'In Progress');
-        const targetDbStatus = STATUS_MAP[selectedStatusLabel];
-
-        if (targetDbStatus && exists.status !== targetDbStatus) {
-          await db
-            .prepare("UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?")
-            .run(targetDbStatus, tid);
-
-          const { logActivity } = await import('@/lib/ticketActivity');
-          await logActivity(tid, submittedBy, 'status', exists.status, targetDbStatus);
-
-          const { notifyTicketStatusChanged } = await import('@/lib/notifications');
-          await notifyTicketStatusChanged({
-            ticketId: tid,
-            from: exists.status,
-            to: targetDbStatus,
-            actorId: submittedBy,
-            actorName: name,
-          });
-        }
-
-        // Record time log against the ticket if submitted by a registered user
-        if (submittedBy && hoursWorked > 0) {
-          const seconds = Math.min(
-            Math.round((hoursWorked / selectedTickets.length) * 3600),
-            24 * 3600
-          );
-          await db
-            .prepare(
-              'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
-            )
-            .run(
-              tid,
-              submittedBy,
-              seconds,
-              `Task Sheet: ${t.title || taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
-            );
-        }
+      const selectedStatusLabel = t.taskStatus || (t.workState === 'completed' ? 'QA Testing' : 'In Progress');
+      const targetDbStatus = STATUS_MAP[selectedStatusLabel];
+      if (targetDbStatus && exists.status !== targetDbStatus && body.syncTicketStatus !== false) {
+        queuedTransitions.push({ ticketId: tid, from: exists.status, to: targetDbStatus });
       }
-  } else {
+    }
+  } else if (body.linkedTicketId) {
     const candidate = Number(body.linkedTicketId);
     if (Number.isInteger(candidate) && candidate > 0) {
       const exists = await db
@@ -267,51 +348,21 @@ export async function POST(request) {
           WHERE t.id = ?
         `)
         .get(candidate);
-      if (exists) {
-        const isClosed = exists.status === 'closed';
+      if (exists && exists.status !== 'closed') {
         const projectMismatch =
           exists.project_name &&
           !projects.some((p) => p.toLowerCase() === exists.project_name.toLowerCase());
-        const userMismatch = name && !(
+        const userMismatch = !(
           (exists.employee_name && exists.employee_name.toLowerCase() === name.toLowerCase()) ||
           (exists.assigned_to_name && exists.assigned_to_name.toLowerCase() === name.toLowerCase())
         );
 
-        if (!isClosed && !projectMismatch && !userMismatch) {
+        if (!projectMismatch && !userMismatch) {
           linkedTicketId = candidate;
-
-          if (body.syncTicketStatus !== false && taskState === 'completed') {
+          if (body.syncTicketStatus !== false && effectiveTaskState === 'completed') {
             if (exists.status !== 'resolved' && exists.status !== 'closed') {
-              await db
-                .prepare("UPDATE tickets SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
-                .run(linkedTicketId);
-
-              const { logActivity } = await import('@/lib/ticketActivity');
-              await logActivity(linkedTicketId, submittedBy, 'status', exists.status, 'resolved');
-
-              const { notifyTicketStatusChanged } = await import('@/lib/notifications');
-              await notifyTicketStatusChanged({
-                ticketId: linkedTicketId,
-                from: exists.status,
-                to: 'resolved',
-                actorId: submittedBy,
-                actorName: name,
-              });
+              queuedTransitions.push({ ticketId: candidate, from: exists.status, to: 'resolved' });
             }
-          }
-
-          if (submittedBy && hoursWorked > 0) {
-            const seconds = Math.min(Math.round(hoursWorked * 3600), 24 * 3600);
-            await db
-              .prepare(
-                'INSERT INTO ticket_time_logs (ticket_id, user_id, seconds, note) VALUES (?, ?, ?, ?)'
-              )
-              .run(
-                linkedTicketId,
-                submittedBy,
-                seconds,
-                `Task Sheet: ${taskTitle}${taskDescription ? ` — ${taskDescription}` : ''}`
-              );
           }
         }
       }
@@ -321,46 +372,135 @@ export async function POST(request) {
   const ticketsDetail =
     selectedTickets.length > 0 ? JSON.stringify(selectedTickets) : null;
 
-  const submission = await createSubmission({
-    submittedBy,
-    name,
-    project,
-    projects,
-    hoursWorked,
-    taskTitle,
-    taskDescription,
-    taskState: effectiveTaskState,
-    blocker: blockerText,
-    linkedTicketId,
-    ticketsDetail,
-    learningProject,
-    otherActivities,
+  const fallbackProjectId = existingProjects[0]?.id ? Number(existingProjects[0].id) : null;
+
+  const result = await db.transaction(async (tx) => {
+    const submission = await createSubmission({
+      submittedBy,
+      name,
+      project,
+      projects,
+      hoursWorked,
+      taskTitle,
+      taskDescription,
+      taskState: effectiveTaskState,
+      blocker: blockerText,
+      linkedTicketId,
+      ticketsDetail,
+      learningProject,
+      otherActivities,
+      executor: tx,
+    });
+
+    const workLogSummary = await recordTaskSheetWorkLogsTx(tx, {
+      submissionId: submission.id,
+      employeeId: verifiedEmployeeId,
+      userId: submittedBy,
+      workDate,
+      payload: {
+        hoursWorked,
+        selectedTickets,
+        linkedTicketId,
+        fallbackProjectId,
+        project,
+        taskTitle,
+        taskDescription,
+        taskState: effectiveTaskState,
+        blocker: blockerText,
+        categoryCode,
+        otherActivities,
+        otherActivitiesEntries,
+      },
+    });
+
+    return { submission, workLogSummary };
   });
 
-  return NextResponse.json({ submission }, { status: 201 });
+  // Synchronize ticket status transitions deterministically through the immutable stage engine
+  for (const tr of queuedTransitions) {
+    try {
+      await transitionTicketStatus({
+        ticketId: tr.ticketId,
+        toStatus: tr.to,
+        actor: transitionActor,
+        source: 'task_sheet',
+      });
+      const { notifyTicketStatusChanged } = await import('@/lib/notifications');
+      await notifyTicketStatusChanged({
+        ticketId: tr.ticketId,
+        from: tr.from,
+        to: tr.to,
+        actorId: submittedBy,
+        actorName: name,
+      });
+    } catch (err) {
+      console.error(`Task Sheet ticket transition failed for #${tr.ticketId}:`, err);
+    }
+  }
+
+  return NextResponse.json(
+    {
+      submission: result.submission,
+      workLogsRecorded: result.workLogSummary.count,
+      workDate,
+    },
+    { status: 201 }
+  );
 }
 
-/** The history is a team view, open to the same admins and developers as the page. */
+/** History view is role-scoped: Owner/Admin see all, Managers see their team/projects, Employees see self. */
 export async function GET(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (session.user.role !== 'admin' && session.user.role !== 'developer') {
+  if (!isTeamUser(session.user)) {
     return NextResponse.json(
       { error: 'Only team members can read the task sheet history.' },
       { status: 403 }
     );
   }
 
+  const scope = await resolveUserScope(session.user);
   const params = new URL(request.url).searchParams;
-  const submissions = await listSubmissions({
+  let submissions = await listSubmissions({
     name: params.get('name') || '',
     project: params.get('project') || '',
     from: params.get('from') || '',
     to: params.get('to') || '',
     limit: Number(params.get('limit')) || 500,
   });
-  const facets = await listSubmissionFacets();
 
+  if (scope.isEmployee) {
+    const selfEmp = await db
+      .prepare('SELECT id, name FROM employees WHERE user_id = ?')
+      .get(Number(session.user.id));
+    submissions = submissions.filter(
+      (s) =>
+        Number(s.submitted_by) === Number(session.user.id) ||
+        (selfEmp?.name && s.name.toLowerCase() === selfEmp.name.toLowerCase())
+    );
+  } else if (scope.isManager) {
+    const empIds = Array.from(scope.scopedEmployeeIds);
+    const allowedUserIds = new Set([Number(session.user.id)]);
+    const allowedNames = new Set();
+    if (empIds.length > 0) {
+      const ph = empIds.map(() => '?').join(', ');
+      const empRows = await db
+        .prepare(`SELECT user_id, name FROM employees WHERE id IN (${ph})`)
+        .all(...empIds);
+      for (const e of empRows) {
+        if (e.user_id) allowedUserIds.add(Number(e.user_id));
+        if (e.name) allowedNames.add(String(e.name).toLowerCase());
+      }
+    }
+    submissions = submissions.filter(
+      (s) =>
+        (s.submitted_by && allowedUserIds.has(Number(s.submitted_by))) ||
+        (s.name && allowedNames.has(String(s.name).toLowerCase())) ||
+        (s.linked_project_id != null && scope.scopedProjectIds.has(Number(s.linked_project_id)))
+    );
+  }
+
+  const facets = await listSubmissionFacets();
   return NextResponse.json({ submissions, ...facets });
 }

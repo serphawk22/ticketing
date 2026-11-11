@@ -315,7 +315,7 @@ export default function TimelineView({
 
   const openTicket = useCallback((id) => {
     const hit = tickets.find((ticket) => ticket.id === id);
-    if (hit) modal.select(hit);
+    modal.open(hit || id);
   }, [tickets, modal]);
 
   const applyTicketUpdate = useCallback((next) => {

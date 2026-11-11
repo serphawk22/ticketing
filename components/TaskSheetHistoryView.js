@@ -7,8 +7,11 @@ import PageHeader from '@/components/PageHeader';
 import EmptyState from '@/components/EmptyState';
 import { useToasts, Toaster } from '@/components/Toaster';
 import { ClockIcon } from '@/components/ticket/icons';
-import { ClipboardIcon, SmileIcon } from '@/components/AppShellIcons';
+import { ClipboardIcon, SmileIcon, SparklesIcon } from '@/components/AppShellIcons';
 import HappySheetHistoryView from '@/components/HappySheetHistoryView';
+import TaskSheetAiSummaryView from '@/components/TaskSheetAiSummaryView';
+import AdminTaskSheetTokensPanel from '@/components/AdminTaskSheetTokensPanel';
+import AdminLegacyMappingPanel from '@/components/AdminLegacyMappingPanel';
 import downloadTaskSheetPng from '@/components/taskSheetPng';
 import { indiaToday } from '@/lib/indiaDate';
 
@@ -35,10 +38,22 @@ export default function TaskSheetHistoryView({
   facets,
   happyInitial,
   happyFacets,
+  employees = [],
 }) {
   const router = useRouter();
   const { toasts, push, dismiss, pause, resume } = useToasts();
   const [tab, setTab] = useState('task');
+  const isAdminOrOwnerUser = currentUser?.role === 'owner' || currentUser?.role === 'admin';
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const t = p.get('tab');
+      if (t === 'pulse' || t === 'happy' || t === 'task' || t === 'tokens' || t === 'legacy') {
+        setTab(t);
+      }
+    }
+  }, []);
   const [rows, setRows] = useState(initial);
   const [name, setName] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
@@ -256,10 +271,16 @@ function projectsLabel(row) {
 
   const taskCount = rows.length;
   const happyCount = happyInitial?.length ?? 0;
-  const canSendDailyReports = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+  const canSendDailyReports = currentUser?.role === 'owner' || currentUser?.role === 'admin' || currentUser?.role === 'manager' || currentUser?.role === 'employee' || currentUser?.role === 'developer';
 
   const subtitle =
-    tab === 'task'
+    tab === 'tokens'
+      ? 'Issue and revoke employee-specific shared Task Sheet submission links.'
+      : tab === 'legacy'
+      ? 'Map historical submitted_by IS NULL rows to verified employees without altering raw submissions.'
+      : tab === 'pulse'
+      ? 'AI-gauged team velocity, workload redistribution, and blockers: today vs last 3 working days'
+      : tab === 'task'
       ? `${taskCount} rows${
           taskCount ? ` · ${Object.keys(byName).length} people · ${Object.keys(byProject).length} projects` : ''
         }`
@@ -282,11 +303,25 @@ function projectsLabel(row) {
             { label: 'Task Sheet', href: '/task-sheet' },
             { label: 'History' },
           ]}
-          title={tab === 'task' ? 'Task Sheet History' : 'Happy Sheet History'}
-          icon={tab === 'task' ? <ClipboardIcon /> : <SmileIcon />}
+          title={
+            tab === 'pulse'
+              ? 'AI Team Pulse & Summary'
+              : tab === 'task'
+              ? 'Task Sheet History'
+              : 'Happy Sheet History'
+          }
+          icon={
+            tab === 'pulse' ? (
+              <SparklesIcon />
+            ) : tab === 'task' ? (
+              <ClipboardIcon />
+            ) : (
+              <SmileIcon />
+            )
+          }
           subtitle={subtitle}
           actions={
-            canSendDailyReports ? (
+            canSendDailyReports && tab === 'task' ? (
               <>
                 <label className="ts-filter-date">
                   <span className="visually-hidden">Report date</span>
@@ -317,7 +352,14 @@ function projectsLabel(row) {
             role="tab"
             aria-selected={tab === 'task'}
             className={`tab${tab === 'task' ? ' active' : ''}`}
-            onClick={() => setTab('task')}
+            onClick={() => {
+              setTab('task');
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', 'task');
+                window.history.replaceState({}, '', url.toString());
+              }
+            }}
           >
             Task Sheet
             <span className="nav-count">{taskCount}</span>
@@ -327,14 +369,83 @@ function projectsLabel(row) {
             role="tab"
             aria-selected={tab === 'happy'}
             className={`tab${tab === 'happy' ? ' active' : ''}`}
-            onClick={() => setTab('happy')}
+            onClick={() => {
+              setTab('happy');
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', 'happy');
+                window.history.replaceState({}, '', url.toString());
+              }
+            }}
           >
             Happy Sheet
             <span className="nav-count">{happyCount}</span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'pulse'}
+            className={`tab${tab === 'pulse' ? ' active' : ''}`}
+            onClick={() => {
+              setTab('pulse');
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', 'pulse');
+                window.history.replaceState({}, '', url.toString());
+              }
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <SparklesIcon size={14} />
+            AI Team Pulse & Summary
+          </button>
+          {isAdminOrOwnerUser && (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'tokens'}
+                className={`tab${tab === 'tokens' ? ' active' : ''}`}
+                onClick={() => {
+                  setTab('tokens');
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('tab', 'tokens');
+                    window.history.replaceState({}, '', url.toString());
+                  }
+                }}
+              >
+                Shared Links & Tokens
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'legacy'}
+                className={`tab${tab === 'legacy' ? ' active' : ''}`}
+                onClick={() => {
+                  setTab('legacy');
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('tab', 'legacy');
+                    window.history.replaceState({}, '', url.toString());
+                  }
+                }}
+              >
+                Legacy Mapping
+              </button>
+            </>
+          )}
         </div>
 
-        {tab === 'task' ? (
+        {tab === 'tokens' && isAdminOrOwnerUser ? (
+          <AdminTaskSheetTokensPanel employees={employees} />
+        ) : tab === 'legacy' && isAdminOrOwnerUser ? (
+          <AdminLegacyMappingPanel employees={employees} />
+        ) : tab === 'pulse' ? (
+          <div className="list-frame">
+            <TaskSheetAiSummaryView currentUser={currentUser} />
+          </div>
+        ) : tab === 'task' ? (
           <div className="list-frame">
             <div className="ts-filters" role="search" aria-label="Filter task sheet">
               <select
@@ -438,18 +549,28 @@ function projectsLabel(row) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => {
+                    {rows.map((row, index) => {
                       const { date } = formatCell(row.created_at);
+                      const isNextDifferentUser =
+                        index === rows.length - 1 ||
+                        rows[index + 1]?.name !== row.name;
                       return (
-                        <tr key={row.id}>
+                        <tr
+                          key={row.id}
+                          className={`list-row ts-history-row${
+                            isNextDifferentUser ? ' is-user-boundary' : ''
+                          }`}
+                        >
                           <td className="list-cell">{date}</td>
-                          <td className="list-cell">
-                            <strong>{row.name}</strong>
-                            {row.submitted_by_name && row.name !== row.submitted_by_name && (
-                              <span className="list-cell-note">
-                                filed by {row.submitted_by_name}
-                              </span>
-                            )}
+                          <td className="list-cell ts-user-cell">
+                            <div className="ts-user-info">
+                              <strong className="ts-user-name">{row.name}</strong>
+                              {row.submitted_by_name && row.name !== row.submitted_by_name && (
+                                <span className="list-cell-note">
+                                  filed by {row.submitted_by_name}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="list-cell">{projectsLabel(row)}</td>
                           <td className="list-cell list-cell-num">{row.hours_worked}h</td>

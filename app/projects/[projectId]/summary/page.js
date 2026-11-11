@@ -39,6 +39,7 @@ export default async function ProjectSummaryPage({ params }) {
       currentUser={session.user}
       projects={projects}
       employees={employees}
+      allTickets={tickets}
       projectCounts={projectCounts}
       myIssuesCount={myIssuesCount}
     />

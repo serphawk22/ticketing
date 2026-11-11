@@ -47,6 +47,9 @@ export default function TaskSheetForm({
   people,
   projects,
   defaults = {},
+  identityLocked = false,
+  csrfToken = '',
+  workCategories = [],
   onSubmitted,
 }) {
   const activePeople = Array.isArray(people)
@@ -68,6 +71,7 @@ export default function TaskSheetForm({
   // required of them, so they start empty and are simply sent along as typed.
   const [learningProject, setLearningProject] = useState('');
   const [otherActivities, setOtherActivities] = useState('');
+  const [categoryCode, setCategoryCode] = useState('development');
   const [taskState, setTaskState] = useState('');
   // Only asked for when the state is Not Completed: a completed task has
   // nothing holding it up, so the field appears the moment it is relevant.
@@ -402,14 +406,18 @@ export default function TaskSheetForm({
       : taskState;
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
       const res = await fetch('/api/task-sheet', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name: name,
           project: selectedProjects[0] || '',
           projects: selectedProjects,
           hoursWorked: resolvedHours(),
+          categoryCode,
           taskTitle: taskTitle.trim(),
           taskDescription: taskDescription.trim(),
           learningProject: learningProject.trim(),
@@ -504,15 +512,35 @@ export default function TaskSheetForm({
           role="group"
           aria-label="Name">
           <span className="ts-legend">Name <span className="ts-required-star">*</span></span>
-          <InlineDropdownField
-            value={name}
-            options={nameOptions}
-            onSelect={setName}
-            label="Name"
-            emptyText="Select your name"
-            variant="button"
-            className="ts-select"
-          />
+          {identityLocked && name ? (
+            <div
+              className="ts-select"
+              style={{
+                padding: '9px 12px',
+                borderRadius: 6,
+                border: '1px solid #dfe1e6',
+                background: 'var(--bg-subtle, #f4f5f7)',
+                fontWeight: 600,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span>{name}</span>
+              <span style={{ fontSize: 11, color: '#006644', fontWeight: 500 }}>Verified</span>
+            </div>
+          ) : (
+            <InlineDropdownField
+              value={name}
+              options={nameOptions}
+              onSelect={setName}
+              label="Name"
+              emptyText="Select your name"
+              variant="button"
+              className="ts-select"
+              panelClassName="ts-user-dropdown-panel"
+            />
+          )}
           {errors.name ? <span className="error-text">{errors.name}</span> : null}
         </div>
 
@@ -817,6 +845,26 @@ export default function TaskSheetForm({
         </div>
       </div>
 
+      {Array.isArray(workCategories) && workCategories.length > 0 && (
+        <div className="ts-grid">
+          <div className="form-group ts-field ts-field-wide" id="ts-category">
+            <label htmlFor="ts-work-category">Work Category</label>
+            <select
+              id="ts-work-category"
+              className="ts-task-select"
+              value={categoryCode}
+              onChange={(e) => setCategoryCode(e.target.value)}
+            >
+              {workCategories.map((cat) => (
+                <option key={cat.code} value={cat.code}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       <div className="ts-grid">
         <div
           className="form-group ts-field ts-field-wide ts-field-full"
@@ -900,16 +948,24 @@ function TaskSheetConfirmation({ summary, onReset }) {
       </div>
       <div>
         <h2>Task sheet submitted</h2>
-        <p className="ts-confirmation-line">
+        <p className="ts-confirmation-line ts-confirmation-user-line">
           <strong>{summary.name}</strong> · {summary.project} · {summary.hoursWorked}h ·{' '}
           {done ? 'Completed' : 'Not Completed'}
         </p>
         {tickets.length > 0 ? (
           <div className="ts-confirmation-tickets" style={{ marginTop: 8, marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {tickets.map((t) => {
+            {tickets.map((t, idx) => {
               const isNotDone = t.workState === 'not_completed';
               return (
-                <div key={t.id} className="ts-confirmation-line ts-confirmation-task" style={{ margin: '2px 0' }}>
+                <div
+                  key={t.id}
+                  className="ts-confirmation-line ts-confirmation-task ts-confirmation-ticket-item"
+                  style={{
+                    margin: '2px 0',
+                    paddingBottom: idx === tickets.length - 1 ? 0 : 6,
+                    borderBottom: idx === tickets.length - 1 ? 'none' : '1px solid var(--border-subtle, #ebecf0)'
+                  }}
+                >
                   <strong>#{t.key}:</strong>{' '}
                   <span>{isNotDone ? 'Not Completed' : 'Completed'}</span>
                   {isNotDone && t.taskStatus && (

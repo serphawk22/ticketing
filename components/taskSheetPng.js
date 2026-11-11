@@ -302,8 +302,12 @@ export default function downloadTaskSheetPng(rows, { filters = {} } = {}) {
       }
     });
 
-    ctx.strokeStyle = COLORS.grid;
-    ctx.lineWidth = 1;
+    const isUserBoundary =
+      rowIndex === cells.length - 1 ||
+      list[rowIndex + 1]?.name !== list[rowIndex]?.name;
+
+    ctx.strokeStyle = isUserBoundary ? COLORS.faint : COLORS.grid;
+    ctx.lineWidth = isUserBoundary ? 1.5 : 1;
     ctx.beginPath();
     ctx.moveTo(margin, y + rowH);
     ctx.lineTo(margin + tableW, y + rowH);

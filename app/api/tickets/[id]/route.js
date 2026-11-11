@@ -11,6 +11,8 @@ import { deleteAttachment } from '@/lib/storage';
 import { logActivityChanges } from '@/lib/ticketActivity';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
+import { canRouteWork, isAdminOrOwner } from '@/lib/rbac';
+import { syncStageOnArchiveState, transitionTicketStatus } from '@/lib/ticketStageService';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
 // Category and team are ordinary editable metadata for the team, but a
@@ -56,11 +58,11 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json();
-  const isAdmin = session.user.role === 'admin';
+  const isAdmin = isAdminOrOwner(session.user);
   // Routing the work -- naming an assignee -- is the same team decision at
   // edit time as it is at create time, so it answers to the same rule the POST
-  // route applies: both team roles may take it, a requester may not.
-  const canRoute = isAdmin || session.user.role === 'developer';
+  // route applies: team roles may take it, a requester may not.
+  const canRoute = canRouteWork(session.user);
 
   const edits = {};
 
@@ -346,15 +348,45 @@ export async function PATCH(request, { params }) {
 
   // [sql, value, hasBind] so a cleared field still binds NULL instead of being
   // dropped and shifting every later placeholder.
-  const pairs = keys.map((field) => [`${field} = ?`, edits[field], true]);
-  if (autoClaim) pairs.push(['employee_id = ?', nextEmployeeId || null, true]);
-  pairs.push(["updated_at = datetime('now')", null, false]);
+  const validSources = new Set(['board', 'list', 'detail', 'task_sheet', 'api', 'archive']);
+  const transitionSource = validSources.has(body.source) ? body.source : 'api';
 
-  const assignments = pairs.map(([sql]) => sql);
-  const values = pairs.filter(([, , binds]) => binds).map(([, value]) => value);
-  values.push(ticketId);
+  if (edits.status !== undefined) {
+    const extraUpdates = { ...edits };
+    delete extraUpdates.status;
+    if (autoClaim) extraUpdates.employee_id = nextEmployeeId || null;
 
-  await db.prepare(`UPDATE tickets SET ${assignments.join(', ')} WHERE id = ?`).run(values);
+    try {
+      await transitionTicketStatus({
+        ticketId,
+        toStatus: edits.status,
+        actor: session.user,
+        source: transitionSource,
+        idempotencyKey: body.idempotency_key || body.idempotencyKey || null,
+        expectedCurrentStatus: body.expected_status || body.expectedStatus || null,
+        extraUpdates,
+      });
+    } catch (transitionErr) {
+      return NextResponse.json(
+        { error: transitionErr.message || 'Status transition failed.' },
+        { status: transitionErr.statusCode || 409 }
+      );
+    }
+  } else {
+    const pairs = keys.map((field) => [`${field} = ?`, edits[field], true]);
+    if (autoClaim) pairs.push(['employee_id = ?', nextEmployeeId || null, true]);
+    pairs.push(["updated_at = datetime('now')", null, false]);
+
+    const assignments = pairs.map(([sql]) => sql);
+    const values = pairs.filter(([, , binds]) => binds).map(([, value]) => value);
+    values.push(ticketId);
+
+    await db.prepare(`UPDATE tickets SET ${assignments.join(', ')} WHERE id = ?`).run(values);
+  }
+
+  if (edits.archived !== undefined && edits.archived !== Number(ticket.archived || 0)) {
+    await syncStageOnArchiveState({ ticketId, archived: edits.archived, actor: session.user });
+  }
 
   // Activity reads far better with ticket keys than with raw ids, so translate
   // the parent change on the way into the history. The stored column keeps the
@@ -527,6 +559,7 @@ export async function PATCH(request, { params }) {
            WHERE id = ?`
         )
         .run([want, edits.archived_at, edits.archived_by, child.id]);
+      await syncStageOnArchiveState({ ticketId: child.id, archived: want, actor: session.user });
       await logActivityChanges(
         child.id,
         session.user.id,
@@ -547,10 +580,10 @@ export async function DELETE(request, { params }) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Deletion is the counterpart of creation, which the POST route already
-  // reserves for admins, so the two stay symmetrical.
-  if (session.user.role !== 'admin') {
+  // reserves for admins/owners, so the two stay symmetrical.
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
-      { error: 'Only admins can delete work items.' },
+      { error: 'Only Business Owners or Administrators can delete work items.' },
       { status: 403 }
     );
   }

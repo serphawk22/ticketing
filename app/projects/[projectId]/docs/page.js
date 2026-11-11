@@ -47,6 +47,7 @@ export default async function ProjectDocsPage({ params }) {
       docs={docs}
       activeDoc={null}
       tickets={tickets}
+      allTickets={allTickets}
       project={project}
       projects={projects}
       employees={employees}

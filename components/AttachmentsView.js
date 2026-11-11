@@ -461,7 +461,7 @@ export default function AttachmentsView({
           onClose={closeIssue}
           onNext={modal.next}
           onPrev={modal.prev}
-          onOpenTicket={modal.select}
+          onOpenTicket={modal.open}
         />
       )}
 

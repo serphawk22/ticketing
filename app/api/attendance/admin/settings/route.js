@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getAttendanceSettings, updateAttendanceSettings } from '@/lib/attendance';
+import { isAdminOrOwner } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function GET() {
 
 export async function POST(request) {
   const session = await requireAuth();
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAdminOrOwner(session.user)) {
     return NextResponse.json({ error: 'Unauthorized: Admin access required.' }, { status: 403 });
   }
 

@@ -175,7 +175,7 @@ export default function Board({
 
   function openModal(id) {
     const found = tickets.find((t) => t.id === id);
-    if (found) modal.select(found);
+    modal.open(found || id);
   }
 
   async function updateStatus(id, status) {
@@ -187,7 +187,7 @@ export default function Board({
       const res = await fetch(`/api/tickets/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, source: 'board' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Update failed.');

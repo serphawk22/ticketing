@@ -1,13 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell, { StarIcon } from '@/components/AppShell';
 import ProjectModal from '@/components/ProjectModal';
 import ConfirmModal from '@/components/ConfirmModal';
+import TicketDetailModal from '@/components/ticket/TicketDetailModal';
+import useTicketModal from '@/components/useTicketModal';
+import TicketText, { TicketModalStatus } from '@/components/TicketText';
+import { buildExistingKeySet, buildValidPrefixSet } from '@/lib/ticketRefs';
 
-export default function ProjectsView({ initialProjects, initialWorkspaces, currentUser, myIssuesCount }) {
+export default function ProjectsView({
+  initialProjects,
+  initialWorkspaces,
+  allTickets = [],
+  currentUser,
+  myIssuesCount,
+}) {
   const [projects, setProjects] = useState(initialProjects);
   const [workspaces, setWorkspaces] = useState(initialWorkspaces || []);
   const [clients, setClients] = useState([]);
@@ -16,6 +26,12 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
   const [error, setError] = useState('');
   const [preferences, setPreferences] = useState({});
   const router = useRouter();
+  const validPrefixes = useMemo(() => buildValidPrefixSet(projects), [projects]);
+  const knownKeys = useMemo(
+    () => (allTickets.length ? buildExistingKeySet(allTickets) : null),
+    [allTickets]
+  );
+  const modal = useTicketModal({ visible: [], lookup: allTickets });
 
   useEffect(() => {
     fetch('/api/user-preferences')
@@ -166,7 +182,17 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
           </button>
         </header>
 
-        {p.description && <p className="project-card-desc">{p.description}</p>}
+        {p.description && (
+          <p className="project-card-desc">
+            <TicketText
+              text={p.description}
+              validPrefixes={validPrefixes}
+              existingKeys={knownKeys}
+              onOpenTicket={modal.open}
+              linkClassName="ai-ticket-link"
+            />
+          </p>
+        )}
 
         {p.client_name && (
           <p className="project-card-client">
@@ -256,6 +282,7 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
             </button>
           </div>
         )}
+        <TicketModalStatus modal={modal} />
 
         <div className="board-toolbar">
           <div className="toolbar-title">
@@ -338,6 +365,18 @@ export default function ProjectsView({ initialProjects, initialWorkspaces, curre
           confirmLabel="Delete project"
           onCancel={() => setDeleting(null)}
           onConfirm={handleDelete}
+        />
+      )}
+
+      {modal.selected && (
+        <TicketDetailModal
+          ticket={modal.selected}
+          currentUser={currentUser}
+          siblingTickets={allTickets}
+          projects={projects}
+          onClose={modal.close}
+          onOpenTicket={modal.open}
+          onTicketChanged={() => router.refresh()}
         />
       )}
     </AppShell>

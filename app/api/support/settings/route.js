@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isAdminOrOwner } from '@/lib/rbac';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 
@@ -72,7 +73,7 @@ export async function GET() {
     hours,
     location,
     notes,
-    isAdmin: session.user.role === 'admin',
+    isAdmin: isAdminOrOwner(session.user),
   });
 }
 
@@ -82,7 +83,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (session.user.role !== 'admin') {
+  if (!isAdminOrOwner(session.user)) {
     return NextResponse.json(
       { error: 'Forbidden: Only administrators can update support contact settings.' },
       { status: 403 }
