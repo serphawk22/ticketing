@@ -430,7 +430,7 @@ export default function DetailsSidebar({
                     </span>
                   )}
                 </span>
-                {!ticket.archived && currentUser?.role !== 'client' && ticket.project_id && (
+                {!ticket.archived && currentUser?.role !== 'client' && ticket.project_id && (isAdmin || currentUser?.role === 'owner' || currentUser?.role === 'manager' || (ticket.employee_id != null && currentUser?.employee_id != null && Number(ticket.employee_id) === Number(currentUser.employee_id)) || (ticket.assigned_to != null && Number(ticket.assigned_to) === Number(currentUser?.id))) && (
                   <button
                     type="button"
                     className="tm-inline-link"

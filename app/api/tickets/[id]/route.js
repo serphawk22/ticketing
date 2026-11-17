@@ -9,7 +9,7 @@ import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { notifyTicketUpdated } from '@/lib/notifications';
 import { deleteAttachment } from '@/lib/storage';
 import { logActivityChanges, logDueDateChange, logRepositoryChange } from '@/lib/ticketActivity';
-import { getRepositoryById } from '@/lib/projectRepositories';
+import { getRepositoryById, changeTicketRepository } from '@/lib/projectRepositories';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
 import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate } from '@/lib/rbac';
@@ -106,7 +106,6 @@ export async function PATCH(request, { params }) {
   let startDateVal = ticket.start_date;
   let dueDateVal = ticket.due_date;
   let dueDateChangeDetails = null;
-  let repoChangeDetails = null;
 
   if (body.start_date !== undefined) {
     const value = parseDate(body.start_date);
@@ -240,11 +239,9 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  if (body.repository_id !== undefined) {
-    if (session.user.role === 'client') {
-      return NextResponse.json({ error: 'Clients cannot change repository.' }, { status: 403 });
-    }
+  let repoChangedAtomically = false;
 
+  if (body.repository_id !== undefined) {
     if (body.repository_id === null || body.repository_id === '') {
       if (ticket.project_id) {
         return NextResponse.json(
@@ -255,80 +252,27 @@ export async function PATCH(request, { params }) {
       edits.repository_id = null;
     } else {
       const newRepoId = Number(body.repository_id);
-      if (!Number.isInteger(newRepoId)) {
+      if (!Number.isInteger(newRepoId) || newRepoId <= 0) {
         return NextResponse.json({ error: 'Invalid repository id.' }, { status: 400 });
       }
 
-      if (Number(ticket.repository_id) !== newRepoId) {
-        const targetRepo = await getRepositoryById(newRepoId);
-        if (!targetRepo) {
-          return NextResponse.json({ error: 'Repository not found.' }, { status: 404 });
-        }
+      const validSources = new Set(['board', 'list', 'detail', 'task_sheet', 'api', 'archive']);
+      const transitionSource = validSources.has(body.source) ? body.source : 'detail';
 
-        const effectiveProjectId = edits.project_id !== undefined ? edits.project_id : ticket.project_id;
-        if (effectiveProjectId && Number(targetRepo.project_id) !== Number(effectiveProjectId)) {
-          return NextResponse.json(
-            { error: 'Selected repository belongs to a different project.' },
-            { status: 400 }
-          );
-        }
-
-        if (!targetRepo.is_active) {
-          return NextResponse.json(
-            { error: 'Selected repository is deactivated and cannot accept tickets.' },
-            { status: 400 }
-          );
-        }
-
-        const hasGitReferences = Boolean(ticket.github_branch || ticket.pr_url || ticket.github_pr_number);
-        let gitContext = '';
-
-        if (hasGitReferences) {
-          const reasonText = String(body.repository_change_reason || body.reason || '').trim();
-          if (!reasonText) {
-            return NextResponse.json(
-              {
-                error:
-                  'A justification reason is mandatory when changing repository on a ticket with existing Git branch or Pull Request references.',
-              },
-              { status: 400 }
-            );
-          }
-
-          gitContext = `Cleared Git references: branch="${ticket.github_branch || 'none'}", PR="${ticket.pr_url || 'none'}"`;
-          edits.github_branch = '';
-          edits.pr_url = '';
-          edits.github_pr_number = null;
-          edits.github_pr_title = '';
-          edits.github_pr_state = '';
-          edits.github_pr_merged = null;
-          edits.github_pr_head_sha = '';
-          edits.github_pr_base_branch = '';
-          edits.github_pr_last_verified_at = null;
-          edits.pr_merged_at = null;
-
-          if (ticket.status === 'resolved') {
-            edits.status = 'in_progress';
-          }
-        }
-
-        edits.repository_id = newRepoId;
-        edits.repository_changed_at = new Date().toISOString().replace('T', ' ').slice(0, 19);
-        edits.repository_change_reason = String(body.repository_change_reason || body.reason || '').trim() || null;
-
-        const oldName = ticket.repository_name
-          ? `${ticket.repository_owner || ''}/${ticket.repository_name}`
-          : ticket.repository_id
-          ? `repo #${ticket.repository_id}`
-          : 'None';
-        const newName = `${targetRepo.github_owner}/${targetRepo.github_repo}`;
-
-        repoChangeDetails = {
-          oldRepoName: oldName,
-          newRepoName: newName,
-          reason: edits.repository_change_reason || '',
-          gitContext,
-        };
+      try {
+        const repoResult = await changeTicketRepository({
+          ticketId,
+          newRepoId,
+          reason: body.repository_change_reason || body.reason,
+          actor: session.user,
+          source: transitionSource,
+        });
+        repoChangedAtomically = repoResult.changed;
+      } catch (repoErr) {
+        return NextResponse.json(
+          { error: repoErr.message },
+          { status: repoErr.statusCode || 400 }
+        );
       }
     }
   }
@@ -452,6 +396,10 @@ export async function PATCH(request, { params }) {
 
   const keys = Object.keys(edits);
   if (keys.length === 0) {
+    if (repoChangedAtomically) {
+      const updated = await getTicket(ticketId);
+      return NextResponse.json({ ticket: updated });
+    }
     return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
   }
 
@@ -600,26 +548,6 @@ export async function PATCH(request, { params }) {
       dueDateChangeDetails.employeeId
     );
     logged.delete('due_date');
-  }
-
-  if (repoChangeDetails) {
-    await logRepositoryChange(
-      ticketId,
-      session.user.id,
-      repoChangeDetails.oldRepoName,
-      repoChangeDetails.newRepoName,
-      repoChangeDetails.reason,
-      repoChangeDetails.gitContext
-    );
-    logged.delete('repository_id');
-    logged.delete('repository_changed_at');
-    logged.delete('repository_change_reason');
-    logged.delete('github_branch');
-    logged.delete('pr_url');
-    logged.delete('github_pr_number');
-    logged.delete('github_pr_state');
-    logged.delete('github_pr_merged');
-    logged.delete('pr_merged_at');
   }
 
   await logActivityChanges(
