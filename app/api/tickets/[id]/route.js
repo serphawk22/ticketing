@@ -8,10 +8,11 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { notifyTicketUpdated } from '@/lib/notifications';
 import { deleteAttachment } from '@/lib/storage';
-import { logActivityChanges } from '@/lib/ticketActivity';
+import { logActivityChanges, logDueDateChange, logRepositoryChange } from '@/lib/ticketActivity';
+import { getRepositoryById } from '@/lib/projectRepositories';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
-import { canRouteWork, isAdminOrOwner } from '@/lib/rbac';
+import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate } from '@/lib/rbac';
 import { syncStageOnArchiveState, transitionTicketStatus } from '@/lib/ticketStageService';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
@@ -104,14 +105,71 @@ export async function PATCH(request, { params }) {
 
   let startDateVal = ticket.start_date;
   let dueDateVal = ticket.due_date;
-  for (const field of ['due_date', 'start_date']) {
-    if (body[field] === undefined) continue;
-    const value = parseDate(body[field]);
-    if (value === undefined) return badValue(field, body[field]);
-    edits[field] = value;
-    if (field === 'start_date') startDateVal = value;
-    if (field === 'due_date') dueDateVal = value;
+  let dueDateChangeDetails = null;
+  let repoChangeDetails = null;
+
+  if (body.start_date !== undefined) {
+    const value = parseDate(body.start_date);
+    if (value === undefined) return badValue('start_date', body.start_date);
+    edits.start_date = value;
+    startDateVal = value;
   }
+
+  if (body.due_date !== undefined) {
+    const value = parseDate(body.due_date);
+    if (value === undefined) return badValue('due_date', body.due_date);
+
+    if ((value || null) !== (ticket.due_date || null)) {
+      if (['resolved', 'closed'].includes(ticket.status)) {
+        return NextResponse.json(
+          { error: 'Cannot change the due date of a completed or closed ticket.' },
+          { status: 400 }
+        );
+      }
+
+      const dueAuth = await assertCanChangeDueDate(session.user, ticket);
+      if (!dueAuth.allowed) {
+        return NextResponse.json({ error: dueAuth.error }, { status: dueAuth.status || 403 });
+      }
+
+      const blockerText = String(body.blocker || '').trim();
+      const reasonText = String(body.reason || body.delay_reason || '').trim();
+
+      // Employees must provide mandatory blocker and delay reason
+      if (!dueAuth.isElevated) {
+        if (!blockerText || !reasonText) {
+          return NextResponse.json(
+            { error: 'Blocker description and reason for delay are mandatory when changing a due date.' },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Check concurrency collision if expected_due_date is provided
+      if (body.expected_due_date !== undefined) {
+        const expected = body.expected_due_date === null || body.expected_due_date === ''
+          ? null
+          : String(body.expected_due_date).trim();
+        if ((ticket.due_date || null) !== expected) {
+          return NextResponse.json(
+            { error: 'The due date has been modified by another user. Please refresh and review the latest history.' },
+            { status: 409 }
+          );
+        }
+      }
+
+      dueDateChangeDetails = {
+        from: ticket.due_date || '',
+        to: value || '',
+        blocker: blockerText,
+        reason: reasonText,
+        employeeId: dueAuth.scope?.employeeId || null,
+      };
+      edits.due_date = value;
+      dueDateVal = value;
+    }
+  }
+
   if (startDateVal && dueDateVal && startDateVal > dueDateVal) {
     return NextResponse.json(
       { error: 'Due date must be on or after the start date.' },
@@ -179,6 +237,99 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
       }
       edits.project_id = value;
+    }
+  }
+
+  if (body.repository_id !== undefined) {
+    if (session.user.role === 'client') {
+      return NextResponse.json({ error: 'Clients cannot change repository.' }, { status: 403 });
+    }
+
+    if (body.repository_id === null || body.repository_id === '') {
+      if (ticket.project_id) {
+        return NextResponse.json(
+          { error: 'Tickets belonging to a project must have a repository assigned.' },
+          { status: 400 }
+        );
+      }
+      edits.repository_id = null;
+    } else {
+      const newRepoId = Number(body.repository_id);
+      if (!Number.isInteger(newRepoId)) {
+        return NextResponse.json({ error: 'Invalid repository id.' }, { status: 400 });
+      }
+
+      if (Number(ticket.repository_id) !== newRepoId) {
+        const targetRepo = await getRepositoryById(newRepoId);
+        if (!targetRepo) {
+          return NextResponse.json({ error: 'Repository not found.' }, { status: 404 });
+        }
+
+        const effectiveProjectId = edits.project_id !== undefined ? edits.project_id : ticket.project_id;
+        if (effectiveProjectId && Number(targetRepo.project_id) !== Number(effectiveProjectId)) {
+          return NextResponse.json(
+            { error: 'Selected repository belongs to a different project.' },
+            { status: 400 }
+          );
+        }
+
+        if (!targetRepo.is_active) {
+          return NextResponse.json(
+            { error: 'Selected repository is deactivated and cannot accept tickets.' },
+            { status: 400 }
+          );
+        }
+
+        const hasGitReferences = Boolean(ticket.github_branch || ticket.pr_url || ticket.github_pr_number);
+        let gitContext = '';
+
+        if (hasGitReferences) {
+          const reasonText = String(body.repository_change_reason || body.reason || '').trim();
+          if (!reasonText) {
+            return NextResponse.json(
+              {
+                error:
+                  'A justification reason is mandatory when changing repository on a ticket with existing Git branch or Pull Request references.',
+              },
+              { status: 400 }
+            );
+          }
+
+          gitContext = `Cleared Git references: branch="${ticket.github_branch || 'none'}", PR="${ticket.pr_url || 'none'}"`;
+          edits.github_branch = '';
+          edits.pr_url = '';
+          edits.github_pr_number = null;
+          edits.github_pr_title = '';
+          edits.github_pr_state = '';
+          edits.github_pr_merged = null;
+          edits.github_pr_head_sha = '';
+          edits.github_pr_base_branch = '';
+          edits.github_pr_last_verified_at = null;
+          edits.pr_merged_at = null;
+
+          if (ticket.status === 'resolved') {
+            edits.status = 'in_progress';
+          }
+        }
+
+        edits.repository_id = newRepoId;
+        edits.repository_changed_at = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        edits.repository_change_reason = String(body.repository_change_reason || body.reason || '').trim() || null;
+
+        const oldName = ticket.repository_name
+          ? `${ticket.repository_owner || ''}/${ticket.repository_name}`
+          : ticket.repository_id
+          ? `repo #${ticket.repository_id}`
+          : 'None';
+        const newName = `${targetRepo.github_owner}/${targetRepo.github_repo}`;
+
+        repoChangeDetails = {
+          oldRepoName: oldName,
+          newRepoName: newName,
+          reason: edits.repository_change_reason || '',
+          gitContext,
+        };
+      }
     }
   }
 
@@ -438,6 +589,39 @@ export async function PATCH(request, { params }) {
     logged.delete('employee_id');
   }
 
+  if (dueDateChangeDetails) {
+    await logDueDateChange(
+      ticketId,
+      session.user.id,
+      dueDateChangeDetails.from,
+      dueDateChangeDetails.to,
+      dueDateChangeDetails.blocker,
+      dueDateChangeDetails.reason,
+      dueDateChangeDetails.employeeId
+    );
+    logged.delete('due_date');
+  }
+
+  if (repoChangeDetails) {
+    await logRepositoryChange(
+      ticketId,
+      session.user.id,
+      repoChangeDetails.oldRepoName,
+      repoChangeDetails.newRepoName,
+      repoChangeDetails.reason,
+      repoChangeDetails.gitContext
+    );
+    logged.delete('repository_id');
+    logged.delete('repository_changed_at');
+    logged.delete('repository_change_reason');
+    logged.delete('github_branch');
+    logged.delete('pr_url');
+    logged.delete('github_pr_number');
+    logged.delete('github_pr_state');
+    logged.delete('github_pr_merged');
+    logged.delete('pr_merged_at');
+  }
+
   await logActivityChanges(
     ticketId,
     session.user.id,
@@ -465,6 +649,7 @@ export async function PATCH(request, { params }) {
       actorId: session.user.id,
       actorName: session.user.name,
       fields: Object.keys(edits),
+      blocker: dueDateChangeDetails?.blocker || '',
     });
 
     if (reassigning && nextEmployeeId) {

@@ -293,6 +293,7 @@ export default function DetailsSidebar({
   onOpenWatcherMenu,
   configureOpen,
   onToggleConfigure,
+  onRequestDueDateChange,
 }) {
   // The people a ticket can be assigned to: active staff, never clients, the
   // same rule ticket creation and the list's inline picker apply. The email and
@@ -325,6 +326,59 @@ export default function DetailsSidebar({
     .map((l) => l.trim())
     .filter(Boolean);
 
+  const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
+  const [repoOptions, setRepoOptions] = useState([]);
+  const [loadingRepoOptions, setLoadingRepoOptions] = useState(false);
+  const [selectedNewRepoId, setSelectedNewRepoId] = useState('');
+  const [repoChangeReason, setRepoChangeReason] = useState('');
+  const [repoChangeError, setRepoChangeError] = useState('');
+  const [repoChanging, setRepoChanging] = useState(false);
+
+  const openRepoChangeModal = async () => {
+    setIsRepoModalOpen(true);
+    setSelectedNewRepoId('');
+    setRepoChangeReason('');
+    setRepoChangeError('');
+    if (!ticket.project_id) return;
+    setLoadingRepoOptions(true);
+    try {
+      const res = await fetch(`/api/projects/${ticket.project_id}/repositories`);
+      if (res.ok) {
+        const data = await res.json();
+        setRepoOptions(data.repositories || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingRepoOptions(false);
+    }
+  };
+
+  const handleConfirmRepoChange = async () => {
+    if (!selectedNewRepoId) {
+      setRepoChangeError('Please select a repository.');
+      return;
+    }
+    const hasGit = Boolean(ticket.github_branch || ticket.pr_url || ticket.github_pr_number);
+    if (hasGit && !repoChangeReason.trim()) {
+      setRepoChangeError('A justification reason is mandatory when changing repository for a ticket with existing Git references.');
+      return;
+    }
+    setRepoChanging(true);
+    setRepoChangeError('');
+    try {
+      await onPatch({
+        repository_id: Number(selectedNewRepoId),
+        repository_change_reason: repoChangeReason.trim(),
+      });
+      setIsRepoModalOpen(false);
+    } catch (err) {
+      setRepoChangeError(err.message || 'Failed to update repository.');
+    } finally {
+      setRepoChanging(false);
+    }
+  };
+
   return (
     <aside className="tm-side" aria-label="Ticket details">
       <div className="tm-side-top">
@@ -355,6 +409,40 @@ export default function DetailsSidebar({
 
         {detailsOpen && (
           <div className="tm-fields">
+            <FieldRow label="Repository">
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                  {ticket.repository_name ? (
+                    <a
+                      href={ticket.repository_url || `https://github.com/${ticket.repository_owner}/${ticket.repository_name}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--link, #0c66e4)', textDecoration: 'none', fontWeight: 600 }}
+                    >
+                      {ticket.repository_owner}/{ticket.repository_name}
+                    </a>
+                  ) : (
+                    <span className="tm-placeholder">None</span>
+                  )}
+                  {ticket.repository_is_active === 0 && (
+                    <span style={{ fontSize: '10px', background: '#ebecf0', color: '#5e6c84', padding: '1px 5px', borderRadius: '8px' }}>
+                      Deactivated
+                    </span>
+                  )}
+                </span>
+                {!ticket.archived && currentUser?.role !== 'client' && ticket.project_id && (
+                  <button
+                    type="button"
+                    className="tm-inline-link"
+                    onClick={openRepoChangeModal}
+                    style={{ fontSize: '12px', fontWeight: 500, cursor: 'pointer', padding: '2px 6px' }}
+                    title="Change repository with safeguards"
+                  >
+                    Change
+                  </button>
+                )}
+              </span>
+            </FieldRow>
             <FieldRow label="Assignee">
               <div className="tm-person">
                 <AssigneeField
@@ -406,13 +494,32 @@ export default function DetailsSidebar({
               onSave={(v) => onPatch({ start_date: v })}
               canEdit
             />
-            <DateField
-              label="Due date"
-              value={ticket.due_date}
-              onSave={(v) => onPatch({ due_date: v })}
-              canEdit
-              clickToEdit
-            />
+            <FieldRow label="Due date">
+              <span className="tm-date-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <CalendarIcon size={14} className="tm-date-icon" />
+                  <span className={ticket.due_date ? 'tm-date-text' : 'tm-placeholder'}>
+                    {ticket.due_date ? formatShortDate(`${ticket.due_date} 12:00:00`) : 'No due date'}
+                  </span>
+                  {ticket.initial_due_date && ticket.initial_due_date !== ticket.due_date && (
+                    <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginLeft: '4px' }} title={`Original due date: ${ticket.initial_due_date}`}>
+                      (orig: {formatShortDate(`${ticket.initial_due_date} 12:00:00`)})
+                    </span>
+                  )}
+                </span>
+                {!ticket.archived && currentUser?.role !== 'client' && onRequestDueDateChange && (
+                  <button
+                    type="button"
+                    className="tm-inline-link"
+                    onClick={onRequestDueDateChange}
+                    style={{ fontSize: '12px', fontWeight: 500, cursor: 'pointer', padding: '2px 6px' }}
+                    title="Change due date with blocker and delay reason"
+                  >
+                    Change
+                  </button>
+                )}
+              </span>
+            </FieldRow>
             <TimeField
               estimateSeconds={ticket.estimate_seconds}
               loggedSeconds={detail.loggedSeconds}
@@ -503,6 +610,129 @@ export default function DetailsSidebar({
           {configureOpen ? 'Done' : 'Configure fields'}
         </button>
       </div>
+
+      {isRepoModalOpen && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(9, 30, 66, 0.54)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onMouseDown={() => !repoChanging && setIsRepoModalOpen(false)}
+        >
+          <div
+            className="modal"
+            style={{
+              background: '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '480px',
+              width: '90%',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', fontWeight: 600 }}>Change Repository</h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--muted, #666)' }}>
+              Select a new repository for this ticket from project <strong>{ticket.project_name || 'current project'}</strong>.
+            </p>
+
+            {(ticket.github_branch || ticket.pr_url || ticket.github_pr_number) && (
+              <div
+                style={{
+                  background: '#ffebe6',
+                  border: '1px solid #ffbdad',
+                  borderRadius: '6px',
+                  padding: '12px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  color: '#bf2600',
+                }}
+              >
+                <strong>⚠️ Caution: Existing Git References Will Be Reset</strong>
+                <div style={{ margin: '6px 0 0 0', fontSize: '12px', lineHeight: 1.4 }}>
+                  This ticket currently has linked Git references:
+                  {ticket.github_branch && <div>• Branch: <code>{ticket.github_branch}</code></div>}
+                  {ticket.pr_url && <div>• PR: <code>{ticket.pr_url}</code></div>}
+                  Changing the repository will permanently clear these references from the ticket and log the change to history.
+                  {ticket.status === 'resolved' && (
+                    <div style={{ fontWeight: 600, marginTop: '4px' }}>
+                      • Because this ticket is currently in QA Testing, it will automatically be moved back to In Progress.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                New Repository *
+              </label>
+              <select
+                value={selectedNewRepoId}
+                onChange={(e) => setSelectedNewRepoId(e.target.value)}
+                disabled={loadingRepoOptions || repoChanging}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border, #dfe1e6)', fontSize: '13px' }}
+              >
+                <option value="">
+                  {loadingRepoOptions ? 'Loading repositories…' : 'Select a repository…'}
+                </option>
+                {repoOptions
+                  .filter((r) => r.is_active && Number(r.id) !== Number(ticket.repository_id))
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.github_owner}/{r.github_repo}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                Justification Reason {(ticket.github_branch || ticket.pr_url || ticket.github_pr_number) ? '*' : '(optional)'}
+              </label>
+              <textarea
+                rows={3}
+                value={repoChangeReason}
+                onChange={(e) => setRepoChangeReason(e.target.value)}
+                disabled={repoChanging}
+                placeholder="Explain why this ticket's repository is being changed…"
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border, #dfe1e6)', fontSize: '13px', resize: 'vertical' }}
+              />
+            </div>
+
+            {repoChangeError && (
+              <div style={{ color: '#de350b', fontSize: '13px', marginBottom: '16px' }}>
+                {repoChangeError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={repoChanging}
+                onClick={() => setIsRepoModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={repoChanging || !selectedNewRepoId}
+                onClick={handleConfirmRepoChange}
+              >
+                {repoChanging ? 'Updating…' : 'Confirm Change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

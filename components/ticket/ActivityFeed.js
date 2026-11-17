@@ -85,6 +85,105 @@ function ActivityRow({ entry }) {
       </li>
     );
   }
+
+  if (entry.field === 'repository_id') {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-repo-change" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> changed the <span className="tm-activity-field">Repository</span>
+          </p>
+          <div className="tm-activity-change" style={{ marginBottom: '8px' }}>
+            <span className="tm-chip-plain">{entry.from_value || 'None'}</span>
+            <ArrowRightIcon size={12} className="tm-arrow" />
+            <span className="tm-chip-plain" style={{ fontWeight: 600 }}>{entry.to_value || 'None'}</span>
+          </div>
+          {(entry.reason || entry.blocker) && (
+            <div
+              className="repo-change-history-card"
+              style={{
+                background: 'var(--subtle, #f4f5f7)',
+                border: '1px solid var(--border, #dfe1e6)',
+                borderRadius: '6px',
+                padding: '10px 12px',
+                fontSize: '12px',
+                marginBottom: '6px',
+              }}
+            >
+              {entry.reason && (
+                <div style={{ marginBottom: entry.blocker ? '6px' : '0' }}>
+                  <strong style={{ color: 'var(--muted, #666)', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Reason for Change
+                  </strong>
+                  <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.reason}</span>
+                </div>
+              )}
+              {entry.blocker && (
+                <div>
+                  <strong style={{ color: '#de350b', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Reset Metadata
+                  </strong>
+                  <span style={{ color: 'var(--muted, #666)', fontSize: '11px' }}>{entry.blocker}</span>
+                </div>
+              )}
+            </div>
+          )}
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
+  if (entry.field === 'due_date' && (entry.blocker || entry.reason)) {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Employee';
+    return (
+      <li className="tm-activity-row tm-activity-due-date-change" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> changed the <span className="tm-activity-field">Due date</span>
+          </p>
+          <div className="tm-activity-change" style={{ marginBottom: '8px' }}>
+            <ActivityValue field="due_date" value={entry.from_value} />
+            <ArrowRightIcon size={12} className="tm-arrow" />
+            <ActivityValue field="due_date" value={entry.to_value} />
+          </div>
+          <div
+            className="due-date-history-card"
+            style={{
+              background: 'var(--subtle, #f4f5f7)',
+              border: '1px solid var(--border, #dfe1e6)',
+              borderRadius: '6px',
+              padding: '10px 12px',
+              fontSize: '12px',
+              marginBottom: '6px',
+            }}
+          >
+            {entry.blocker && (
+              <div style={{ marginBottom: '6px' }}>
+                <strong style={{ color: '#de350b', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Blocker
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.blocker}</span>
+              </div>
+            )}
+            {entry.reason && (
+              <div>
+                <strong style={{ color: 'var(--muted, #666)', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Reason for delay
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.reason}</span>
+              </div>
+            )}
+          </div>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
   const meta = FIELD_META[entry.field];
   const label = meta?.label || FIELD_LABELS[entry.field] || entry.field;
   return (

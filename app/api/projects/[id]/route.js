@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getProject, updateProject, deleteProject, clientExists } from '@/lib/projects';
-import { parseGithubRepos } from '@/lib/github';
+import { parseGithubRepos, parseOwnerRepo } from '@/lib/github';
+import { findProjectRepository, createProjectRepository } from '@/lib/projectRepositories';
 import { workspaceExists } from '@/lib/workspaces';
-import { isValidProjectColor } from '@/lib/projectValidation';
+import { isValidProjectColor, normalizeProjectTargetDate } from '@/lib/projectValidation';
 import { isAdminOrOwner } from '@/lib/rbac';
 
 function normalizeGithubRepo(value) {
@@ -31,7 +32,7 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Project not found.' }, { status: 404 });
   }
 
-  const { name, description, color, workspace_id, client_id, github_repo } =
+  const { name, description, color, workspace_id, client_id, github_repo, target_end_date } =
     await request.json();
 
   if (name !== undefined && !name?.trim()) {
@@ -40,6 +41,18 @@ export async function PATCH(request, { params }) {
 
   if (color !== undefined && !isValidProjectColor(color)) {
     return NextResponse.json({ error: 'Project color must be a hex value.' }, { status: 400 });
+  }
+
+  let nextTargetEndDate = existing.target_end_date ?? null;
+  if (target_end_date !== undefined) {
+    const targetDateCheck = normalizeProjectTargetDate(target_end_date);
+    if (!targetDateCheck.valid) {
+      return NextResponse.json(
+        { error: 'Target date must be a valid YYYY-MM-DD date.' },
+        { status: 400 }
+      );
+    }
+    nextTargetEndDate = targetDateCheck.value;
   }
 
   if (workspace_id !== undefined && workspace_id !== null
@@ -83,7 +96,30 @@ export async function PATCH(request, { params }) {
           ? null
           : Number(client_id),
     github_repo: nextGithubRepo,
+    target_end_date: nextTargetEndDate,
   });
+
+  if (github_repo !== undefined && nextGithubRepo) {
+    const repos = nextGithubRepo.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const repoStr of repos) {
+      try {
+        const parsed = parseOwnerRepo(repoStr);
+        if (parsed) {
+          const exists = await findProjectRepository(id, parsed.owner, parsed.repo);
+          if (!exists) {
+            await createProjectRepository({
+              projectId: id,
+              owner: parsed.owner,
+              repo: parsed.repo,
+              isDefault: 0,
+              verificationStatus: 'verified',
+              createdBy: session.user.id,
+            });
+          }
+        }
+      } catch {}
+    }
+  }
 
   return NextResponse.json({ project });
 }

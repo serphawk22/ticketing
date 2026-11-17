@@ -53,7 +53,45 @@ export default function CreateTicketModal({
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
   );
-  const [dueDate, setDueDate] = useState(defaultDueDate || '');
+  const [repositoryId, setRepositoryId] = useState('');
+  const [projectRepositories, setProjectRepositories] = useState([]);
+  const [loadingRepositories, setLoadingRepositories] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) {
+      setProjectRepositories([]);
+      setRepositoryId('');
+      return;
+    }
+
+    setLoadingRepositories(true);
+    setRepositoryId('');
+    fetch(`/api/projects/${projectId}/repositories`)
+      .then((res) => (res.ok ? res.json() : { repositories: [] }))
+      .then((data) => {
+        if (active) {
+          setProjectRepositories(data.repositories || []);
+        }
+      })
+      .catch(() => {
+        if (active) setProjectRepositories([]);
+      })
+      .finally(() => {
+        if (active) setLoadingRepositories(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
+  const defaultCalculatedDue = () => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 7);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const [dueDate, setDueDate] = useState(defaultDueDate || defaultCalculatedDue());
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -106,6 +144,13 @@ export default function CreateTicketModal({
     const errs = {};
     if (!title.trim()) errs.summary = 'Summary is required.';
     if (!description.trim()) errs.description = 'Description is required.';
+    if (projectId) {
+      if (!loadingRepositories && projectRepositories.length === 0) {
+        errs.repository = 'This project has no active repositories configured. Please configure a repository before creating tickets.';
+      } else if (!repositoryId) {
+        errs.repository = 'Please select a GitHub repository for this ticket.';
+      }
+    }
     setFieldErrors(errs);
     return errs;
   }
@@ -118,7 +163,7 @@ export default function CreateTicketModal({
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       if (errs.summary) summaryRef.current?.focus();
-      else descriptionRef.current?.focus();
+      else if (errs.description) descriptionRef.current?.focus();
       return;
     }
 
@@ -136,6 +181,7 @@ export default function CreateTicketModal({
           category,
           employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
+          repository_id: repositoryId ? Number(repositoryId) : null,
           // Set when the modal was opened from a row's quick-add, so the new
           // ticket lands in the tree instead of at the top level.
           parent_id: parent ? parent.id : null,
@@ -205,9 +251,65 @@ export default function CreateTicketModal({
       ),
     },
     {
+      key: 'repository',
+      label: 'GitHub repository *',
+      id: 'ticket-repository',
+      hint: fieldErrors.repository ? (
+        <span style={{ fontSize: '11px', color: '#de350b', marginTop: '2px', display: 'block' }}>
+          {fieldErrors.repository}
+        </span>
+      ) : projectId && !loadingRepositories && projectRepositories.length === 0 ? (
+        <span style={{ fontSize: '11px', color: '#de350b', marginTop: '2px', display: 'block' }}>
+          ⚠️ No active repositories found for this project.
+        </span>
+      ) : (
+        <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '2px', display: 'block' }}>
+          Required. Select the repository this ticket belongs to.
+        </span>
+      ),
+      control: (
+        <select
+          id="ticket-repository"
+          value={repositoryId}
+          disabled={!projectId || loadingRepositories || projectRepositories.length === 0}
+          onChange={(e) => {
+            setRepositoryId(e.target.value);
+            setError('');
+            if (fieldErrors.repository) {
+              setFieldErrors((prev) => ({ ...prev, repository: '' }));
+            }
+          }}
+          style={{
+            borderColor: fieldErrors.repository ? '#de350b' : undefined,
+            width: '100%',
+          }}
+        >
+          <option value="">
+            {!projectId
+              ? 'Select a project first…'
+              : loadingRepositories
+              ? 'Loading repositories…'
+              : projectRepositories.length === 0
+              ? 'No repositories configured'
+              : 'Select a repository…'}
+          </option>
+          {projectRepositories.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.github_owner}/{r.github_repo}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
       key: 'due-date',
       label: 'Due date',
       id: 'ticket-due-date',
+      hint: (
+        <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '2px', display: 'block' }}>
+          Default: 7 days from creation (admins/owners can customize)
+        </span>
+      ),
       control: (
         <input
           id="ticket-due-date"

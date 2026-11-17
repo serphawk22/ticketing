@@ -7,9 +7,11 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
 import { notifyTicketAssigned, notifyTicketCreated } from '@/lib/notifications';
 import { logCreated } from '@/lib/ticketActivity';
-import { canRouteWork, resolveUserScope } from '@/lib/rbac';
+import { canRouteWork, isAdminOrOwner, normalizeRole, resolveUserScope } from '@/lib/rbac';
 import { createTicketWithStage } from '@/lib/ticketStageService';
+import { validateTicketRepository } from '@/lib/projectRepositories';
 import { TASK_SHEET_SESSION_COOKIE, validateTaskSheetCookieSession } from '@/lib/taskSheetTokens';
+import { calculateAutomaticDueDate, isValidClientCategory } from '@/lib/dueDateCalculator';
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
@@ -163,6 +165,7 @@ export async function POST(request) {
     start_date = null,
     labels = '',
     category = '',
+    repository_id = null,
   } = await request.json();
 
   // Anyone signed in may raise a ticket -- that is the whole point of the
@@ -179,20 +182,59 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid priority.' }, { status: 400 });
   }
 
-  if (!VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
+  const userRole = normalizeRole(session.user.role);
+  const isClient = userRole === 'client';
+  const isAdmin = isAdminOrOwner(session.user);
+
+  let resolvedCategory = String(category || '').trim();
+  let resolvedType = String(type || 'task').toLowerCase().trim();
+  let due = null;
+  let initialDue = null;
+
+  if (isClient) {
+    const rawCategory = category || type || '';
+    if (!isValidClientCategory(rawCategory)) {
+      return NextResponse.json(
+        { error: 'Client requests require a valid request type. Allowed: Access Issue, Incident, Feature Request.' },
+        { status: 400 }
+      );
+    }
+    const calc = calculateAutomaticDueDate({
+      role: 'client',
+      category: rawCategory,
+      creationDate: new Date(),
+    });
+    due = calc.dueDate;
+    initialDue = calc.initialDueDate;
+    resolvedCategory = calc.clientCategory;
+    resolvedType = 'task';
+  } else {
+    if (!VALID_TYPES.includes(resolvedType)) {
+      return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
+    }
+
+    if (due_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())) {
+      return NextResponse.json({ error: 'Invalid due date.' }, { status: 400 });
+    }
+
+    // Admins and owners can select a custom due date during creation; other internal roles receive standard 7 days
+    const customDue = isAdmin && due_date && /^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())
+      ? String(due_date).trim()
+      : null;
+
+    const calc = calculateAutomaticDueDate({
+      role: userRole,
+      creationDate: new Date(),
+      customDueDate: customDue,
+      isAdminOrOwner: isAdmin,
+    });
+    due = calc.dueDate;
+    initialDue = calc.initialDueDate;
   }
 
-  // The calendar hands over a due date, and the timeline hands over both ends
-  // of a drag, so the new ticket lands on the range the user drew. Stored as
-  // bare YYYY-MM-DD strings, the same shape the PATCH route accepts.
-  if (due_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())) {
-    return NextResponse.json({ error: 'Invalid due date.' }, { status: 400 });
-  }
   if (start_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(start_date).trim())) {
     return NextResponse.json({ error: 'Invalid start date.' }, { status: 400 });
   }
-  const due = due_date ? String(due_date).trim() : null;
   const start = start_date ? String(start_date).trim() : null;
   if (start && due && start > due) {
     return NextResponse.json(
@@ -224,20 +266,42 @@ export async function POST(request) {
     } catch {}
   }
 
+  let resolvedRepoId = repository_id ? Number(repository_id) : null;
+  if (resolvedProjectId) {
+    if (!resolvedRepoId && !isClient) {
+      return NextResponse.json(
+        { error: 'Please select a GitHub repository for this ticket.' },
+        { status: 400 }
+      );
+    }
+    if (resolvedRepoId) {
+      try {
+        await validateTicketRepository({
+          projectId: resolvedProjectId,
+          repositoryId: resolvedRepoId,
+        });
+      } catch (repoErr) {
+        return NextResponse.json({ error: repoErr.message }, { status: 400 });
+      }
+    }
+  }
+
   const created = await createTicketWithStage({
     title: title.trim(),
     description: description.trim(),
     priority,
-    type,
+    type: resolvedType,
     createdBy: session.user.id,
     projectId: resolvedProjectId || null,
     employeeId: assignee || null,
     parentId: parent || null,
     startDate: start,
     dueDate: due,
+    initialDueDate: initialDue,
     labels: String(labels || '').trim(),
-    category: String(category || '').trim(),
+    category: resolvedCategory,
     source: 'create',
+    repositoryId: resolvedRepoId || null,
   });
 
   const ticket = await getTicket(created.id);

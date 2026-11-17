@@ -27,6 +27,9 @@ export default function ProjectModal({
     project?.client_id != null ? String(project.client_id) : ''
   );
   const [githubRepo, setGithubRepo] = useState(project?.github_repo || '');
+  const [targetEndDate, setTargetEndDate] = useState(
+    project?.target_end_date ? String(project.target_end_date).slice(0, 10) : ''
+  );
   // A project created from inside a work space starts there rather than in the
   // "No work space" default, so the picker agrees with where the user clicked.
   const [workspaceId, setWorkspaceId] = useState(
@@ -47,6 +50,115 @@ export default function ProjectModal({
   const [workspaceKeyEdited, setWorkspaceKeyEdited] = useState(false);
   const [workspaceCreating, setWorkspaceCreating] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
+
+  // Multi-repository management state for existing projects
+  const [repositories, setRepositories] = useState([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [newRepoInput, setNewRepoInput] = useState('');
+  const [repoActionLoading, setRepoActionLoading] = useState(false);
+  const [repoError, setRepoError] = useState('');
+  const [repoSuccess, setRepoSuccess] = useState('');
+
+  const loadProjectRepos = async () => {
+    if (!project?.id) return;
+    setLoadingRepos(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/repositories?includeInactive=true`);
+      if (res.ok) {
+        const data = await res.json();
+        setRepositories(data.repositories || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingRepos(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isEdit && project?.id) {
+      loadProjectRepos();
+    }
+  }, [isEdit, project?.id]);
+
+  const handleAddRepo = async (e) => {
+    e?.preventDefault();
+    setRepoError('');
+    setRepoSuccess('');
+    const trimmed = newRepoInput.trim();
+    if (!trimmed) {
+      setRepoError('Enter repository in owner/repo format.');
+      return;
+    }
+    setRepoActionLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/repositories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRepoError(data.error || 'Failed to add repository.');
+      } else {
+        setRepoSuccess(`Repository ${trimmed} added and verified.`);
+        setNewRepoInput('');
+        loadProjectRepos();
+      }
+    } catch {
+      setRepoError('Network error adding repository.');
+    } finally {
+      setRepoActionLoading(false);
+    }
+  };
+
+  const handleToggleRepoActive = async (repo) => {
+    setRepoError('');
+    setRepoSuccess('');
+    setRepoActionLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/repositories/${repo.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: repo.is_active ? 0 : 1 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRepoError(data.error || 'Failed to update repository status.');
+      } else {
+        loadProjectRepos();
+      }
+    } catch {
+      setRepoError('Network error updating repository.');
+    } finally {
+      setRepoActionLoading(false);
+    }
+  };
+
+  const handleDeleteRepo = async (repo) => {
+    setRepoError('');
+    setRepoSuccess('');
+    if (!window.confirm(`Are you sure you want to delete ${repo.github_owner}/${repo.github_repo}? If tickets reference it, you will need to deactivate it instead.`)) {
+      return;
+    }
+    setRepoActionLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/repositories/${repo.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRepoError(data.error || 'Failed to delete repository.');
+      } else {
+        setRepoSuccess('Repository deleted successfully.');
+        loadProjectRepos();
+      }
+    } catch {
+      setRepoError('Network error deleting repository.');
+    } finally {
+      setRepoActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     setLocalWorkspaces(workspaces);
@@ -198,6 +310,7 @@ export default function ProjectModal({
             workspace_id: workspaceId === '' ? null : Number(workspaceId),
             client_id: clientId === '' ? null : Number(clientId),
             github_repo: githubRepo.trim(),
+            target_end_date: targetEndDate.trim() || null,
           }),
         }
       );
@@ -400,22 +513,169 @@ export default function ProjectModal({
           </div>
 
           <div className="form-group">
-            <label htmlFor="project-github-repo">GitHub repo (optional)</label>
+            <label htmlFor="project-target-end-date">Target Delivery Date (optional)</label>
             <input
-              id="project-github-repo"
-              type="text"
-              value={githubRepo}
-              onChange={(e) => setGithubRepo(e.target.value)}
-              placeholder="owner/repo or owner/a, owner/b"
-              autoComplete="off"
-              spellCheck={false}
+              id="project-target-end-date"
+              type="date"
+              value={targetEndDate}
+              onChange={(e) => setTargetEndDate(e.target.value)}
             />
             <p className="field-hint">
-              Used on the task sheet to find PRs and commits that mention the
-              ticket key (e.g. WEB-12). Falls back to GITHUB_REPOS in .env.local
-              when empty.
+              Overall project delivery target date (independent of individual ticket due dates).
             </p>
           </div>
+
+          {isEdit ? (
+            <div className="form-group" style={{ borderTop: '1px solid var(--border, #dfe1e6)', paddingTop: '16px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ margin: 0, fontWeight: 600 }}>GitHub Repositories</label>
+                <span style={{ fontSize: '12px', color: 'var(--muted, #666)' }}>
+                  {repositories.length} configured
+                </span>
+              </div>
+              <p className="field-hint" style={{ marginTop: 0, marginBottom: '12px' }}>
+                All tickets in this project must be assigned to one of the active repositories below.
+              </p>
+
+              {loadingRepos ? (
+                <div style={{ fontSize: '13px', color: 'var(--muted, #666)', padding: '12px 0' }}>Loading repositories…</div>
+              ) : repositories.length === 0 ? (
+                <div style={{ fontSize: '13px', color: '#de350b', padding: '8px 0', background: '#ffebe6', borderRadius: '4px', textAlign: 'center', marginBottom: '12px' }}>
+                  No repositories configured yet. Add at least one repository so team members can create tickets.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                  {repositories.map((r) => (
+                    <div
+                      key={r.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        background: r.is_active ? 'var(--subtle, #f4f5f7)' : '#f9f9f9',
+                        border: '1px solid var(--border, #dfe1e6)',
+                        borderRadius: '6px',
+                        opacity: r.is_active ? 1 : 0.65,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <a
+                          href={r.repository_url || `https://github.com/${r.github_owner}/${r.github_repo}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontWeight: 600, color: 'var(--link, #0c66e4)', textDecoration: 'none', fontSize: '13px' }}
+                        >
+                          {r.github_owner}/{r.github_repo}
+                        </a>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            background: r.verification_status === 'verified' ? '#e3fcef' : '#fffae6',
+                            color: r.verification_status === 'verified' ? '#216e4e' : '#974f0c',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {r.verification_status === 'verified' ? 'Verified' : 'Unverified'}
+                        </span>
+                        {!r.is_active && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '1px 6px',
+                              borderRadius: '10px',
+                              background: '#ebecf0',
+                              color: '#5e6c84',
+                            }}
+                          >
+                            Deactivated
+                          </span>
+                        )}
+                        <span style={{ fontSize: '11px', color: 'var(--muted, #666)' }}>
+                          {r.ticket_count || 0} ticket{r.ticket_count === 1 ? '' : 's'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ fontSize: '11px', padding: '3px 8px', height: 'auto' }}
+                          disabled={repoActionLoading}
+                          onClick={() => handleToggleRepoActive(r)}
+                          title={r.is_active ? 'Deactivate repo so it cannot be selected for new tickets' : 'Re-activate repo'}
+                        >
+                          {r.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ fontSize: '11px', padding: '3px 8px', height: 'auto', color: '#de350b' }}
+                          disabled={repoActionLoading}
+                          onClick={() => handleDeleteRepo(r)}
+                          title="Delete repository (only allowed if no tickets reference it)"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ background: 'var(--subtle, #f4f5f7)', padding: '12px', borderRadius: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                  Add Repository
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={newRepoInput}
+                    onChange={(e) => setNewRepoInput(e.target.value)}
+                    placeholder="e.g. facebook/react or owner/repo"
+                    style={{ flex: 1, fontSize: '13px' }}
+                    disabled={repoActionLoading}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleAddRepo}
+                    disabled={repoActionLoading || !newRepoInput.trim()}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    {repoActionLoading ? 'Verifying…' : 'Add Repository'}
+                  </button>
+                </div>
+                {repoError && (
+                  <div style={{ color: '#de350b', fontSize: '12px', marginTop: '6px' }}>{repoError}</div>
+                )}
+                {repoSuccess && (
+                  <div style={{ color: '#216e4e', fontSize: '12px', marginTop: '6px' }}>{repoSuccess}</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="form-group">
+              <label htmlFor="project-github-repo">GitHub repo (optional)</label>
+              <input
+                id="project-github-repo"
+                type="text"
+                value={githubRepo}
+                onChange={(e) => setGithubRepo(e.target.value)}
+                placeholder="owner/repo or owner/a, owner/b"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="field-hint">
+                Enter one or more comma-separated GitHub repositories (e.g. facebook/react, org/backend).
+                You can manage and verify additional repositories anytime after creation.
+              </p>
+            </div>
+          )}
 
           <div className="form-group">
             <label id="project-color-label">Color</label>
