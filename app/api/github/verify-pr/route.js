@@ -3,12 +3,20 @@ import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getRepositoryById } from '@/lib/projectRepositories';
 import { verifyTicketPullRequest, parsePullRequestUrl } from '@/lib/github';
+import { assertCanViewProject, assertCanAccessTicket, isAdminOrOwner } from '@/lib/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (session.user.role === 'client') {
+    return NextResponse.json(
+      { error: 'Clients are not authorized to verify or modify technical Git references.' },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
   const rawPrUrl = String(body.pr_url || body.url || '').trim();
@@ -36,17 +44,120 @@ export async function POST(request) {
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
+
+    if (ticket.project_id) {
+      const projAuth = await assertCanViewProject(session.user, ticket.project_id);
+      if (!projAuth.allowed) {
+        return NextResponse.json(
+          { error: 'Forbidden: you do not have access to this project.' },
+          { status: 403 }
+        );
+      }
+    }
+
+    const ticketAuth = await assertCanAccessTicket(session.user, ticket, { action: 'read' });
+    if (!ticketAuth.allowed) {
+      return NextResponse.json(
+        { error: ticketAuth.error || 'Forbidden: you do not have access to this ticket.' },
+        { status: 403 }
+      );
+    }
+
+    if (ticket.archived) {
+      return NextResponse.json(
+        { error: 'Cannot verify Pull Request for an archived ticket.' },
+        { status: 400 }
+      );
+    }
+
+    if (ticket.status === 'closed') {
+      return NextResponse.json(
+        { error: 'Cannot modify or verify Pull Request references on a closed ticket.' },
+        { status: 400 }
+      );
+    }
+
+    if (!ticket.repository_id) {
+      return NextResponse.json(
+        { error: 'Ticket does not have an assigned repository.' },
+        { status: 400 }
+      );
+    }
+
+    const repo = await getRepositoryById(ticket.repository_id);
+    if (!repo) {
+      return NextResponse.json(
+        { error: 'Assigned repository not found.' },
+        { status: 400 }
+      );
+    }
+
+    if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
+      return NextResponse.json(
+        { error: 'Assigned repository does not belong to the ticket project.' },
+        { status: 400 }
+      );
+    }
+
+    if (!repo.is_active) {
+      return NextResponse.json(
+        { error: 'Assigned repository is deactivated and cannot accept Pull Requests.' },
+        { status: 400 }
+      );
+    }
+
+    repository = repo;
   }
 
   if (body.repository_id) {
-    repository = await getRepositoryById(Number(body.repository_id));
-  } else if (ticket?.repository_id) {
-    repository = await getRepositoryById(ticket.repository_id);
-  } else if (body.owner && body.repo) {
+    const repo = await getRepositoryById(Number(body.repository_id));
+    if (!repo) {
+      return NextResponse.json({ error: 'Repository not found.' }, { status: 404 });
+    }
+
+    if (repo.project_id) {
+      const projAuth = await assertCanViewProject(session.user, repo.project_id);
+      if (!projAuth.allowed) {
+        return NextResponse.json(
+          { error: 'Forbidden: you do not have access to this project.' },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (!repo.is_active) {
+      return NextResponse.json(
+        { error: 'Repository is deactivated and cannot be used for PR verification.' },
+        { status: 400 }
+      );
+    }
+
+    if (ticket && Number(repo.project_id) !== Number(ticket.project_id)) {
+      return NextResponse.json(
+        { error: 'Selected repository does not belong to the ticket project.' },
+        { status: 400 }
+      );
+    }
+
+    repository = repo;
+  } else if (!ticket && body.owner && body.repo) {
+    if (!isAdminOrOwner(session.user)) {
+      return NextResponse.json(
+        { error: 'A ticket_id or repository_id is required to verify Pull Requests.' },
+        { status: 400 }
+      );
+    }
     repository = {
       github_owner: String(body.owner).trim(),
       github_repo: String(body.repo).trim(),
     };
+  }
+
+  if (!repository) {
+    return NextResponse.json(
+      { error: 'Repository context is required to verify a Pull Request.' },
+      { status: 400 }
+    );
   }
 
   try {

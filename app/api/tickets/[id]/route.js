@@ -13,7 +13,7 @@ import { getRepositoryById, changeTicketRepository } from '@/lib/projectReposito
 import { verifyTicketPullRequest } from '@/lib/github';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
-import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate } from '@/lib/rbac';
+import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate, assertCanViewProject, assertCanAccessTicket } from '@/lib/rbac';
 import { syncStageOnArchiveState, transitionTicketStatus } from '@/lib/ticketStageService';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
@@ -60,6 +60,9 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json();
+  const initialStatus = ticket.status;
+  const initialRepoId = ticket.repository_id != null ? Number(ticket.repository_id) : null;
+  const initialPrUrl = (ticket.pr_url == null ? '' : String(ticket.pr_url)).trim();
   const isAdmin = isAdminOrOwner(session.user);
   // Routing the work -- naming an assignee -- is the same team decision at
   // edit time as it is at create time, so it answers to the same rule the POST
@@ -281,6 +284,42 @@ export async function PATCH(request, { params }) {
   let verifiedPrMetadata = null;
 
   if (body.pr_url !== undefined) {
+    if (session.user.role === 'client') {
+      return NextResponse.json(
+        { error: 'Clients are not authorized to modify Pull Request references.' },
+        { status: 403 }
+      );
+    }
+    if (ticket.archived) {
+      return NextResponse.json(
+        { error: 'Cannot modify or remove Pull Request on an archived ticket.' },
+        { status: 400 }
+      );
+    }
+    if (ticket.status === 'closed') {
+      return NextResponse.json(
+        { error: 'Cannot modify or remove Pull Request references on a closed ticket.' },
+        { status: 400 }
+      );
+    }
+
+    if (ticket.project_id) {
+      const projAuth = await assertCanViewProject(session.user, ticket.project_id);
+      if (!projAuth.allowed) {
+        return NextResponse.json(
+          { error: 'Forbidden: you do not have access to this project.' },
+          { status: 403 }
+        );
+      }
+    }
+    const ticketAuth = await assertCanAccessTicket(session.user, ticket, { action: 'write' });
+    if (!ticketAuth.allowed) {
+      return NextResponse.json(
+        { error: ticketAuth.error || 'Forbidden.' },
+        { status: 403 }
+      );
+    }
+
     const rawPr = body.pr_url === null ? '' : String(body.pr_url).trim();
     if (!rawPr) {
       // Explicitly clearing PR references
@@ -293,6 +332,13 @@ export async function PATCH(request, { params }) {
       edits.github_pr_base_branch = '';
       edits.github_pr_last_verified_at = null;
       edits.pr_merged_at = null;
+      edits.github_branch = '';
+
+      // Safeguard: A ticket must not remain in 'resolved' without a verified PR!
+      // If currently in 'resolved' and status is not otherwise changing, atomically revert to 'in_progress'
+      if (ticket.status === 'resolved' && edits.status === undefined) {
+        edits.status = 'in_progress';
+      }
     } else {
       if (!ticket.repository_id) {
         return NextResponse.json(
@@ -300,8 +346,24 @@ export async function PATCH(request, { params }) {
           { status: 400 }
         );
       }
+      const repo = await getRepositoryById(ticket.repository_id);
+      if (!repo) {
+        return NextResponse.json({ error: 'Assigned repository does not exist.' }, { status: 400 });
+      }
+      if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
+        return NextResponse.json(
+          { error: 'Assigned repository does not belong to the ticket project.' },
+          { status: 400 }
+        );
+      }
+      if (!repo.is_active) {
+        return NextResponse.json(
+          { error: 'The assigned repository is deactivated and cannot accept new or updated Pull Requests.' },
+          { status: 400 }
+        );
+      }
       try {
-        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr });
+        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr, repository: repo });
       } catch (prErr) {
         return NextResponse.json(
           { error: prErr.message || 'GitHub Pull Request verification failed.' },
@@ -311,8 +373,8 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  // Mandatory PR verification when transitioning to QA Testing ('resolved')
-  if (edits.status === 'resolved' && ticket.status !== 'resolved') {
+  // Mandatory PR verification when transitioning to or remaining in QA Testing ('resolved')
+  if (edits.status === 'resolved') {
     const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
     const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
 
@@ -330,9 +392,26 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    const repo = await getRepositoryById(ticket.repository_id);
+    if (!repo) {
+      return NextResponse.json({ error: 'Assigned repository does not exist.' }, { status: 400 });
+    }
+    if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
+      return NextResponse.json(
+        { error: 'Assigned repository does not belong to the ticket project.' },
+        { status: 400 }
+      );
+    }
+    if (!repo.is_active) {
+      return NextResponse.json(
+        { error: 'The assigned repository is deactivated and cannot accept new or updated Pull Requests.' },
+        { status: 400 }
+      );
+    }
+
     if (!verifiedPrMetadata) {
       try {
-        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl });
+        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo });
       } catch (prErr) {
         return NextResponse.json(
           { error: prErr.message || 'GitHub Pull Request verification failed.' },
@@ -352,9 +431,7 @@ export async function PATCH(request, { params }) {
     edits.github_pr_base_branch = verifiedPrMetadata.github_pr_base_branch;
     edits.github_pr_last_verified_at = verifiedPrMetadata.github_pr_last_verified_at;
     edits.pr_merged_at = verifiedPrMetadata.pr_merged_at;
-    if (verifiedPrMetadata.github_branch) {
-      edits.github_branch = verifiedPrMetadata.github_branch;
-    }
+    edits.github_branch = verifiedPrMetadata.github_branch || '';
   }
 
   if (body.github_branch !== undefined && edits.github_branch === undefined) {
@@ -555,9 +632,9 @@ export async function PATCH(request, { params }) {
         actor: session.user,
         source: transitionSource,
         idempotencyKey: body.idempotency_key || body.idempotencyKey || null,
-        expectedCurrentStatus: body.expected_status || body.expectedStatus || ticket.status,
-        expectedRepositoryId: ticket.repository_id,
-        expectedPrUrl: body.expected_pr_url !== undefined ? body.expected_pr_url : undefined,
+        expectedCurrentStatus: body.expected_status || body.expectedStatus || initialStatus,
+        expectedRepositoryId: body.expected_repository_id !== undefined ? Number(body.expected_repository_id) : initialRepoId,
+        expectedPrUrl: body.expected_pr_url !== undefined ? body.expected_pr_url : initialPrUrl,
         extraUpdates,
       });
     } catch (transitionErr) {
@@ -567,6 +644,33 @@ export async function PATCH(request, { params }) {
       );
     }
   } else {
+    // Strict optimistic concurrency verification before non-status update
+    const currentTicket = await db.prepare('SELECT status, repository_id, pr_url FROM tickets WHERE id = ?').get(ticketId);
+    if (currentTicket) {
+      if (initialStatus && currentTicket.status !== initialStatus) {
+        return NextResponse.json(
+          { error: `Ticket status changed concurrently (expected "${initialStatus}", found "${currentTicket.status}").` },
+          { status: 409 }
+        );
+      }
+      if (initialRepoId !== null && Number(currentTicket.repository_id || 0) !== Number(initialRepoId || 0)) {
+        return NextResponse.json(
+          { error: `Ticket repository changed concurrently (expected ID ${initialRepoId}, found ${currentTicket.repository_id}).` },
+          { status: 409 }
+        );
+      }
+      const curPr = (currentTicket.pr_url == null ? '' : String(currentTicket.pr_url)).trim();
+      const expPr = body.expected_pr_url !== undefined
+        ? (body.expected_pr_url == null ? '' : String(body.expected_pr_url)).trim()
+        : initialPrUrl;
+      if (curPr !== expPr) {
+        return NextResponse.json(
+          { error: `Ticket PR URL changed concurrently (expected "${expPr}", found "${curPr}").` },
+          { status: 409 }
+        );
+      }
+    }
+
     const pairs = keys.map((field) => [`${field} = ?`, edits[field], true]);
     if (autoClaim) pairs.push(['employee_id = ?', nextEmployeeId || null, true]);
     pairs.push(["updated_at = datetime('now')", null, false]);

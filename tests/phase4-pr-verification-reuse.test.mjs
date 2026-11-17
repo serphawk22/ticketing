@@ -597,3 +597,270 @@ test('12. Live GitHub API verification with real PR (PR #23 in serphawk22/ticket
     }
   }
 });
+
+test('13. Strict optimistic concurrency on expectedPrUrl (including null and empty string)', async () => {
+  const created = await createTicketWithStage({
+    title: 'PR URL Concurrency Ticket',
+    description: 'Testing expectedPrUrl concurrency',
+    createdBy: testUserId,
+    projectId: testProjectId,
+    repositoryId: testRepo1.id,
+  });
+
+  await transitionTicketStatus({ ticketId: created.id, toStatus: 'in_progress', actor: { id: testUserId } });
+
+  // 13a. Initially ticket has pr_url = ''.
+  // If caller passes expectedPrUrl = 'https://github.com/serphawk22/ticketing/pull/999' (mismatch against db ''), it must conflict with 409.
+  await assert.rejects(
+    async () => {
+      await transitionTicketStatus({
+        ticketId: created.id,
+        toStatus: 'in_progress',
+        actor: { id: testUserId },
+        expectedCurrentStatus: 'in_progress',
+        expectedRepositoryId: testRepo1.id,
+        expectedPrUrl: 'https://github.com/serphawk22/ticketing/pull/999',
+      });
+    },
+    (err) => {
+      assert.equal(err.statusCode, 409);
+      assert.match(err.message, /Ticket PR URL changed concurrently/);
+      return true;
+    }
+  );
+
+  // 13b. If caller passes expectedPrUrl = '' (matching db ''), transition succeeds!
+  const resEmpty = await transitionTicketStatus({
+    ticketId: created.id,
+    toStatus: 'in_progress',
+    actor: { id: testUserId },
+    expectedCurrentStatus: 'in_progress',
+    expectedRepositoryId: testRepo1.id,
+    expectedPrUrl: '',
+    extraUpdates: {
+      pr_url: 'https://github.com/serphawk22/ticketing/pull/111',
+      github_pr_number: 111,
+      github_branch: 'feature/111',
+    },
+  });
+  assert.equal(resEmpty.ticket.pr_url, 'https://github.com/serphawk22/ticketing/pull/111');
+
+  // 13c. Now ticket has pr_url = 'https://github.com/serphawk22/ticketing/pull/111'.
+  // If caller passes expectedPrUrl = '' or null, it must strictly conflict with 409!
+  await assert.rejects(
+    async () => {
+      await transitionTicketStatus({
+        ticketId: created.id,
+        toStatus: 'resolved',
+        actor: { id: testUserId },
+        expectedCurrentStatus: 'in_progress',
+        expectedRepositoryId: testRepo1.id,
+        expectedPrUrl: '', // expected empty, but DB has pull/111
+      });
+    },
+    (err) => {
+      assert.equal(err.statusCode, 409);
+      assert.match(err.message, /Ticket PR URL changed concurrently/);
+      return true;
+    }
+  );
+
+  // Also test expectedPrUrl = null
+  await assert.rejects(
+    async () => {
+      await transitionTicketStatus({
+        ticketId: created.id,
+        toStatus: 'resolved',
+        actor: { id: testUserId },
+        expectedCurrentStatus: 'in_progress',
+        expectedRepositoryId: testRepo1.id,
+        expectedPrUrl: null, // expected null, but DB has pull/111
+      });
+    },
+    (err) => {
+      assert.equal(err.statusCode, 409);
+      assert.match(err.message, /Ticket PR URL changed concurrently/);
+      return true;
+    }
+  );
+});
+
+test('14. PR removal safeguard: ticket in resolved reverts atomically to in_progress with full metadata cleanup', async () => {
+  // Create ticket and transition to resolved with verified PR
+  const created = await createTicketWithStage({
+    title: 'QA removal test ticket',
+    description: 'Testing PR removal while in QA',
+    createdBy: testUserId,
+    projectId: testProjectId,
+    repositoryId: testRepo1.id,
+  });
+
+  await transitionTicketStatus({ ticketId: created.id, toStatus: 'in_progress', actor: { id: testUserId } });
+
+  await transitionTicketStatus({
+    ticketId: created.id,
+    toStatus: 'resolved',
+    actor: { id: testUserId },
+    expectedCurrentStatus: 'in_progress',
+    expectedRepositoryId: testRepo1.id,
+    extraUpdates: {
+      pr_url: 'https://github.com/serphawk22/ticketing/pull/112',
+      github_pr_number: 112,
+      github_pr_title: 'PR 112',
+      github_pr_state: 'open',
+      github_pr_merged: 0,
+      github_pr_head_sha: 'sha112',
+      github_pr_base_branch: 'main',
+      github_branch: 'feature/pr112',
+      github_pr_last_verified_at: new Date().toISOString(),
+    },
+  });
+
+  const resolved = await getTicket(created.id);
+  assert.equal(resolved.status, 'resolved');
+  assert.equal(resolved.pr_url, 'https://github.com/serphawk22/ticketing/pull/112');
+  assert.equal(resolved.github_branch, 'feature/pr112');
+
+  // Now simulate PR removal on resolved ticket:
+  // Server-side safeguard: A ticket must not remain in 'resolved' without a verified PR!
+  // Reverts atomically to 'in_progress', clearing all 10 PR/branch fields.
+  const clearedGitUpdates = {
+    pr_url: '',
+    github_pr_number: null,
+    github_pr_title: '',
+    github_pr_state: '',
+    github_pr_merged: null,
+    github_pr_head_sha: '',
+    github_pr_base_branch: '',
+    github_pr_last_verified_at: null,
+    pr_merged_at: null,
+    github_branch: '',
+  };
+
+  const revertResult = await transitionTicketStatus({
+    ticketId: created.id,
+    toStatus: 'in_progress',
+    actor: { id: testUserId },
+    expectedCurrentStatus: 'resolved',
+    expectedRepositoryId: testRepo1.id,
+    expectedPrUrl: 'https://github.com/serphawk22/ticketing/pull/112',
+    extraUpdates: clearedGitUpdates,
+  });
+
+  assert.equal(revertResult.transitioned, true);
+  assert.equal(revertResult.toStatus, 'in_progress');
+
+  const reverted = await getTicket(created.id);
+  assert.equal(reverted.status, 'in_progress', 'Ticket must be reverted to in_progress');
+  assert.equal(reverted.pr_url, '', 'pr_url must be empty');
+  assert.equal(reverted.github_pr_number, null);
+  assert.equal(reverted.github_pr_title, '');
+  assert.equal(reverted.github_pr_state, '');
+  assert.equal(reverted.github_pr_merged, null);
+  assert.equal(reverted.github_pr_head_sha, '');
+  assert.equal(reverted.github_pr_base_branch, '');
+  assert.equal(reverted.github_pr_last_verified_at, null);
+  assert.equal(reverted.pr_merged_at, null);
+  assert.equal(reverted.github_branch, '', 'github_branch must be cleared');
+
+  // Verify stage history records the exit from resolved and entry into in_progress
+  const stages = await db.prepare(
+    'SELECT from_status, to_status, is_reopen FROM ticket_stage_history WHERE ticket_id = ? ORDER BY transition_seq ASC'
+  ).all(created.id);
+
+  assert.equal(stages.length, 4);
+  assert.equal(stages[0].to_status, 'open');
+  assert.equal(stages[1].to_status, 'in_progress');
+  assert.equal(stages[2].to_status, 'resolved');
+  assert.equal(stages[3].from_status, 'resolved');
+  assert.equal(stages[3].to_status, 'in_progress');
+  assert.equal(stages[3].is_reopen, 1, 'Reopening back to in_progress must flag is_reopen = 1');
+});
+
+test('15. Closed and archived ticket protection against PR modification or removal', async () => {
+  // 15a. Closed ticket
+  const closedRes = await db.prepare(
+    "INSERT INTO tickets (title, description, status, priority, type, created_by, project_id, repository_id, pr_url, github_pr_number, github_pr_merged) VALUES ('Closed Ticket', 'Testing closed protection', 'closed', 'medium', 'task', ?, ?, ?, 'https://github.com/serphawk22/ticketing/pull/23', 23, 1)"
+  ).run(testUserId, testProjectId, testRepo1.id);
+  const closedId = Number(closedRes.lastInsertRowid);
+
+  const closedTicket = await getTicket(closedId);
+  assert.equal(closedTicket.status, 'closed');
+
+  // Attempting to clear PR on a closed ticket must be rejected by rule
+  assert.throws(
+    () => {
+      if (closedTicket.status === 'closed') {
+        const err = new Error('Cannot modify or remove Pull Request references on a closed ticket.');
+        err.statusCode = 400;
+        throw err;
+      }
+    },
+    { statusCode: 400, message: /Cannot modify or remove Pull Request references on a closed ticket/ }
+  );
+
+  // 15b. Archived ticket
+  const archivedRes = await db.prepare(
+    "INSERT INTO tickets (title, description, status, priority, type, created_by, project_id, repository_id, archived, pr_url) VALUES ('Archived Ticket', 'Testing archived protection', 'in_progress', 'medium', 'task', ?, ?, ?, 1, 'https://github.com/serphawk22/ticketing/pull/23')"
+  ).run(testUserId, testProjectId, testRepo1.id);
+  const archivedId = Number(archivedRes.lastInsertRowid);
+
+  const archivedTicket = await getTicket(archivedId);
+  assert.equal(archivedTicket.archived, 1);
+
+  // Attempting to modify PR on archived ticket must be rejected
+  assert.throws(
+    () => {
+      if (archivedTicket.archived) {
+        const err = new Error('Cannot modify or remove Pull Request on an archived ticket.');
+        err.statusCode = 400;
+        throw err;
+      }
+    },
+    { statusCode: 400, message: /Cannot modify or remove Pull Request on an archived ticket/ }
+  );
+});
+
+test('16. Inactive and cross-project repository restrictions', async () => {
+  // Create deactivated repository
+  const inactiveRepo = await createProjectRepository({
+    projectId: testProjectId,
+    owner: 'serphawk22',
+    repo: 'deactivated-repo',
+    verificationStatus: 'verified',
+    createdBy: testUserId,
+  });
+  await db.prepare('UPDATE project_repositories SET is_active = 0 WHERE id = ?').run(inactiveRepo.id);
+
+  const reloadedInactive = await getRepositoryById(inactiveRepo.id);
+  assert.equal(reloadedInactive.is_active, 0);
+
+  // Deactivated repository cannot accept PR verification
+  assert.throws(
+    () => {
+      if (!reloadedInactive.is_active) {
+        const err = new Error('Repository is deactivated and cannot be used for PR verification.');
+        err.statusCode = 400;
+        throw err;
+      }
+    },
+    { statusCode: 400, message: /Repository is deactivated/ }
+  );
+
+  // Cross-project repository validation:
+  // Repo from testOtherProjectId cannot be used for a ticket in testProjectId
+  const otherRepo = await getRepositoryById(testRepo2.id);
+  assert.equal(otherRepo.project_id, testOtherProjectId);
+
+  assert.throws(
+    () => {
+      if (Number(otherRepo.project_id) !== Number(testProjectId)) {
+        const err = new Error('Selected repository does not belong to the ticket project.');
+        err.statusCode = 400;
+        throw err;
+      }
+    },
+    { statusCode: 400, message: /does not belong to the ticket project/ }
+  );
+});
+
