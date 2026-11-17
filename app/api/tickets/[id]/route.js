@@ -8,12 +8,12 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { notifyTicketUpdated } from '@/lib/notifications';
 import { deleteAttachment } from '@/lib/storage';
-import { logActivityChanges, logDueDateChange, logRepositoryChange } from '@/lib/ticketActivity';
+import { logActivityChanges, logDueDateChange, logRepositoryChange, logTicketClosure } from '@/lib/ticketActivity';
 import { getRepositoryById, changeTicketRepository } from '@/lib/projectRepositories';
 import { verifyTicketPullRequest } from '@/lib/github';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
-import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate, assertCanViewProject, assertCanAccessTicket } from '@/lib/rbac';
+import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate, assertCanViewProject, assertCanAccessTicket, assertCanCloseTicket } from '@/lib/rbac';
 import { syncStageOnArchiveState, transitionTicketStatus } from '@/lib/ticketStageService';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
@@ -421,6 +421,159 @@ export async function PATCH(request, { params }) {
     }
   }
 
+  let closureActivityDetails = null;
+
+  // Closure handling when transitioning to 'closed'
+  if (edits.status === 'closed') {
+    const closeAuth = await assertCanCloseTicket(session.user, ticket);
+    if (!closeAuth.allowed) {
+      return NextResponse.json(
+        { error: closeAuth.error || 'You are not authorized to close this ticket.' },
+        { status: closeAuth.status || 403 }
+      );
+    }
+
+    const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
+    const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
+
+    if (!cleanTargetPrUrl) {
+      // Case A: Legacy ticket or ticket without a PR
+      // Allow normal closure without GitHub verification
+      const closureReason = String(body.closure_reason || body.reason || '').trim();
+      if (closureReason) {
+        closureActivityDetails = {
+          reason: closureReason,
+          blocker: 'Legacy ticket / No Pull Request linked',
+          employeeId: closeAuth.scope?.employeeId || null,
+        };
+        if (body.resolution === undefined && edits.resolution === undefined) {
+          edits.resolution = closureReason;
+        }
+      }
+    } else {
+      // Ticket has a PR URL -> Verify repository and perform fresh verification
+      if (!ticket.repository_id) {
+        return NextResponse.json(
+          { error: 'A repository must be assigned before closing a ticket with a linked Pull Request.' },
+          { status: 400 }
+        );
+      }
+
+      const repo = await getRepositoryById(ticket.repository_id);
+      if (!repo) {
+        return NextResponse.json({ error: 'Assigned repository does not exist.' }, { status: 400 });
+      }
+      if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
+        return NextResponse.json(
+          { error: 'Assigned repository does not belong to the ticket project.' },
+          { status: 400 }
+        );
+      }
+      if (!repo.is_active) {
+        return NextResponse.json(
+          { error: 'The assigned repository is deactivated.' },
+          { status: 400 }
+        );
+      }
+
+      // Fresh GitHub API verification outside database transaction
+      let prCheck = null;
+      let checkError = null;
+
+      try {
+        prCheck = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo });
+      } catch (err) {
+        checkError = err;
+      }
+
+      if (prCheck) {
+        verifiedPrMetadata = prCheck;
+        const closureReason = String(body.closure_reason || body.reason || '').trim();
+
+        if (prCheck.github_pr_merged === 1) {
+          // Case B: Ticket with a verified, merged PR
+          closureActivityDetails = {
+            reason: closureReason,
+            blocker: `Pull Request #${prCheck.github_pr_number} verified merged`,
+            employeeId: closeAuth.scope?.employeeId || null,
+          };
+          if (closureReason && body.resolution === undefined && edits.resolution === undefined) {
+            edits.resolution = closureReason;
+          }
+        } else if (prCheck.github_pr_merged === 0) {
+          // Case C: Ticket with an unmerged PR
+          // Mandatory closure reason required
+          if (!closureReason) {
+            return NextResponse.json(
+              {
+                error: 'Closure reason is required when closing a ticket with an unmerged Pull Request.',
+                code: 'UNMERGED_PR_REASON_REQUIRED',
+                prState: prCheck.github_pr_state,
+                prMerged: 0,
+              },
+              { status: 400 }
+            );
+          }
+          closureActivityDetails = {
+            reason: closureReason,
+            blocker: `Unmerged Pull Request #${prCheck.github_pr_number} (${prCheck.github_pr_state})`,
+            employeeId: closeAuth.scope?.employeeId || null,
+          };
+          if (body.resolution === undefined && edits.resolution === undefined) {
+            edits.resolution = closureReason;
+          }
+        } else {
+          // Case D: Unknown merge status from GitHub payload
+          if (!closureReason) {
+            return NextResponse.json(
+              {
+                error: 'Closure reason is required when GitHub PR merge status is unknown.',
+                code: 'UNKNOWN_PR_STATUS_REASON_REQUIRED',
+                prState: prCheck.github_pr_state,
+                prMerged: null,
+              },
+              { status: 400 }
+            );
+          }
+          closureActivityDetails = {
+            reason: closureReason,
+            blocker: `PR #${prCheck.github_pr_number} Merge Status Unknown`,
+            employeeId: closeAuth.scope?.employeeId || null,
+          };
+          if (body.resolution === undefined && edits.resolution === undefined) {
+            edits.resolution = closureReason;
+          }
+        }
+      } else {
+        // Case D: GitHub API verification failed (outage, timeout, rate limit, auth error, 502/503)
+        // Retain github_pr_merged as null / unknown
+        const closureReason = String(body.closure_reason || body.reason || '').trim();
+        if (!closureReason) {
+          return NextResponse.json(
+            {
+              error: `GitHub PR verification failed (${checkError?.message || 'Outage/Network error'}). A mandatory closure reason is required to close this ticket.`,
+              code: 'UNKNOWN_PR_STATUS_REASON_REQUIRED',
+              details: checkError?.message || 'GitHub API error',
+            },
+            { status: 400 }
+          );
+        }
+
+        edits.github_pr_last_verified_at = new Date().toISOString();
+        edits.github_pr_merged = null;
+
+        closureActivityDetails = {
+          reason: closureReason,
+          blocker: `GitHub PR Verification Failed: ${checkError?.message || 'Unknown error'}`,
+          employeeId: closeAuth.scope?.employeeId || null,
+        };
+        if (body.resolution === undefined && edits.resolution === undefined) {
+          edits.resolution = closureReason;
+        }
+      }
+    }
+  }
+
   if (verifiedPrMetadata) {
     edits.pr_url = verifiedPrMetadata.pr_url;
     edits.github_pr_number = verifiedPrMetadata.github_pr_number;
@@ -747,6 +900,19 @@ export async function PATCH(request, { params }) {
       dueDateChangeDetails.employeeId
     );
     logged.delete('due_date');
+  }
+
+  if (closureActivityDetails) {
+    await logTicketClosure(
+      ticketId,
+      session.user.id,
+      initialStatus,
+      'closed',
+      closureActivityDetails.reason,
+      closureActivityDetails.blocker,
+      closureActivityDetails.employeeId
+    );
+    logged.delete('status');
   }
 
   await logActivityChanges(

@@ -340,6 +340,12 @@ export default function DetailsSidebar({
   const [prModalLoading, setPrModalLoading] = useState(false);
   const [prModalError, setPrModalError] = useState('');
 
+  const [isClosureModalOpen, setIsClosureModalOpen] = useState(false);
+  const [closureReason, setClosureReason] = useState('');
+  const [closureLoading, setClosureLoading] = useState(false);
+  const [closureError, setClosureError] = useState('');
+  const [closurePrStatus, setClosurePrStatus] = useState({ checking: false, merged: null, state: null, error: null });
+
   const openPrModal = (targetStatus = null) => {
     setPrModalUrl(ticket.pr_url || '');
     setPrModalTargetStatus(targetStatus);
@@ -347,12 +353,90 @@ export default function DetailsSidebar({
     setIsPrModalOpen(true);
   };
 
+  const openClosureModal = async () => {
+    setIsClosureModalOpen(true);
+    setClosureReason('');
+    setClosureError('');
+    setClosurePrStatus({
+      checking: true,
+      merged: ticket.github_pr_merged !== undefined ? ticket.github_pr_merged : null,
+      state: ticket.github_pr_state || null,
+      error: null,
+    });
+
+    try {
+      const res = await fetch('/api/github/verify-pr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket_id: ticket.id, pr_url: ticket.pr_url }),
+      });
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        setClosurePrStatus({
+          checking: false,
+          merged: data.merged,
+          state: data.state,
+          error: null,
+        });
+      } else {
+        setClosurePrStatus({
+          checking: false,
+          merged: null,
+          state: null,
+          error: data.error || 'Unable to verify PR with GitHub API',
+        });
+      }
+    } catch (err) {
+      setClosurePrStatus({
+        checking: false,
+        merged: null,
+        state: null,
+        error: err.message || 'GitHub API connection failed',
+      });
+    }
+  };
+
   const handleStatusChange = async (newStatus) => {
     if (newStatus === 'resolved' && !ticket.pr_url) {
       openPrModal('resolved');
       return;
     }
+    if (newStatus === 'closed') {
+      if (!ticket.pr_url) {
+        // Legacy ticket or ticket without a PR can close directly
+        await onPatch({ status: 'closed' });
+        return;
+      }
+      openClosureModal();
+      return;
+    }
     await onPatch({ status: newStatus });
+  };
+
+  const handleConfirmClosure = async () => {
+    const isMerged = closurePrStatus.merged === 1;
+    const trimmedReason = closureReason.trim();
+
+    if (!isMerged && !trimmedReason) {
+      setClosureError('A closure reason is mandatory when closing a ticket with an unmerged or unverified Pull Request.');
+      return;
+    }
+
+    setClosureLoading(true);
+    setClosureError('');
+    try {
+      await onPatch({
+        status: 'closed',
+        closure_reason: trimmedReason,
+        expected_status: ticket.status,
+        expected_pr_url: ticket.pr_url,
+      });
+      setIsClosureModalOpen(false);
+    } catch (err) {
+      setClosureError(err.message || 'Failed to close ticket.');
+    } finally {
+      setClosureLoading(false);
+    }
   };
 
   const handleConfirmPrSubmit = async () => {
@@ -987,6 +1071,142 @@ export default function DetailsSidebar({
                   : prModalTargetStatus === 'resolved'
                   ? 'Verify & Move to QA'
                   : 'Verify & Link PR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Closure / Unmerged PR Confirmation Modal */}
+      {isClosureModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(9, 30, 66, 0.54)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => !closureLoading && setIsClosureModalOpen(false)}
+        >
+          <div
+            className="modal-card"
+            style={{
+              background: '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              width: '500px',
+              maxWidth: '92vw',
+              boxShadow: '0 8px 16px rgba(9, 30, 66, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>
+              Close Work Item
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--muted, #666)', lineHeight: 1.4 }}>
+              Verify GitHub Pull Request status before transitioning to <strong>Closed</strong>.
+            </p>
+
+            {/* PR Status Banner */}
+            <div style={{ background: '#f4f5f7', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px' }}>
+              <div style={{ marginBottom: '6px' }}>
+                <strong>Linked PR:</strong>{' '}
+                <a
+                  href={ticket.pr_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--primary, #0052cc)', textDecoration: 'none' }}
+                >
+                  {ticket.pr_url}
+                </a>
+              </div>
+
+              {closurePrStatus.checking ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted, #666)' }}>
+                  <span>Verifying Pull Request merge status with GitHub…</span>
+                </div>
+              ) : closurePrStatus.merged === 1 ? (
+                <div style={{ color: '#006644', background: '#e3fcef', padding: '8px 10px', borderRadius: '4px', border: '1px solid #abf5d1', marginTop: '6px' }}>
+                  ✓ <strong>PR Verified Merged:</strong> Pull Request is confirmed merged in GitHub. You may proceed with normal closure.
+                </div>
+              ) : closurePrStatus.merged === 0 ? (
+                <div style={{ color: '#bf2600', background: '#ffebe6', padding: '8px 10px', borderRadius: '4px', border: '1px solid #ffbdad', marginTop: '6px' }}>
+                  ⚠️ <strong>Unmerged Pull Request:</strong> The linked GitHub Pull Request has <em>not</em> been merged. A mandatory closure reason is required.
+                </div>
+              ) : (
+                <div style={{ color: '#8250df', background: '#f5f0ff', padding: '8px 10px', borderRadius: '4px', border: '1px solid #d8b9ff', marginTop: '6px' }}>
+                  ⚠️ <strong>Merge Status Unknown:</strong> {closurePrStatus.error || 'GitHub merge status could not be verified'}. A mandatory closure reason is required.
+                </div>
+              )}
+            </div>
+
+            {/* Closure Reason Input */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                Closure Reason {closurePrStatus.merged === 1 ? '(Optional)' : <span style={{ color: '#de350b' }}>* (Mandatory)</span>}
+              </label>
+              <textarea
+                value={closureReason}
+                onChange={(e) => setClosureReason(e.target.value)}
+                disabled={closureLoading}
+                rows={3}
+                placeholder={
+                  closurePrStatus.merged === 1
+                    ? 'Optional closure summary or sign-off notes…'
+                    : 'Explain why this work item is being closed with an unmerged or unverified Pull Request…'
+                }
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border, #dfe1e6)',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            {closureError && (
+              <div
+                style={{
+                  color: '#de350b',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  background: '#ffebe6',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #ffbdad',
+                }}
+              >
+                {closureError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={closureLoading}
+                onClick={() => setIsClosureModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={closureLoading || (closurePrStatus.merged !== 1 && !closureReason.trim())}
+                onClick={handleConfirmClosure}
+              >
+                {closureLoading ? 'Closing…' : 'Confirm & Close'}
               </button>
             </div>
           </div>

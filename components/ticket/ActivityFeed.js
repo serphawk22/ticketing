@@ -197,6 +197,54 @@ function ActivityRow({ entry }) {
     );
   }
 
+  if (entry.field === 'status' && (entry.reason || entry.blocker)) {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-status-closure" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> closed the work item
+          </p>
+          <div className="tm-activity-change" style={{ marginBottom: '8px' }}>
+            <ActivityValue field="status" value={entry.from_value} />
+            <ArrowRightIcon size={12} className="tm-arrow" />
+            <ActivityValue field="status" value={entry.to_value} />
+          </div>
+          <div
+            className="closure-history-card"
+            style={{
+              background: 'var(--subtle, #f4f5f7)',
+              border: '1px solid var(--border, #dfe1e6)',
+              borderRadius: '6px',
+              padding: '10px 12px',
+              fontSize: '12px',
+              marginBottom: '6px',
+            }}
+          >
+            {entry.blocker && (
+              <div style={{ marginBottom: entry.reason ? '6px' : '0' }}>
+                <strong style={{ color: '#0052cc', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  PR Verification Outcome
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', fontSize: '12px' }}>{entry.blocker}</span>
+              </div>
+            )}
+            {entry.reason && (
+              <div>
+                <strong style={{ color: 'var(--muted, #666)', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Closure Reason
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.reason}</span>
+              </div>
+            )}
+          </div>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
   const meta = FIELD_META[entry.field];
   const label = meta?.label || FIELD_LABELS[entry.field] || entry.field;
   return (
