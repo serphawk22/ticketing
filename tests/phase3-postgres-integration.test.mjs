@@ -21,6 +21,7 @@ test('1. PostgreSQL Schema Audit: project_repositories and tickets table DDL', (
   // Check project_repositories table definition in Postgres schema
   assert.ok(PG_SCHEMA.includes('CREATE TABLE IF NOT EXISTS project_repositories'), 'Postgres schema must define project_repositories');
   assert.ok(PG_SCHEMA.includes('CONSTRAINT uq_project_repo UNIQUE (project_id, github_owner, github_repo)'), 'Postgres schema must enforce unique constraint');
+  assert.ok(PG_SCHEMA.includes('CREATE UNIQUE INDEX IF NOT EXISTS uq_project_repo_ci ON project_repositories (project_id, LOWER(github_owner), LOWER(github_repo))'), 'Postgres schema must enforce case-insensitive unique expression index');
   assert.ok(PG_SCHEMA.includes('idx_proj_repos_project_id'), 'Postgres schema must index project_id');
   assert.ok(PG_SCHEMA.includes('idx_proj_repos_lookup'), 'Postgres schema must index (project_id, is_active)');
 
@@ -125,12 +126,23 @@ test('4. PostgreSQL Integration Execution (or skipped if no isolated test PG ava
     const repoId = rRes.rows[0].id;
     assert.ok(repoId > 0);
 
-    // Duplicate rejection
+    // Duplicate rejection (exact and case-insensitive)
     await assert.rejects(
       async () => {
         await client.query(
           `INSERT INTO project_repositories (project_id, github_owner, github_repo, repository_url, is_active)
            VALUES ($1, 'serphawk22', 'pg-test-repo', 'https://github.com/serphawk22/pg-test-repo', 1)`,
+          [projectId]
+        );
+      },
+      /unique|duplicate/i
+    );
+
+    await assert.rejects(
+      async () => {
+        await client.query(
+          `INSERT INTO project_repositories (project_id, github_owner, github_repo, repository_url, is_active)
+           VALUES ($1, 'SerpHawk22', 'PG-TEST-REPO', 'https://github.com/serphawk22/pg-test-repo', 1)`,
           [projectId]
         );
       },
