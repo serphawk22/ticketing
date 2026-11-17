@@ -334,6 +334,65 @@ export default function DetailsSidebar({
   const [repoChangeError, setRepoChangeError] = useState('');
   const [repoChanging, setRepoChanging] = useState(false);
 
+  const [isPrModalOpen, setIsPrModalOpen] = useState(false);
+  const [prModalUrl, setPrModalUrl] = useState('');
+  const [prModalTargetStatus, setPrModalTargetStatus] = useState(null);
+  const [prModalLoading, setPrModalLoading] = useState(false);
+  const [prModalError, setPrModalError] = useState('');
+
+  const openPrModal = (targetStatus = null) => {
+    setPrModalUrl(ticket.pr_url || '');
+    setPrModalTargetStatus(targetStatus);
+    setPrModalError('');
+    setIsPrModalOpen(true);
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (newStatus === 'resolved' && !ticket.pr_url) {
+      openPrModal('resolved');
+      return;
+    }
+    await onPatch({ status: newStatus });
+  };
+
+  const handleConfirmPrSubmit = async () => {
+    const trimmed = prModalUrl.trim();
+    if (!trimmed) {
+      setPrModalError('Please enter a GitHub Pull Request URL.');
+      return;
+    }
+    const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(trimmed);
+    if (!prMatch) {
+      setPrModalError('Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number');
+      return;
+    }
+    if (ticket.repository_owner && ticket.repository_name) {
+      if (
+        prMatch[1].toLowerCase() !== ticket.repository_owner.toLowerCase() ||
+        prMatch[2].toLowerCase() !== ticket.repository_name.toLowerCase()
+      ) {
+        setPrModalError(
+          `Pull Request belongs to repository "${prMatch[1]}/${prMatch[2]}", but ticket is assigned to "${ticket.repository_owner}/${ticket.repository_name}".`
+        );
+        return;
+      }
+    }
+
+    setPrModalLoading(true);
+    setPrModalError('');
+    try {
+      const payload = prModalTargetStatus === 'resolved'
+        ? { status: 'resolved', pr_url: trimmed }
+        : { pr_url: trimmed };
+      await onPatch(payload);
+      setIsPrModalOpen(false);
+    } catch (err) {
+      setPrModalError(err.message || 'Failed to verify and save Pull Request.');
+    } finally {
+      setPrModalLoading(false);
+    }
+  };
+
   const openRepoChangeModal = async () => {
     setIsRepoModalOpen(true);
     setSelectedNewRepoId('');
@@ -384,7 +443,7 @@ export default function DetailsSidebar({
       <div className="tm-side-top">
         <StatusField
           value={ticket.status}
-          onSelect={(v) => onPatch({ status: v })}
+          onSelect={handleStatusChange}
           variant="button"
           readOnly={false}
         />
@@ -440,6 +499,83 @@ export default function DetailsSidebar({
                   >
                     Change
                   </button>
+                )}
+              </span>
+            </FieldRow>
+            <FieldRow label="Pull Request">
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                    {ticket.pr_url ? (
+                      <a
+                        href={ticket.pr_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--link, #0c66e4)', textDecoration: 'none', fontWeight: 600 }}
+                        title={ticket.github_pr_title || ticket.pr_url}
+                      >
+                        {ticket.github_pr_number ? `#${ticket.github_pr_number}` : 'PR'}
+                        {ticket.github_pr_title ? ` ${ticket.github_pr_title.length > 25 ? `${ticket.github_pr_title.slice(0, 25)}…` : ticket.github_pr_title}` : ''}
+                      </a>
+                    ) : (
+                      <span className="tm-placeholder">None</span>
+                    )}
+                    {ticket.github_pr_state && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          textTransform: 'uppercase',
+                          fontWeight: 600,
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          background: ticket.github_pr_state === 'open' ? '#deebff' : '#ebecf0',
+                          color: ticket.github_pr_state === 'open' ? '#0747a6' : '#5e6c84',
+                        }}
+                      >
+                        {ticket.github_pr_state}
+                      </span>
+                    )}
+                    {ticket.pr_url && (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          background:
+                            ticket.github_pr_merged === 1
+                              ? '#e3fcef'
+                              : ticket.github_pr_merged === 0
+                              ? '#fff0b3'
+                              : '#ebecf0',
+                          color:
+                            ticket.github_pr_merged === 1
+                              ? '#006644'
+                              : ticket.github_pr_merged === 0
+                              ? '#172b4d'
+                              : '#5e6c84',
+                        }}
+                      >
+                        {ticket.github_pr_merged === 1 ? 'Merged' : ticket.github_pr_merged === 0 ? 'Unmerged' : 'Unknown'}
+                      </span>
+                    )}
+                  </span>
+                  {!ticket.archived && currentUser?.role !== 'client' && (
+                    <button
+                      type="button"
+                      className="tm-inline-link"
+                      onClick={() => openPrModal(null)}
+                      style={{ fontSize: '12px', fontWeight: 500, cursor: 'pointer', padding: '2px 6px' }}
+                      title={ticket.pr_url ? 'Update Pull Request' : 'Link a Pull Request'}
+                    >
+                      {ticket.pr_url ? 'Edit' : 'Add PR'}
+                    </button>
+                  )}
+                </span>
+                {ticket.github_branch && (
+                  <span style={{ fontSize: '11px', color: 'var(--muted, #666)' }}>
+                    Branch: <code>{ticket.github_branch}</code>
+                  </span>
                 )}
               </span>
             </FieldRow>
@@ -728,6 +864,129 @@ export default function DetailsSidebar({
                 onClick={handleConfirmRepoChange}
               >
                 {repoChanging ? 'Updating…' : 'Confirm Change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPrModalOpen && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(9, 30, 66, 0.54)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => !prModalLoading && setIsPrModalOpen(false)}
+        >
+          <div
+            className="modal-card"
+            style={{
+              background: '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              width: '480px',
+              maxWidth: '92vw',
+              boxShadow: '0 8px 16px rgba(9, 30, 66, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>
+              {prModalTargetStatus === 'resolved'
+                ? 'GitHub Pull Request Required for QA'
+                : ticket.pr_url
+                ? 'Update GitHub Pull Request'
+                : 'Link GitHub Pull Request'}
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--muted, #666)', lineHeight: 1.4 }}>
+              {prModalTargetStatus === 'resolved'
+                ? 'Moving this ticket to QA Testing requires a verified GitHub Pull Request from the assigned repository.'
+                : 'Link a verified GitHub Pull Request to this ticket.'}
+            </p>
+
+            <div style={{ background: '#f4f5f7', padding: '10px 12px', borderRadius: '4px', marginBottom: '16px', fontSize: '12px' }}>
+              <div>
+                <strong>Assigned Repository:</strong>{' '}
+                {ticket.repository_owner && ticket.repository_name
+                  ? `${ticket.repository_owner}/${ticket.repository_name}`
+                  : 'None (repository required)'}
+              </div>
+              {!ticket.repository_id && (
+                <div style={{ color: '#de350b', marginTop: '4px' }}>
+                  ⚠️ No repository is assigned to this ticket. Please select a repository first before linking a Pull Request.
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                GitHub Pull Request URL *
+              </label>
+              <input
+                type="url"
+                value={prModalUrl}
+                onChange={(e) => setPrModalUrl(e.target.value)}
+                disabled={prModalLoading || !ticket.repository_id}
+                placeholder={
+                  ticket.repository_owner && ticket.repository_name
+                    ? `https://github.com/${ticket.repository_owner}/${ticket.repository_name}/pull/123`
+                    : 'https://github.com/owner/repo/pull/123'
+                }
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border, #dfe1e6)',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '4px', display: 'block' }}>
+                Note: An open or unmerged PR may enter QA. PRs may also be reused across multiple tickets in the same repository.
+              </span>
+            </div>
+
+            {prModalError && (
+              <div
+                style={{
+                  color: '#de350b',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  background: '#ffebe6',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #ffbdad',
+                }}
+              >
+                {prModalError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={prModalLoading}
+                onClick={() => setIsPrModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={prModalLoading || !prModalUrl.trim() || !ticket.repository_id}
+                onClick={handleConfirmPrSubmit}
+              >
+                {prModalLoading
+                  ? 'Verifying with GitHub…'
+                  : prModalTargetStatus === 'resolved'
+                  ? 'Verify & Move to QA'
+                  : 'Verify & Link PR'}
               </button>
             </div>
           </div>

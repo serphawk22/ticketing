@@ -10,6 +10,7 @@ import { notifyTicketUpdated } from '@/lib/notifications';
 import { deleteAttachment } from '@/lib/storage';
 import { logActivityChanges, logDueDateChange, logRepositoryChange } from '@/lib/ticketActivity';
 import { getRepositoryById, changeTicketRepository } from '@/lib/projectRepositories';
+import { verifyTicketPullRequest } from '@/lib/github';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
 import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate } from '@/lib/rbac';
@@ -277,6 +278,89 @@ export async function PATCH(request, { params }) {
     }
   }
 
+  let verifiedPrMetadata = null;
+
+  if (body.pr_url !== undefined) {
+    const rawPr = body.pr_url === null ? '' : String(body.pr_url).trim();
+    if (!rawPr) {
+      // Explicitly clearing PR references
+      edits.pr_url = '';
+      edits.github_pr_number = null;
+      edits.github_pr_title = '';
+      edits.github_pr_state = '';
+      edits.github_pr_merged = null;
+      edits.github_pr_head_sha = '';
+      edits.github_pr_base_branch = '';
+      edits.github_pr_last_verified_at = null;
+      edits.pr_merged_at = null;
+    } else {
+      if (!ticket.repository_id) {
+        return NextResponse.json(
+          { error: 'A repository must be assigned before linking a Pull Request.' },
+          { status: 400 }
+        );
+      }
+      try {
+        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr });
+      } catch (prErr) {
+        return NextResponse.json(
+          { error: prErr.message || 'GitHub Pull Request verification failed.' },
+          { status: prErr.status || 400 }
+        );
+      }
+    }
+  }
+
+  // Mandatory PR verification when transitioning to QA Testing ('resolved')
+  if (edits.status === 'resolved' && ticket.status !== 'resolved') {
+    const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
+    const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
+
+    if (!cleanTargetPrUrl) {
+      return NextResponse.json(
+        { error: 'A valid GitHub Pull Request URL is required to move this ticket to QA Testing.' },
+        { status: 400 }
+      );
+    }
+
+    if (!ticket.repository_id) {
+      return NextResponse.json(
+        { error: 'A repository must be assigned before moving to QA Testing.' },
+        { status: 400 }
+      );
+    }
+
+    if (!verifiedPrMetadata) {
+      try {
+        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl });
+      } catch (prErr) {
+        return NextResponse.json(
+          { error: prErr.message || 'GitHub Pull Request verification failed.' },
+          { status: prErr.status || 400 }
+        );
+      }
+    }
+  }
+
+  if (verifiedPrMetadata) {
+    edits.pr_url = verifiedPrMetadata.pr_url;
+    edits.github_pr_number = verifiedPrMetadata.github_pr_number;
+    edits.github_pr_title = verifiedPrMetadata.github_pr_title;
+    edits.github_pr_state = verifiedPrMetadata.github_pr_state;
+    edits.github_pr_merged = verifiedPrMetadata.github_pr_merged;
+    edits.github_pr_head_sha = verifiedPrMetadata.github_pr_head_sha;
+    edits.github_pr_base_branch = verifiedPrMetadata.github_pr_base_branch;
+    edits.github_pr_last_verified_at = verifiedPrMetadata.github_pr_last_verified_at;
+    edits.pr_merged_at = verifiedPrMetadata.pr_merged_at;
+    if (verifiedPrMetadata.github_branch) {
+      edits.github_branch = verifiedPrMetadata.github_branch;
+    }
+  }
+
+  if (body.github_branch !== undefined && edits.github_branch === undefined) {
+    edits.github_branch = String(body.github_branch ?? '').trim();
+  }
+
   // Archiving is reversible by design, so anyone who can edit a ticket may do
   // it, and it only ever flips the flag. archived_at and archived_by are
   // cleared on restore so the archived view does not keep a stale date or name.
@@ -417,6 +501,15 @@ export async function PATCH(request, { params }) {
   logged.delete('archived_at');
   logged.delete('archived_by');
   logged.delete('slack_channel');
+  logged.delete('github_pr_number');
+  logged.delete('github_pr_title');
+  logged.delete('github_pr_state');
+  logged.delete('github_pr_merged');
+  logged.delete('github_pr_head_sha');
+  logged.delete('github_pr_base_branch');
+  logged.delete('github_pr_last_verified_at');
+  logged.delete('pr_merged_at');
+  logged.delete('github_branch');
   if (edits.archived !== undefined && edits.archived !== Number(ticket.archived || 0)) {
     // The column is 0/1. The feed reads "Active" and "Archived" instead, the
     // same way a parent change is logged as a key rather than an id.
@@ -462,7 +555,9 @@ export async function PATCH(request, { params }) {
         actor: session.user,
         source: transitionSource,
         idempotencyKey: body.idempotency_key || body.idempotencyKey || null,
-        expectedCurrentStatus: body.expected_status || body.expectedStatus || null,
+        expectedCurrentStatus: body.expected_status || body.expectedStatus || ticket.status,
+        expectedRepositoryId: ticket.repository_id,
+        expectedPrUrl: body.expected_pr_url !== undefined ? body.expected_pr_url : undefined,
         extraUpdates,
       });
     } catch (transitionErr) {

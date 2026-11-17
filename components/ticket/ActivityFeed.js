@@ -16,7 +16,7 @@ const TABS = [
 
 // created_by is the reporter, and FIELD_META describes the editable fields
 // rather than the columns, so its name lives here.
-const FIELD_LABELS = { created_by: 'Reporter' };
+const FIELD_LABELS = { created_by: 'Reporter', pr_url: 'Pull Request', github_branch: 'Branch' };
 
 export function ActivityValue({ field, value }) {
   if (!value) return <span className="tm-chip-empty">empty</span>;
@@ -62,6 +62,19 @@ export function ActivityValue({ field, value }) {
   }
   if (field === 'project_id') {
     return <span className="tm-chip-plain">project {value}</span>;
+  }
+  if (field === 'pr_url') {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noreferrer"
+        className="tm-chip-plain"
+        style={{ color: 'var(--link, #0c66e4)', textDecoration: 'none', fontWeight: 600 }}
+      >
+        {value.length > 50 ? `${value.slice(0, 50)}…` : value}
+      </a>
+    );
   }
   const text = String(value);
   return (
