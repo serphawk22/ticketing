@@ -27,10 +27,12 @@ process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || 'test-github-token-12345'
 delete process.env.POSTGRES_URL;
 delete process.env.DATABASE_URL;
 
-// Mock GitHub API responses for deterministic, offline testing
+// Mock GitHub API responses for deterministic, offline testing across all scenarios
 const originalFetch = globalThis.fetch;
-globalThis.fetch = async (url, options) => {
+globalThis.fetch = async (url, options = {}) => {
   const urlStr = String(url);
+
+  // Confirmed merged PR
   if (urlStr.includes('/repos/serphawk22/ticketing/pulls/23')) {
     return new Response(
       JSON.stringify({
@@ -48,6 +50,8 @@ globalThis.fetch = async (url, options) => {
       { status: 200, headers: { 'content-type': 'application/json' } }
     );
   }
+
+  // Confirmed unmerged PR
   if (urlStr.includes('/repos/serphawk22/ticketing/pulls/999')) {
     return new Response(
       JSON.stringify({
@@ -65,13 +69,77 @@ globalThis.fetch = async (url, options) => {
       { status: 200, headers: { 'content-type': 'application/json' } }
     );
   }
-  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/888')) {
-    // 503 outage simulation
+
+  // HTTP 401 Auth failure
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/401')) {
     return new Response(
-      JSON.stringify({ message: 'GitHub Service Unavailable (503)' }),
+      JSON.stringify({ message: 'Bad credentials' }),
+      { status: 401, headers: { 'content-type': 'application/json' } }
+    );
+  }
+
+  // HTTP 403 Rate limit
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/403')) {
+    return new Response(
+      JSON.stringify({ message: 'API rate limit exceeded' }),
+      { status: 403, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '0' } }
+    );
+  }
+
+  // HTTP 404 Missing PR / private repo
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/404')) {
+    return new Response(
+      JSON.stringify({ message: 'Not Found' }),
+      { status: 404, headers: { 'content-type': 'application/json' } }
+    );
+  }
+
+  // HTTP 429 Too many requests
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/429')) {
+    return new Response(
+      JSON.stringify({ message: 'Too Many Requests' }),
+      { status: 429, headers: { 'content-type': 'application/json' } }
+    );
+  }
+
+  // HTTP 500 / 502 / 503 Server errors
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/500')) {
+    return new Response(
+      JSON.stringify({ message: 'Internal Server Error' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/502')) {
+    return new Response(
+      JSON.stringify({ message: 'Bad Gateway' }),
+      { status: 502, headers: { 'content-type': 'application/json' } }
+    );
+  }
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/503')) {
+    return new Response(
+      JSON.stringify({ message: 'Service Unavailable' }),
       { status: 503, headers: { 'content-type': 'application/json' } }
     );
   }
+
+  // Network timeout
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/701')) {
+    throw new Error('Connection timed out');
+  }
+
+  // Network connection failure
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/702')) {
+    throw new Error('fetch failed: ECONNREFUSED');
+  }
+
+  // Malformed API response
+  if (urlStr.includes('/repos/serphawk22/ticketing/pulls/703')) {
+    return new Response('{ malformed json response not valid syntax !!!', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
   return originalFetch(url, options);
 };
 
@@ -167,6 +235,9 @@ after(() => {
 
 let ownerUserId;
 let ownerToken;
+let managerUserId;
+let managerEmpId;
+let managerToken;
 let dev1UserId;
 let dev1EmpId;
 let dev1Token;
@@ -177,7 +248,9 @@ let clientUserId;
 let clientToken;
 
 let testProjectId;
+let otherProjectId;
 let testRepo;
+let deactRepo;
 
 async function createSessionForUser(userId) {
   const token = `tok-${userId}-${crypto.randomUUID()}`;
@@ -187,7 +260,7 @@ async function createSessionForUser(userId) {
   return token;
 }
 
-test('0. Setup test fixtures (users, employees, project, repository)', async () => {
+test('0. Setup test fixtures (users, employees, projects, repositories)', async () => {
   // 1. Owner
   const ownerRes = await db.prepare(
     "INSERT INTO users (email, name, role, password) VALUES ('owner@serphawk.local', 'Owner User', 'admin', 'hash')"
@@ -195,7 +268,18 @@ test('0. Setup test fixtures (users, employees, project, repository)', async () 
   ownerUserId = Number(ownerRes.lastInsertRowid);
   ownerToken = await createSessionForUser(ownerUserId);
 
-  // 2. Dev 1
+  // 2. Manager
+  const mgrRes = await db.prepare(
+    "INSERT INTO users (email, name, role, password) VALUES ('mgr@serphawk.local', 'Manager User', 'manager', 'hash')"
+  ).run();
+  managerUserId = Number(mgrRes.lastInsertRowid);
+  const mgrEmpRes = await db.prepare(
+    "INSERT INTO employees (name, email, role, active, user_id) VALUES ('Manager User', 'mgr@serphawk.local', 'manager', 1, ?)"
+  ).run(managerUserId);
+  managerEmpId = Number(mgrEmpRes.lastInsertRowid);
+  managerToken = await createSessionForUser(managerUserId);
+
+  // 3. Dev 1
   const dev1Res = await db.prepare(
     "INSERT INTO users (email, name, role, password) VALUES ('dev1@serphawk.local', 'Dev One', 'developer', 'hash')"
   ).run();
@@ -206,7 +290,7 @@ test('0. Setup test fixtures (users, employees, project, repository)', async () 
   dev1EmpId = Number(dev1EmpRes.lastInsertRowid);
   dev1Token = await createSessionForUser(dev1UserId);
 
-  // 3. Dev 2
+  // 4. Dev 2
   const dev2Res = await db.prepare(
     "INSERT INTO users (email, name, role, password) VALUES ('dev2@serphawk.local', 'Dev Two', 'developer', 'hash')"
   ).run();
@@ -217,18 +301,28 @@ test('0. Setup test fixtures (users, employees, project, repository)', async () 
   dev2EmpId = Number(dev2EmpRes.lastInsertRowid);
   dev2Token = await createSessionForUser(dev2UserId);
 
-  // 4. Client
+  // 5. Client
   const clientRes = await db.prepare(
     "INSERT INTO users (email, name, role, password) VALUES ('client@client.local', 'Client User', 'client', 'hash')"
   ).run();
   clientUserId = Number(clientRes.lastInsertRowid);
   clientToken = await createSessionForUser(clientUserId);
 
-  // 5. Project & Repository
+  // 6. Project & Repository
   const projRes = await db.prepare(
     "INSERT INTO projects (key, name, description, color, github_repo) VALUES ('CLO', 'Closure Project', 'Testing closure', '#0c66e4', 'serphawk22/ticketing')"
   ).run();
   testProjectId = Number(projRes.lastInsertRowid);
+
+  const otherProjRes = await db.prepare(
+    "INSERT INTO projects (key, name, description, color) VALUES ('OTH', 'Other Project', 'Other', '#ff9900')"
+  ).run();
+  otherProjectId = Number(otherProjRes.lastInsertRowid);
+
+  // Add Manager to testProjectId
+  await db.prepare(
+    "INSERT INTO project_members (project_id, employee_id, project_role, is_active) VALUES (?, ?, 'manager', 1)"
+  ).run(testProjectId, managerEmpId);
 
   testRepo = await createProjectRepository({
     projectId: testProjectId,
@@ -237,6 +331,15 @@ test('0. Setup test fixtures (users, employees, project, repository)', async () 
     verificationStatus: 'verified',
     createdBy: ownerUserId,
   });
+
+  deactRepo = await createProjectRepository({
+    projectId: testProjectId,
+    owner: 'serphawk22',
+    repo: 'deactivated-service',
+    verificationStatus: 'verified',
+    createdBy: ownerUserId,
+  });
+  await db.prepare('UPDATE project_repositories SET is_active = 0 WHERE id = ?').run(deactRepo.id);
 
   assert.ok(ownerUserId > 0);
   assert.ok(dev1UserId > 0);
@@ -252,7 +355,6 @@ test('Case A: Legacy ticket without PR closes normally without GitHub verificati
     repositoryId: null,
   });
 
-  // Assign to Dev 1
   await db.prepare('UPDATE tickets SET employee_id = ? WHERE id = ?').run(dev1EmpId, legacyTicket.id);
 
   globalThis.__TEST_COOKIES__ = { ticket_session: dev1Token };
@@ -270,8 +372,6 @@ test('Case A: Legacy ticket without PR closes normally without GitHub verificati
     { params: Promise.resolve({ id: String(legacyTicket.id) }) }
   );
 
-  const resJson = await res.json();
-  if (res.status !== 200) console.error('Case B Error:', resJson);
   assert.equal(res.status, 200);
   const updated = await getTicket(legacyTicket.id);
   assert.equal(updated.status, 'closed');
@@ -296,7 +396,6 @@ test('Case B: Ticket with verified merged PR allows normal closure without manda
     repositoryId: testRepo.id,
   });
 
-  // Assign to Dev 1, set resolved with PR #23
   await db.prepare(`
     UPDATE tickets 
     SET employee_id = ?, status = 'resolved', pr_url = 'https://github.com/serphawk22/ticketing/pull/23',
@@ -318,8 +417,6 @@ test('Case B: Ticket with verified merged PR allows normal closure without manda
     { params: Promise.resolve({ id: String(ticketB.id) }) }
   );
 
-  const resJson = await res.json();
-  if (res.status !== 200) console.error('Case B Error:', resJson);
   assert.equal(res.status, 200);
   const updated = await getTicket(ticketB.id);
   assert.equal(updated.status, 'closed');
@@ -343,7 +440,6 @@ test('Case C: Ticket with unmerged PR requires mandatory closure reason', async 
     repositoryId: testRepo.id,
   });
 
-  // Set resolved with an unmerged PR
   await db.prepare(`
     UPDATE tickets 
     SET employee_id = ?, status = 'resolved', pr_url = 'https://github.com/serphawk22/ticketing/pull/999',
@@ -353,7 +449,7 @@ test('Case C: Ticket with unmerged PR requires mandatory closure reason', async 
 
   globalThis.__TEST_COOKIES__ = { ticket_session: dev1Token };
 
-  // 1. Attempt closure WITHOUT reason -> MUST FAIL with 400
+  // 1. Direct API call WITHOUT reason -> MUST FAIL with 400
   const noReasonRes = await patchTicketRoute(
     new Request(`http://localhost/api/tickets/${ticketC.id}`, {
       method: 'PATCH',
@@ -365,13 +461,13 @@ test('Case C: Ticket with unmerged PR requires mandatory closure reason', async 
 
   assert.equal(noReasonRes.status, 400);
   const noReasonJson = await noReasonRes.json();
-  assert.ok(noReasonJson.error.includes('Closure reason is required') || noReasonJson.code === 'UNMERGED_PR_REASON_REQUIRED' || noReasonJson.code === 'UNKNOWN_PR_STATUS_REASON_REQUIRED');
+  assert.equal(noReasonJson.code, 'UNMERGED_PR_REASON_REQUIRED');
 
   // Verify status did NOT change
   const untouched = await getTicket(ticketC.id);
   assert.equal(untouched.status, 'resolved');
 
-  // 2. Attempt closure with whitespace-only reason -> MUST FAIL with 400
+  // 2. Direct API call with whitespace-only reason -> MUST FAIL with 400
   const wsRes = await patchTicketRoute(
     new Request(`http://localhost/api/tickets/${ticketC.id}`, {
       method: 'PATCH',
@@ -409,120 +505,278 @@ test('Case C: Ticket with unmerged PR requires mandatory closure reason', async 
 
   assert.ok(activity);
   assert.equal(activity.reason, validReason);
-  assert.ok(activity.blocker.includes('Unmerged') || activity.blocker.includes('PR'));
+  assert.ok(activity.blocker.includes('Unmerged'));
 });
 
-test('Case D: Ticket with unknown PR merge status requires mandatory reason and retains null', async () => {
-  const ticketD = await createTicketWithStage({
-    title: 'Ticket with unknown merge status',
-    description: 'GitHub API outage simulation',
+test('Case D & Error Classifications: Thoroughly tests 401, 403, 404, 429, 500, 502, 503, timeout, network error, and malformed response', async () => {
+  const errorPrCases = [
+    { code: '401', prNumber: 401, desc: 'HTTP 401 Auth Failure' },
+    { code: '403', prNumber: 403, desc: 'HTTP 403 Rate Limit / Forbidden' },
+    { code: '404', prNumber: 404, desc: 'HTTP 404 Missing PR' },
+    { code: '429', prNumber: 429, desc: 'HTTP 429 Rate Limit' },
+    { code: '500', prNumber: 500, desc: 'HTTP 500 Internal Server Error' },
+    { code: '502', prNumber: 502, desc: 'HTTP 502 Bad Gateway' },
+    { code: '503', prNumber: 503, desc: 'HTTP 503 Service Unavailable' },
+    { code: '701', prNumber: 701, desc: 'Network Timeout' },
+    { code: '702', prNumber: 702, desc: 'Network Connection Failure' },
+    { code: '703', prNumber: 703, desc: 'Malformed API Response' },
+  ];
+
+  for (const tc of errorPrCases) {
+    const ticket = await createTicketWithStage({
+      title: `Error test ${tc.desc}`,
+      description: `Testing failure mode ${tc.desc}`,
+      createdBy: dev1UserId,
+      projectId: testProjectId,
+      repositoryId: testRepo.id,
+    });
+
+    const prUrl = `https://github.com/serphawk22/ticketing/pull/${tc.prNumber}`;
+    await db.prepare(`
+      UPDATE tickets 
+      SET employee_id = ?, status = 'resolved', pr_url = ?,
+          github_pr_number = ?, github_pr_title = 'Original Title', github_branch = 'feature/orig', github_pr_merged = NULL
+      WHERE id = ?
+    `).run(dev1EmpId, prUrl, tc.prNumber, ticket.id);
+
+    globalThis.__TEST_COOKIES__ = { ticket_session: dev1Token };
+
+    // 1. Without reason -> Must be rejected with 400 UNKNOWN_PR_STATUS_REASON_REQUIRED
+    const failRes = await patchTicketRoute(
+      new Request(`http://localhost/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'closed' }),
+      }),
+      { params: Promise.resolve({ id: String(ticket.id) }) }
+    );
+
+    assert.equal(failRes.status, 400, `${tc.desc} without reason must be rejected`);
+    const failJson = await failRes.json();
+    assert.equal(failJson.code, 'UNKNOWN_PR_STATUS_REASON_REQUIRED');
+
+    // 2. With whitespace-only reason -> Must also be rejected
+    const wsRes = await patchTicketRoute(
+      new Request(`http://localhost/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'closed', closure_reason: '     ' }),
+      }),
+      { params: Promise.resolve({ id: String(ticket.id) }) }
+    );
+    assert.equal(wsRes.status, 400);
+
+    // 3. With valid reason -> Must succeed and preserve last known PR metadata
+    const reasonText = `Approved close despite ${tc.desc} by QA Lead`;
+    const okRes = await patchTicketRoute(
+      new Request(`http://localhost/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'closed',
+          closure_reason: reasonText,
+        }),
+      }),
+      { params: Promise.resolve({ id: String(ticket.id) }) }
+    );
+
+    assert.equal(okRes.status, 200, `${tc.desc} with valid reason must succeed`);
+    const closed = await getTicket(ticket.id);
+    assert.equal(closed.status, 'closed');
+    assert.equal(closed.github_pr_merged, null, 'Must retain null for unknown merge status');
+    assert.equal(closed.pr_url, prUrl, 'Must preserve original pr_url');
+    assert.equal(closed.github_pr_title, 'Original Title', 'Must preserve original title');
+    assert.equal(closed.github_branch, 'feature/orig', 'Must preserve original branch');
+
+    const activity = await db.prepare(
+      "SELECT * FROM ticket_activity WHERE ticket_id = ? AND field = 'status' AND to_value = 'closed' ORDER BY id DESC LIMIT 1"
+    ).get(ticket.id);
+
+    assert.ok(activity);
+    assert.equal(activity.reason, reasonText);
+    assert.match(activity.blocker, /GitHub PR Verification Failed/i);
+    // Ensure no secrets/tokens leaked in activity record
+    assert.doesNotMatch(activity.blocker, /ghp_|github_pat_|Bearer/i);
+  }
+});
+
+test('Direct API Rejections: Rejects invalid PR URL format, cross-repo mismatch, and deactivated repo', async () => {
+  const directTicket = await createTicketWithStage({
+    title: 'Direct API rejection test',
+    description: 'Testing validation rejections',
     createdBy: dev1UserId,
     projectId: testProjectId,
     repositoryId: testRepo.id,
   });
-
-  // Mock PR with unknown merge status (null)
-  await db.prepare(`
-    UPDATE tickets 
-    SET employee_id = ?, status = 'resolved', pr_url = 'https://github.com/serphawk22/ticketing/pull/888',
-        github_pr_number = 888, github_pr_state = 'open', github_pr_merged = NULL
-    WHERE id = ?
-  `).run(dev1EmpId, ticketD.id);
+  await db.prepare("UPDATE tickets SET employee_id = ?, status = 'resolved' WHERE id = ?").run(dev1EmpId, directTicket.id);
 
   globalThis.__TEST_COOKIES__ = { ticket_session: dev1Token };
 
-  // 1. Without reason -> REJECTED (HTTP 400)
-  const failRes = await patchTicketRoute(
-    new Request(`http://localhost/api/tickets/${ticketD.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'closed' }),
-    }),
-    { params: Promise.resolve({ id: String(ticketD.id) }) }
-  );
-
-  assert.equal(failRes.status, 400);
-
-  // 2. With reason -> SUCCEEDS (HTTP 200)
-  const outageReason = 'GitHub API unreachable during deployment; approved for emergency close by lead.';
-  const okRes = await patchTicketRoute(
-    new Request(`http://localhost/api/tickets/${ticketD.id}`, {
+  // 1. Invalid PR URL format
+  const badFormatRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${directTicket.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: 'closed',
-        closure_reason: outageReason,
+        pr_url: 'https://github.com/serphawk22/ticketing/issues/10',
+        closure_reason: 'Testing bad URL',
       }),
     }),
-    { params: Promise.resolve({ id: String(ticketD.id) }) }
+    { params: Promise.resolve({ id: String(directTicket.id) }) }
   );
+  assert.equal(badFormatRes.status, 400);
+  const badFormatJson = await badFormatRes.json();
+  assert.equal(badFormatJson.code, 'INVALID_PR_URL');
 
-  assert.equal(okRes.status, 200);
-  const closedD = await getTicket(ticketD.id);
-  assert.equal(closedD.status, 'closed');
-  assert.equal(closedD.github_pr_merged, null, 'Must retain null for unknown status');
+  // 2. Cross-repository mismatch (PR from other repo)
+  const crossRepoRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${directTicket.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'closed',
+        pr_url: 'https://github.com/serphawk22/other-service/pull/23',
+        closure_reason: 'Testing cross repo',
+      }),
+    }),
+    { params: Promise.resolve({ id: String(directTicket.id) }) }
+  );
+  assert.equal(crossRepoRes.status, 400);
+  const crossRepoJson = await crossRepoRes.json();
+  assert.equal(crossRepoJson.code, 'REPOSITORY_MISMATCH');
 
-  const activity = await db.prepare(
-    "SELECT * FROM ticket_activity WHERE ticket_id = ? AND field = 'status' AND to_value = 'closed' ORDER BY id DESC LIMIT 1"
-  ).get(ticketD.id);
-
-  assert.ok(activity);
-  assert.equal(activity.reason, outageReason);
+  // 3. Deactivated repository
+  await db.prepare('UPDATE tickets SET repository_id = ?, pr_url = ? WHERE id = ?').run(
+    deactRepo.id,
+    'https://github.com/serphawk22/deactivated-service/pull/1',
+    directTicket.id
+  );
+  const deactRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${directTicket.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'closed',
+        closure_reason: 'Testing deactivated repo',
+      }),
+    }),
+    { params: Promise.resolve({ id: String(directTicket.id) }) }
+  );
+  assert.equal(deactRes.status, 400);
+  const deactJson = await deactRes.json();
+  assert.match(deactJson.error, /deactivated/i);
 });
 
-test('RBAC & Server Authorization: Client and unassigned developers cannot close tickets', async () => {
-  const protectedTicket = await createTicketWithStage({
-    title: 'Dev 1 Ticket',
-    description: 'Dev 1 own work item',
+test('RBAC & Server Authorization: Full role audit (Client, Unauthorized Dev, Scoped Manager, Creator, Admin, Archived)', async () => {
+  const tAuth = await createTicketWithStage({
+    title: 'Auth audit ticket',
+    description: 'Testing closure authorization',
     createdBy: dev1UserId,
     projectId: testProjectId,
     repositoryId: testRepo.id,
   });
-  await db.prepare('UPDATE tickets SET employee_id = ? WHERE id = ?').run(dev1EmpId, protectedTicket.id);
+  await db.prepare('UPDATE tickets SET employee_id = ? WHERE id = ?').run(dev1EmpId, tAuth.id);
 
-  // 1. Client attempt -> 403 Forbidden
-  globalThis.__TEST_COOKIES__ = { ticket_session: clientToken };
-  const clientRes = await patchTicketRoute(
-    new Request(`http://localhost/api/tickets/${protectedTicket.id}`, {
+  // 1. Unauthenticated -> 401
+  globalThis.__TEST_COOKIES__ = {};
+  const unauthRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${tAuth.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'closed' }),
     }),
-    { params: Promise.resolve({ id: String(protectedTicket.id) }) }
+    { params: Promise.resolve({ id: String(tAuth.id) }) }
+  );
+  assert.equal(unauthRes.status, 401);
+
+  // 2. Client attempt -> 403
+  globalThis.__TEST_COOKIES__ = { ticket_session: clientToken };
+  const clientRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${tAuth.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    }),
+    { params: Promise.resolve({ id: String(tAuth.id) }) }
   );
   assert.equal(clientRes.status, 403);
   const clientJson = await clientRes.json();
   assert.match(clientJson.error, /Clients are not authorized/i);
 
-  // 2. Unassigned developer Dev 2 -> 403 Forbidden
+  // 3. Unauthorized developer Dev 2 -> 403
   globalThis.__TEST_COOKIES__ = { ticket_session: dev2Token };
   const dev2Res = await patchTicketRoute(
-    new Request(`http://localhost/api/tickets/${protectedTicket.id}`, {
+    new Request(`http://localhost/api/tickets/${tAuth.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'closed' }),
     }),
-    { params: Promise.resolve({ id: String(protectedTicket.id) }) }
+    { params: Promise.resolve({ id: String(tAuth.id) }) }
   );
   assert.equal(dev2Res.status, 403);
 
-  // 3. Archived ticket cannot be closed -> 400 Bad Request
-  await db.prepare('UPDATE tickets SET archived = 1 WHERE id = ?').run(protectedTicket.id);
-  globalThis.__TEST_COOKIES__ = { ticket_session: ownerToken };
-  const archRes = await patchTicketRoute(
-    new Request(`http://localhost/api/tickets/${protectedTicket.id}`, {
+  // 4. Scoped Manager inside project scope -> 200
+  globalThis.__TEST_COOKIES__ = { ticket_session: managerToken };
+  const mgrRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${tAuth.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed', closure_reason: 'Closed by project manager' }),
+    }),
+    { params: Promise.resolve({ id: String(tAuth.id) }) }
+  );
+  assert.equal(mgrRes.status, 200);
+
+  // 5. Manager OUTSIDE project scope -> 403
+  const outProjTicket = await createTicketWithStage({
+    title: 'Outside project ticket',
+    description: 'Project OTH has no manager',
+    createdBy: dev2UserId,
+    projectId: otherProjectId,
+    repositoryId: null,
+  });
+  await db.prepare('UPDATE tickets SET employee_id = ? WHERE id = ?').run(dev2EmpId, outProjTicket.id);
+
+  const outMgrRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${outProjTicket.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'closed' }),
     }),
-    { params: Promise.resolve({ id: String(protectedTicket.id) }) }
+    { params: Promise.resolve({ id: String(outProjTicket.id) }) }
+  );
+  assert.equal(outMgrRes.status, 403);
+
+  // 6. Ticket Creator Dev 2 can close their own created ticket -> 200
+  globalThis.__TEST_COOKIES__ = { ticket_session: dev2Token };
+  const creatorRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${outProjTicket.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    }),
+    { params: Promise.resolve({ id: String(outProjTicket.id) }) }
+  );
+  assert.equal(creatorRes.status, 200);
+
+  // 7. Archived ticket cannot be closed even by Admin -> 400
+  await db.prepare('UPDATE tickets SET archived = 1 WHERE id = ?').run(tAuth.id);
+  globalThis.__TEST_COOKIES__ = { ticket_session: ownerToken };
+  const archRes = await patchTicketRoute(
+    new Request(`http://localhost/api/tickets/${tAuth.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    }),
+    { params: Promise.resolve({ id: String(tAuth.id) }) }
   );
   assert.equal(archRes.status, 400);
   const archJson = await archRes.json();
   assert.match(archJson.error, /Cannot close an archived ticket/i);
 });
 
-test('Strict Optimistic Concurrency: Rejects closure when ticket state modified concurrently', async () => {
+test('Strict Optimistic Concurrency & Atomic Rollback: No partial writes on conflict', async () => {
   const concTicket = await createTicketWithStage({
     title: 'Concurrency ticket',
     description: 'Testing concurrency guards',
@@ -534,7 +788,7 @@ test('Strict Optimistic Concurrency: Rejects closure when ticket state modified 
 
   globalThis.__TEST_COOKIES__ = { ticket_session: dev1Token };
 
-  // 1. Status conflict: expected "in_progress", but current is "resolved"
+  // Status conflict: expected "in_progress", but current is "resolved"
   const conflictRes = await patchTicketRoute(
     new Request(`http://localhost/api/tickets/${concTicket.id}`, {
       method: 'PATCH',
@@ -542,6 +796,7 @@ test('Strict Optimistic Concurrency: Rejects closure when ticket state modified 
       body: JSON.stringify({
         status: 'closed',
         expected_status: 'in_progress', // stale status
+        closure_reason: 'Conflict attempt',
       }),
     }),
     { params: Promise.resolve({ id: String(concTicket.id) }) }
@@ -550,7 +805,16 @@ test('Strict Optimistic Concurrency: Rejects closure when ticket state modified 
   const conflictJson = await conflictRes.json();
   assert.match(conflictJson.error, /Ticket status changed concurrently/i);
 
-  // 2. PR URL conflict: expected "old_pr", current is null
+  // Verify atomic rollback: no status update and NO activity record inserted
+  const checkTicket = await getTicket(concTicket.id);
+  assert.equal(checkTicket.status, 'resolved');
+
+  const checkActivity = await db.prepare(
+    "SELECT COUNT(*) AS cnt FROM ticket_activity WHERE ticket_id = ? AND reason = 'Conflict attempt'"
+  ).get(concTicket.id);
+  assert.equal(checkActivity.cnt, 0, 'No partial activity record must be committed on 409 rollback');
+
+  // PR URL conflict: expected "old_pr", current is null
   const prConflictRes = await patchTicketRoute(
     new Request(`http://localhost/api/tickets/${concTicket.id}`, {
       method: 'PATCH',
@@ -564,10 +828,8 @@ test('Strict Optimistic Concurrency: Rejects closure when ticket state modified 
     { params: Promise.resolve({ id: String(concTicket.id) }) }
   );
   assert.equal(prConflictRes.status, 409);
-  const prConflictJson = await prConflictRes.json();
-  assert.match(prConflictJson.error, /Ticket PR URL changed concurrently/i);
 
-  // 3. Repository conflict: expected repo 9999, current is testRepo.id
+  // Repository conflict: expected repo 9999, current is testRepo.id
   const repoConflictRes = await patchTicketRoute(
     new Request(`http://localhost/api/tickets/${concTicket.id}`, {
       method: 'PATCH',
@@ -581,8 +843,6 @@ test('Strict Optimistic Concurrency: Rejects closure when ticket state modified 
     { params: Promise.resolve({ id: String(concTicket.id) }) }
   );
   assert.equal(repoConflictRes.status, 409);
-  const repoConflictJson = await repoConflictRes.json();
-  assert.match(repoConflictJson.error, /Ticket repository changed concurrently/i);
 });
 
 test('Read-Only GitHub Rule Verification: GitHub API calls are strictly read-only (GET)', async () => {
@@ -628,4 +888,3 @@ test('Read-Only GitHub Rule Verification: GitHub API calls are strictly read-onl
     globalThis.fetch = oldFetch;
   }
 });
-

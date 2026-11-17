@@ -10,7 +10,7 @@ import { notifyTicketUpdated } from '@/lib/notifications';
 import { deleteAttachment } from '@/lib/storage';
 import { logActivityChanges, logDueDateChange, logRepositoryChange, logTicketClosure } from '@/lib/ticketActivity';
 import { getRepositoryById, changeTicketRepository } from '@/lib/projectRepositories';
-import { verifyTicketPullRequest } from '@/lib/github';
+import { verifyTicketPullRequest, sanitizeGitHubErrorMessage } from '@/lib/github';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
 import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate, assertCanViewProject, assertCanAccessTicket, assertCanCloseTicket } from '@/lib/rbac';
@@ -366,7 +366,7 @@ export async function PATCH(request, { params }) {
         verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr, repository: repo });
       } catch (prErr) {
         return NextResponse.json(
-          { error: prErr.message || 'GitHub Pull Request verification failed.' },
+          { error: prErr.message || 'GitHub Pull Request verification failed.', code: prErr.code },
           { status: prErr.status || 400 }
         );
       }
@@ -414,7 +414,7 @@ export async function PATCH(request, { params }) {
         verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo });
       } catch (prErr) {
         return NextResponse.json(
-          { error: prErr.message || 'GitHub Pull Request verification failed.' },
+          { error: prErr.message || 'GitHub Pull Request verification failed.', code: prErr.code },
           { status: prErr.status || 400 }
         );
       }
@@ -545,15 +545,30 @@ export async function PATCH(request, { params }) {
           }
         }
       } else {
-        // Case D: GitHub API verification failed (outage, timeout, rate limit, auth error, 502/503)
+        // If error is an invalid PR URL format, repository mismatch, or input error, reject directly
+        if (
+          checkError?.code === 'REPOSITORY_MISMATCH' ||
+          checkError?.code === 'INVALID_PR_URL' ||
+          checkError?.code === 'INVALID_INPUT' ||
+          checkError?.code === 'REPOSITORY_REQUIRED' ||
+          checkError?.code === 'PR_URL_REQUIRED'
+        ) {
+          return NextResponse.json(
+            { error: checkError.message, code: checkError.code },
+            { status: checkError.status || 400 }
+          );
+        }
+
+        // Case D: Genuine GitHub API verification failed (outage, timeout, rate limit, auth error, 502/503)
         // Retain github_pr_merged as null / unknown
+        const safeErrMsg = sanitizeGitHubErrorMessage(checkError);
         const closureReason = String(body.closure_reason || body.reason || '').trim();
         if (!closureReason) {
           return NextResponse.json(
             {
-              error: `GitHub PR verification failed (${checkError?.message || 'Outage/Network error'}). A mandatory closure reason is required to close this ticket.`,
+              error: `GitHub PR verification failed (${safeErrMsg}). A mandatory closure reason is required to close this ticket.`,
               code: 'UNKNOWN_PR_STATUS_REASON_REQUIRED',
-              details: checkError?.message || 'GitHub API error',
+              details: safeErrMsg,
             },
             { status: 400 }
           );
@@ -564,7 +579,7 @@ export async function PATCH(request, { params }) {
 
         closureActivityDetails = {
           reason: closureReason,
-          blocker: `GitHub PR Verification Failed: ${checkError?.message || 'Unknown error'}`,
+          blocker: `GitHub PR Verification Failed: ${safeErrMsg}`,
           employeeId: closeAuth.scope?.employeeId || null,
         };
         if (body.resolution === undefined && edits.resolution === undefined) {
@@ -789,6 +804,16 @@ export async function PATCH(request, { params }) {
         expectedRepositoryId: body.expected_repository_id !== undefined ? Number(body.expected_repository_id) : initialRepoId,
         expectedPrUrl: body.expected_pr_url !== undefined ? body.expected_pr_url : initialPrUrl,
         extraUpdates,
+        activity: closureActivityDetails
+          ? {
+              field: 'status',
+              from_value: initialStatus,
+              to_value: edits.status,
+              blocker: closureActivityDetails.blocker,
+              reason: closureActivityDetails.reason,
+              employee_id: closureActivityDetails.employeeId,
+            }
+          : null,
       });
     } catch (transitionErr) {
       return NextResponse.json(
@@ -903,15 +928,6 @@ export async function PATCH(request, { params }) {
   }
 
   if (closureActivityDetails) {
-    await logTicketClosure(
-      ticketId,
-      session.user.id,
-      initialStatus,
-      'closed',
-      closureActivityDetails.reason,
-      closureActivityDetails.blocker,
-      closureActivityDetails.employeeId
-    );
     logged.delete('status');
   }
 
