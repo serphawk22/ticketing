@@ -2,7 +2,24 @@
 
 import Avatar from './Avatar';
 import InlineDropdownField from './InlineDropdownField';
-import { CATEGORY_ORDER, LOZENGE_TINTS, PRIORITY_META, PRIORITY_ORDER, PriorityIcon, RESOLUTION_ORDER, STATUS_META, STATUS_ORDER, TYPE_META, TYPE_ORDER, TypeIcon, INCLUSION_META, INCLUSION_ORDER } from './meta';
+import {
+  CATEGORY_ORDER,
+  LOZENGE_TINTS,
+  PRIORITY_META,
+  PRIORITY_ORDER,
+  PriorityIcon,
+  IMPORTANCE_META,
+  IMPORTANCE_ORDER,
+  ImportanceIcon,
+  RESOLUTION_ORDER,
+  STATUS_META,
+  STATUS_ORDER,
+  TYPE_META,
+  TYPE_ORDER,
+  TypeIcon,
+  INCLUSION_META,
+  INCLUSION_ORDER,
+} from './meta';
 
 /**
  * The editable fields of a work item, each one a thin wrapper that says what
@@ -47,6 +64,44 @@ export function PriorityField({
       renderValue={() => (
         <span className="list-priority">
           <PriorityIcon color={meta.color} arrow={meta.arrow} />
+          <span>{meta.label}</span>
+        </span>
+      )}
+    />
+  );
+}
+
+export function HumanImportanceField({
+  value,
+  onSelect,
+  readOnly = false,
+  className = '',
+  variant = 'cell',
+  searchable = false,
+}) {
+  const norm = String(value || 'medium').toLowerCase();
+  const meta = IMPORTANCE_META[norm] || IMPORTANCE_META.medium;
+
+  return (
+    <InlineDropdownField
+      value={norm}
+      onSelect={onSelect}
+      readOnly={readOnly}
+      label="Human Importance"
+      searchable={searchable}
+      variant={variant}
+      className={className}
+      options={IMPORTANCE_ORDER.map((key) => {
+        const m = IMPORTANCE_META[key];
+        return {
+          value: key,
+          label: m.label,
+          leading: <ImportanceIcon color={m.color} level={key} />,
+        };
+      })}
+      renderValue={() => (
+        <span className="list-priority">
+          <ImportanceIcon color={meta.color} level={norm} />
           <span>{meta.label}</span>
         </span>
       )}
