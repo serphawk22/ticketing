@@ -10,6 +10,12 @@ import { logCreated } from '@/lib/ticketActivity';
 import { canRouteWork, resolveUserScope } from '@/lib/rbac';
 import { createTicketWithStage } from '@/lib/ticketStageService';
 import { TASK_SHEET_SESSION_COOKIE, validateTaskSheetCookieSession } from '@/lib/taskSheetTokens';
+import { resolveCreationDueDate } from '@/lib/ticketDates';
+import {
+  normalizeImportanceLevel,
+  logHumanImportanceChange,
+  analyzeTicketAiImportance,
+} from '@/lib/ticketAiImportance';
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
@@ -155,6 +161,7 @@ export async function POST(request) {
     title,
     description,
     priority = 'medium',
+    human_importance,
     type = 'task',
     project_id = null,
     employee_id = null,
@@ -179,20 +186,30 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid priority.' }, { status: 400 });
   }
 
+  const cleanHumanImportance = normalizeImportanceLevel(human_importance);
+  if (!cleanHumanImportance) {
+    return NextResponse.json(
+      { error: 'Human importance is required. Please select Critical, High, Medium, or Low.' },
+      { status: 400 }
+    );
+  }
+
   if (!VALID_TYPES.includes(type)) {
     return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
   }
 
   // The calendar hands over a due date, and the timeline hands over both ends
   // of a drag, so the new ticket lands on the range the user drew. Stored as
-  // bare YYYY-MM-DD strings, the same shape the PATCH route accepts.
-  if (due_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())) {
-    return NextResponse.json({ error: 'Invalid due date.' }, { status: 400 });
+  // bare YYYY-MM-DD strings. When omitted, null, or empty, automatically default
+  // to 7 calendar days from creation date while preserving any manually chosen date.
+  const { dueDate: due, error: dueDateError } = resolveCreationDueDate(due_date);
+  if (dueDateError) {
+    return NextResponse.json({ error: dueDateError }, { status: 400 });
   }
+
   if (start_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(start_date).trim())) {
     return NextResponse.json({ error: 'Invalid start date.' }, { status: 400 });
   }
-  const due = due_date ? String(due_date).trim() : null;
   const start = start_date ? String(start_date).trim() : null;
   if (start && due && start > due) {
     return NextResponse.json(
@@ -239,6 +256,13 @@ export async function POST(request) {
     category: String(category || '').trim(),
     source: 'create',
   });
+  await db
+    .prepare(
+      `UPDATE tickets
+       SET human_importance = ?, ai_importance_status = ?
+       WHERE id = ?`
+    )
+    .run(cleanHumanImportance, 'pending', created.id);
 
   const ticket = await getTicket(created.id);
 
@@ -246,18 +270,36 @@ export async function POST(request) {
   // even before anything is edited.
   await logCreated(ticket.id, session.user.id);
 
-  // Notifications and email fan out per recipient, and SMTP delivery can take
-  // several seconds. The ticket row and its creation activity are already
-  // committed, so run that best-effort work after the response so the creator
-  // gets the new ticket immediately.
-  after(() =>
-    sendCreationNotifications({
-      ticket,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      assignee,
-    })
-  );
+  // Record initial human importance selection in history
+  await logHumanImportanceChange({
+    ticketId: ticket.id,
+    oldValue: null,
+    newValue: cleanHumanImportance,
+    reason: 'Initial importance set during ticket creation',
+    userId: session.user.id,
+    userName: session.user.name || 'User',
+  });
+
+  // Notifications and AI analysis run after the response so the creator gets
+  // the ticket response immediately without waiting for SMTP or AI latency.
+  after(async () => {
+    try {
+      await sendCreationNotifications({
+        ticket,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        assignee,
+      });
+    } catch (notifErr) {
+      console.error('sendCreationNotifications failed:', notifErr);
+    }
+
+    try {
+      await analyzeTicketAiImportance({ ticketId: ticket.id });
+    } catch (aiErr) {
+      console.error('Background analyzeTicketAiImportance failed:', aiErr);
+    }
+  });
 
   return NextResponse.json({ ticket }, { status: 201 });
 }

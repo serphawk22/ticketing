@@ -207,6 +207,19 @@ export default function TicketDetailModal({
     [id, onTicketChanged, load, busy]
   );
 
+  const handleTicketUpdated = useCallback(
+    (updatedTicket, extras = {}) => {
+      setDetail((d) => ({
+        ...d,
+        ticket: { ...(d.ticket || {}), ...updatedTicket },
+        ...extras,
+      }));
+      onTicketChanged?.(updatedTicket);
+      load();
+    },
+    [onTicketChanged, load]
+  );
+
   const setArchived = useCallback(
     async (archived, includeChildren) => {
       if (!id) return;
@@ -1190,6 +1203,7 @@ export default function TicketDetailModal({
             onOpenWatcherMenu={() => setMoreOpen((v) => !v)}
             configureOpen={configureOpen}
             onToggleConfigure={() => setConfigureOpen((v) => !v)}
+            onTicketUpdated={handleTicketUpdated}
           />
         </div>
       </div>

@@ -46,7 +46,7 @@ export async function POST(request) {
     console.error('Error generating AI progress summary:', err);
 
     const isKeyError =
-      err.message && (err.message.includes('OPENAI_API_KEY') || err.message.includes('GEMINI_API_KEY'));
+      err.message && (err.message.includes('AI_API_KEY') || err.message.includes('GEMINI_API_KEY') || err.message.includes('OPENAI_API_KEY'));
     const isForbidden = err.message && err.message.startsWith('Forbidden');
 
     const status = isForbidden ? 403 : isKeyError ? 400 : 500;
