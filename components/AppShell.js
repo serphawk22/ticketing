@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChartIcon, ClipboardIcon, CalendarReportIcon } from './AppShellIcons';
+import { BarChartIcon, ClipboardIcon, SparklesIcon, CalendarReportIcon } from './AppShellIcons';
 import Avatar from './Avatar';
 import WorkspaceModal from './WorkspaceModal';
 import ProjectModal from './ProjectModal';
@@ -285,6 +285,7 @@ export default function AppShell({
   const canReadSheets = isAdmin || isManager || normalizedRole === 'employee';
   const canAccessAdminDashboard = isAdmin || isManager || Boolean(currentUser?.can_access_admin_dashboard);
   const canAccessReports = isAdmin || isManager || normalizedRole === 'employee' || Boolean(currentUser?.can_access_reports);
+const canAccessWeeklyAiReports = isAdmin || isManager;
 
   // The sidebar is the one place that groups projects by work space, and it
   // renders on every view, so it loads the list itself rather than adding a
@@ -777,6 +778,16 @@ export default function AppShell({
             >
               <BarChartIcon />
               <span className="nav-text">Reports Hub (76)</span>
+            </Link>
+          )}
+          {canAccessWeeklyAiReports && (
+            <Link
+              href="/reports/weekly-ai"
+              className={`nav-item${view === 'weekly-ai-reports' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <SparklesIcon />
+              <span className="nav-text">Weekly AI Reports</span>
             </Link>
           )}
           {currentUser && (

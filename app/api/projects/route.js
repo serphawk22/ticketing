@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getAllProjects, createProject, getProjectByKey, clientExists } from '@/lib/projects';
-import { parseGithubRepos } from '@/lib/github';
+import { parseGithubRepos, parseOwnerRepo } from '@/lib/github';
+import { createProjectRepository } from '@/lib/projectRepositories';
 import { workspaceExists } from '@/lib/workspaces';
-import { isValidProjectKey, isValidProjectColor } from '@/lib/projectValidation';
+import { isValidProjectKey, isValidProjectColor, normalizeProjectTargetDate } from '@/lib/projectValidation';
 import { isAdminOrOwner, resolveUserScope } from '@/lib/rbac';
 
 function normalizeGithubRepo(value) {
@@ -55,8 +56,16 @@ export async function POST(request) {
     workspace_id = null,
     client_id = null,
     github_repo = '',
+    target_end_date = null,
   } = await request.json();
   const projectKey = String(key ?? '').trim().toUpperCase();
+  const targetDateCheck = normalizeProjectTargetDate(target_end_date);
+  if (!targetDateCheck.valid) {
+    return NextResponse.json(
+      { error: 'Target date must be a valid YYYY-MM-DD date.' },
+      { status: 400 }
+    );
+  }
   const normalizedGithubRepo = normalizeGithubRepo(github_repo);
   if (normalizedGithubRepo === null) {
     return NextResponse.json(
@@ -109,7 +118,29 @@ export async function POST(request) {
     workspace_id: workspace_id == null ? null : Number(workspace_id),
     client_id: client_id == null ? null : Number(client_id),
     github_repo: normalizedGithubRepo,
+    target_end_date: targetDateCheck.value,
   });
+
+  if (normalizedGithubRepo) {
+    const repos = normalizedGithubRepo.split(',').map((s) => s.trim()).filter(Boolean);
+    let isFirst = true;
+    for (const repoStr of repos) {
+      try {
+        const parsed = parseOwnerRepo(repoStr);
+        if (parsed) {
+          await createProjectRepository({
+            projectId: project.id,
+            owner: parsed.owner,
+            repo: parsed.repo,
+            isDefault: isFirst ? 1 : 0,
+            verificationStatus: 'verified',
+            createdBy: session.user.id,
+          });
+          isFirst = false;
+        }
+      } catch {}
+    }
+  }
 
   return NextResponse.json({ project }, { status: 201 });
 }

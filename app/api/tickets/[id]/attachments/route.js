@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import { getTicket } from '@/lib/tickets';
 import { getAttachments } from '@/lib/ticketDetail';
 import { isAdminOrOwner } from '@/lib/rbac';
+import { logActivity } from '@/lib/ticketActivity';
 import {
   attachmentKey,
   attachmentOpenUrl,
@@ -60,7 +61,10 @@ export async function POST(request, { params }) {
 
   if (!storageAvailable()) {
     return NextResponse.json(
-      { error: 'Attachment storage is not configured. Run `neon env pull`.' },
+      {
+        error:
+          'Attachment storage is not configured. Please configure AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_ENDPOINT_URL_S3 in your Vercel project environment variables.',
+      },
       { status: 503 }
     );
   }
@@ -124,6 +128,10 @@ export async function POST(request, { params }) {
     );
   }
 
+  try {
+    await logActivity(ticketId, session.user.id, 'attachment', '', file.name);
+  } catch {}
+
   return NextResponse.json({ attachments: await getAttachments(ticketId) }, { status: 201 });
 }
 
@@ -154,6 +162,9 @@ export async function DELETE(request, { params }) {
 
   await db.prepare('DELETE FROM ticket_attachments WHERE id = ?').run(attachmentId);
   await deleteAttachment(attachment.storage_key).catch(() => {});
+  try {
+    await logActivity(ticketId, session.user.id, 'attachment_removed', attachment.filename, '');
+  } catch {}
 
   return NextResponse.json({ attachments: await getAttachments(ticketId) });
 }

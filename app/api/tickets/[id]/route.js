@@ -8,10 +8,12 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment, notifyStatusChange } from '@/lib/mail';
 import { notifyTicketUpdated } from '@/lib/notifications';
 import { deleteAttachment } from '@/lib/storage';
-import { logActivityChanges } from '@/lib/ticketActivity';
+import { logActivityChanges, logDueDateChange, logRepositoryChange, logTicketClosure } from '@/lib/ticketActivity';
+import { getRepositoryById, changeTicketRepository } from '@/lib/projectRepositories';
+import { verifyTicketPullRequest, sanitizeGitHubErrorMessage } from '@/lib/github';
 import { wouldCreateCycle } from '@/lib/ticketTree';
 import { FIELD_META, PRIORITY_ORDER, STATUS_ORDER, TYPE_ORDER, INCLUSION_ORDER } from '@/lib/ticketMeta';
-import { canRouteWork, isAdminOrOwner } from '@/lib/rbac';
+import { canRouteWork, isAdminOrOwner, assertCanChangeDueDate, assertCanViewProject, assertCanAccessTicket, assertCanCloseTicket } from '@/lib/rbac';
 import { syncStageOnArchiveState, transitionTicketStatus } from '@/lib/ticketStageService';
 
 const TEXT_FIELDS = ['title', 'description', 'labels', 'category', 'resolution', 'team'];
@@ -58,6 +60,9 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json();
+  const initialStatus = ticket.status;
+  const initialRepoId = ticket.repository_id != null ? Number(ticket.repository_id) : null;
+  const initialPrUrl = (ticket.pr_url == null ? '' : String(ticket.pr_url)).trim();
   const isAdmin = isAdminOrOwner(session.user);
   // Routing the work -- naming an assignee -- is the same team decision at
   // edit time as it is at create time, so it answers to the same rule the POST
@@ -104,14 +109,70 @@ export async function PATCH(request, { params }) {
 
   let startDateVal = ticket.start_date;
   let dueDateVal = ticket.due_date;
-  for (const field of ['due_date', 'start_date']) {
-    if (body[field] === undefined) continue;
-    const value = parseDate(body[field]);
-    if (value === undefined) return badValue(field, body[field]);
-    edits[field] = value;
-    if (field === 'start_date') startDateVal = value;
-    if (field === 'due_date') dueDateVal = value;
+  let dueDateChangeDetails = null;
+
+  if (body.start_date !== undefined) {
+    const value = parseDate(body.start_date);
+    if (value === undefined) return badValue('start_date', body.start_date);
+    edits.start_date = value;
+    startDateVal = value;
   }
+
+  if (body.due_date !== undefined) {
+    const value = parseDate(body.due_date);
+    if (value === undefined) return badValue('due_date', body.due_date);
+
+    if ((value || null) !== (ticket.due_date || null)) {
+      if (['resolved', 'closed'].includes(ticket.status)) {
+        return NextResponse.json(
+          { error: 'Cannot change the due date of a completed or closed ticket.' },
+          { status: 400 }
+        );
+      }
+
+      const dueAuth = await assertCanChangeDueDate(session.user, ticket);
+      if (!dueAuth.allowed) {
+        return NextResponse.json({ error: dueAuth.error }, { status: dueAuth.status || 403 });
+      }
+
+      const blockerText = String(body.blocker || '').trim();
+      const reasonText = String(body.reason || body.delay_reason || '').trim();
+
+      // Employees must provide mandatory blocker and delay reason
+      if (!dueAuth.isElevated) {
+        if (!blockerText || !reasonText) {
+          return NextResponse.json(
+            { error: 'Blocker description and reason for delay are mandatory when changing a due date.' },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Check concurrency collision if expected_due_date is provided
+      if (body.expected_due_date !== undefined) {
+        const expected = body.expected_due_date === null || body.expected_due_date === ''
+          ? null
+          : String(body.expected_due_date).trim();
+        if ((ticket.due_date || null) !== expected) {
+          return NextResponse.json(
+            { error: 'The due date has been modified by another user. Please refresh and review the latest history.' },
+            { status: 409 }
+          );
+        }
+      }
+
+      dueDateChangeDetails = {
+        from: ticket.due_date || '',
+        to: value || '',
+        blocker: blockerText,
+        reason: reasonText,
+        employeeId: dueAuth.scope?.employeeId || null,
+      };
+      edits.due_date = value;
+      dueDateVal = value;
+    }
+  }
+
   if (startDateVal && dueDateVal && startDateVal > dueDateVal) {
     return NextResponse.json(
       { error: 'Due date must be on or after the start date.' },
@@ -180,6 +241,366 @@ export async function PATCH(request, { params }) {
       }
       edits.project_id = value;
     }
+  }
+
+  let repoChangedAtomically = false;
+
+  if (body.repository_id !== undefined) {
+    if (body.repository_id === null || body.repository_id === '') {
+      if (ticket.project_id) {
+        return NextResponse.json(
+          { error: 'Tickets belonging to a project must have a repository assigned.' },
+          { status: 400 }
+        );
+      }
+      edits.repository_id = null;
+    } else {
+      const newRepoId = Number(body.repository_id);
+      if (!Number.isInteger(newRepoId) || newRepoId <= 0) {
+        return NextResponse.json({ error: 'Invalid repository id.' }, { status: 400 });
+      }
+
+      const validSources = new Set(['board', 'list', 'detail', 'task_sheet', 'api', 'archive']);
+      const transitionSource = validSources.has(body.source) ? body.source : 'detail';
+
+      try {
+        const repoResult = await changeTicketRepository({
+          ticketId,
+          newRepoId,
+          reason: body.repository_change_reason || body.reason,
+          actor: session.user,
+          source: transitionSource,
+        });
+        repoChangedAtomically = repoResult.changed;
+      } catch (repoErr) {
+        return NextResponse.json(
+          { error: repoErr.message },
+          { status: repoErr.statusCode || 400 }
+        );
+      }
+    }
+  }
+
+  let verifiedPrMetadata = null;
+
+  if (body.pr_url !== undefined) {
+    if (session.user.role === 'client') {
+      return NextResponse.json(
+        { error: 'Clients are not authorized to modify Pull Request references.' },
+        { status: 403 }
+      );
+    }
+    if (ticket.archived) {
+      return NextResponse.json(
+        { error: 'Cannot modify or remove Pull Request on an archived ticket.' },
+        { status: 400 }
+      );
+    }
+    if (ticket.status === 'closed') {
+      return NextResponse.json(
+        { error: 'Cannot modify or remove Pull Request references on a closed ticket.' },
+        { status: 400 }
+      );
+    }
+
+    if (ticket.project_id) {
+      const projAuth = await assertCanViewProject(session.user, ticket.project_id);
+      if (!projAuth.allowed) {
+        return NextResponse.json(
+          { error: 'Forbidden: you do not have access to this project.' },
+          { status: 403 }
+        );
+      }
+    }
+    const ticketAuth = await assertCanAccessTicket(session.user, ticket, { action: 'write' });
+    if (!ticketAuth.allowed) {
+      return NextResponse.json(
+        { error: ticketAuth.error || 'Forbidden.' },
+        { status: 403 }
+      );
+    }
+
+    const rawPr = body.pr_url === null ? '' : String(body.pr_url).trim();
+    if (!rawPr) {
+      // Explicitly clearing PR references
+      edits.pr_url = '';
+      edits.github_pr_number = null;
+      edits.github_pr_title = '';
+      edits.github_pr_state = '';
+      edits.github_pr_merged = null;
+      edits.github_pr_head_sha = '';
+      edits.github_pr_base_branch = '';
+      edits.github_pr_last_verified_at = null;
+      edits.pr_merged_at = null;
+      edits.github_branch = '';
+
+      // Safeguard: A ticket must not remain in 'resolved' without a verified PR!
+      // If currently in 'resolved' and status is not otherwise changing, atomically revert to 'in_progress'
+      if (ticket.status === 'resolved' && edits.status === undefined) {
+        edits.status = 'in_progress';
+      }
+    } else {
+      const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(rawPr);
+      if (!prMatch) {
+        return NextResponse.json(
+          { error: 'Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number' },
+          { status: 400 }
+        );
+      }
+      edits.pr_url = rawPr;
+      edits.github_pr_number = parseInt(prMatch[3], 10);
+
+      // Best effort live API verification if repository is assigned
+      if (ticket.repository_id) {
+        try {
+          const repo = await getRepositoryById(ticket.repository_id);
+          if (repo && (!ticket.project_id || Number(repo.project_id) === Number(ticket.project_id)) && repo.is_active) {
+            verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr, repository: repo }).catch(() => null);
+          }
+        } catch {}
+      }
+    }
+  }
+
+  let closureActivityDetails = null;
+
+  // Transitioning to QA Testing ('resolved')
+  if (edits.status === 'resolved') {
+    const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
+    const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
+
+    if (cleanTargetPrUrl) {
+      // Format check only
+      const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(cleanTargetPrUrl);
+      if (!prMatch) {
+        return NextResponse.json(
+          { error: 'Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number' },
+          { status: 400 }
+        );
+      }
+      edits.pr_url = cleanTargetPrUrl;
+      edits.github_pr_number = parseInt(prMatch[3], 10);
+
+      if (ticket.repository_id && !verifiedPrMetadata) {
+        try {
+          const repo = await getRepositoryById(ticket.repository_id);
+          if (repo && (!ticket.project_id || Number(repo.project_id) === Number(ticket.project_id)) && repo.is_active) {
+            verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo }).catch(() => null);
+          }
+        } catch {}
+      }
+    } else {
+      // No PR URL provided -> require reason unless moved directly from board
+      const qaReason = String(body.qa_reason || body.reason || body.closure_reason || '').trim();
+      if (!qaReason && body.source !== 'board') {
+        return NextResponse.json(
+          { error: 'Please provide a reason for moving this ticket to QA Testing without a Pull Request.' },
+          { status: 400 }
+        );
+      }
+      if (qaReason) {
+        closureActivityDetails = {
+          reason: qaReason,
+          blocker: 'QA without Pull Request',
+          employeeId: session.user?.employee_id || null,
+        };
+      }
+    }
+  }
+
+  // Closure handling when transitioning to 'closed'
+  if (edits.status === 'closed') {
+    const closeAuth = await assertCanCloseTicket(session.user, ticket);
+    if (!closeAuth.allowed) {
+      return NextResponse.json(
+        { error: closeAuth.error || 'You are not authorized to close this ticket.' },
+        { status: closeAuth.status || 403 }
+      );
+    }
+
+    const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
+    const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
+
+    if (!cleanTargetPrUrl) {
+      // Case A: Legacy ticket or ticket without a PR
+      // Allow normal closure without GitHub verification
+      const closureReason = String(body.closure_reason || body.reason || '').trim();
+      if (closureReason) {
+        closureActivityDetails = {
+          reason: closureReason,
+          blocker: 'Legacy ticket / No Pull Request linked',
+          employeeId: closeAuth.scope?.employeeId || null,
+        };
+        if (body.resolution === undefined && edits.resolution === undefined) {
+          edits.resolution = closureReason;
+        }
+      }
+    } else {
+      // Ticket has a PR URL -> Verify repository and perform fresh verification
+      if (!ticket.repository_id) {
+        const closureReason = String(body.closure_reason || body.reason || '').trim();
+        if (!closureReason) {
+          return NextResponse.json(
+            { error: 'A repository must be assigned or a closure reason provided to close a ticket with an unlinked repository PR.' },
+            { status: 400 }
+          );
+        }
+        closureActivityDetails = {
+          reason: closureReason,
+          blocker: 'Ticket closed without assigned repository',
+          employeeId: closeAuth.scope?.employeeId || null,
+        };
+        if (body.resolution === undefined && edits.resolution === undefined) {
+          edits.resolution = closureReason;
+        }
+      } else {
+
+      const repo = await getRepositoryById(ticket.repository_id);
+      if (!repo) {
+        return NextResponse.json({ error: 'Assigned repository does not exist.' }, { status: 400 });
+      }
+      if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
+        return NextResponse.json(
+          { error: 'Assigned repository does not belong to the ticket project.' },
+          { status: 400 }
+        );
+      }
+      if (!repo.is_active) {
+        return NextResponse.json(
+          { error: 'The assigned repository is deactivated.' },
+          { status: 400 }
+        );
+      }
+
+      // Fresh GitHub API verification outside database transaction
+      let prCheck = null;
+      let checkError = null;
+
+      try {
+        prCheck = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo });
+      } catch (err) {
+        checkError = err;
+      }
+
+      if (prCheck) {
+        verifiedPrMetadata = prCheck;
+        const closureReason = String(body.closure_reason || body.reason || '').trim();
+
+        if (prCheck.github_pr_merged === 1) {
+          // Case B: Ticket with a verified, merged PR
+          closureActivityDetails = {
+            reason: closureReason,
+            blocker: `Pull Request #${prCheck.github_pr_number} verified merged`,
+            employeeId: closeAuth.scope?.employeeId || null,
+          };
+          if (closureReason && body.resolution === undefined && edits.resolution === undefined) {
+            edits.resolution = closureReason;
+          }
+        } else if (prCheck.github_pr_merged === 0) {
+          // Case C: Ticket with an unmerged PR
+          // Mandatory closure reason required
+          if (!closureReason) {
+            return NextResponse.json(
+              {
+                error: 'Closure reason is required when closing a ticket with an unmerged Pull Request.',
+                code: 'UNMERGED_PR_REASON_REQUIRED',
+                prState: prCheck.github_pr_state,
+                prMerged: 0,
+              },
+              { status: 400 }
+            );
+          }
+          closureActivityDetails = {
+            reason: closureReason,
+            blocker: `Unmerged Pull Request #${prCheck.github_pr_number} (${prCheck.github_pr_state})`,
+            employeeId: closeAuth.scope?.employeeId || null,
+          };
+          if (body.resolution === undefined && edits.resolution === undefined) {
+            edits.resolution = closureReason;
+          }
+        } else {
+          // Case D: Unknown merge status from GitHub payload
+          if (!closureReason) {
+            return NextResponse.json(
+              {
+                error: 'Closure reason is required when GitHub PR merge status is unknown.',
+                code: 'UNKNOWN_PR_STATUS_REASON_REQUIRED',
+                prState: prCheck.github_pr_state,
+                prMerged: null,
+              },
+              { status: 400 }
+            );
+          }
+          closureActivityDetails = {
+            reason: closureReason,
+            blocker: `PR #${prCheck.github_pr_number} Merge Status Unknown`,
+            employeeId: closeAuth.scope?.employeeId || null,
+          };
+          if (body.resolution === undefined && edits.resolution === undefined) {
+            edits.resolution = closureReason;
+          }
+        }
+      } else {
+        // If error is an invalid PR URL format, repository mismatch, or input error, reject directly
+        if (
+          checkError?.code === 'REPOSITORY_MISMATCH' ||
+          checkError?.code === 'INVALID_PR_URL' ||
+          checkError?.code === 'INVALID_INPUT' ||
+          checkError?.code === 'REPOSITORY_REQUIRED' ||
+          checkError?.code === 'PR_URL_REQUIRED'
+        ) {
+          return NextResponse.json(
+            { error: checkError.message, code: checkError.code },
+            { status: checkError.status || 400 }
+          );
+        }
+
+        // Case D: Genuine GitHub API verification failed (outage, timeout, rate limit, auth error, 502/503)
+        // Retain github_pr_merged as null / unknown
+        const safeErrMsg = sanitizeGitHubErrorMessage(checkError);
+        const closureReason = String(body.closure_reason || body.reason || '').trim();
+        if (!closureReason) {
+          return NextResponse.json(
+            {
+              error: `GitHub PR verification failed (${safeErrMsg}). A mandatory closure reason is required to close this ticket.`,
+              code: 'UNKNOWN_PR_STATUS_REASON_REQUIRED',
+              details: safeErrMsg,
+            },
+            { status: 400 }
+          );
+        }
+
+        edits.github_pr_last_verified_at = new Date().toISOString();
+        edits.github_pr_merged = null;
+
+        closureActivityDetails = {
+          reason: closureReason,
+          blocker: `GitHub PR Verification Failed: ${safeErrMsg}`,
+          employeeId: closeAuth.scope?.employeeId || null,
+        };
+        if (body.resolution === undefined && edits.resolution === undefined) {
+          edits.resolution = closureReason;
+        }
+      }
+      }
+    }
+  }
+
+  if (verifiedPrMetadata) {
+    edits.pr_url = verifiedPrMetadata.pr_url;
+    edits.github_pr_number = verifiedPrMetadata.github_pr_number;
+    edits.github_pr_title = verifiedPrMetadata.github_pr_title;
+    edits.github_pr_state = verifiedPrMetadata.github_pr_state;
+    edits.github_pr_merged = verifiedPrMetadata.github_pr_merged;
+    edits.github_pr_head_sha = verifiedPrMetadata.github_pr_head_sha;
+    edits.github_pr_base_branch = verifiedPrMetadata.github_pr_base_branch;
+    edits.github_pr_last_verified_at = verifiedPrMetadata.github_pr_last_verified_at;
+    edits.pr_merged_at = verifiedPrMetadata.pr_merged_at;
+    edits.github_branch = verifiedPrMetadata.github_branch || '';
+  }
+
+  if (body.github_branch !== undefined && edits.github_branch === undefined) {
+    edits.github_branch = String(body.github_branch ?? '').trim();
   }
 
   // Archiving is reversible by design, so anyone who can edit a ticket may do
@@ -301,6 +722,10 @@ export async function PATCH(request, { params }) {
 
   const keys = Object.keys(edits);
   if (keys.length === 0) {
+    if (repoChangedAtomically) {
+      const updated = await getTicket(ticketId);
+      return NextResponse.json({ ticket: updated });
+    }
     return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
   }
 
@@ -318,6 +743,15 @@ export async function PATCH(request, { params }) {
   logged.delete('archived_at');
   logged.delete('archived_by');
   logged.delete('slack_channel');
+  logged.delete('github_pr_number');
+  logged.delete('github_pr_title');
+  logged.delete('github_pr_state');
+  logged.delete('github_pr_merged');
+  logged.delete('github_pr_head_sha');
+  logged.delete('github_pr_base_branch');
+  logged.delete('github_pr_last_verified_at');
+  logged.delete('pr_merged_at');
+  logged.delete('github_branch');
   if (edits.archived !== undefined && edits.archived !== Number(ticket.archived || 0)) {
     // The column is 0/1. The feed reads "Active" and "Archived" instead, the
     // same way a parent change is logged as a key rather than an id.
@@ -363,8 +797,20 @@ export async function PATCH(request, { params }) {
         actor: session.user,
         source: transitionSource,
         idempotencyKey: body.idempotency_key || body.idempotencyKey || null,
-        expectedCurrentStatus: body.expected_status || body.expectedStatus || null,
+        expectedCurrentStatus: body.expected_status || body.expectedStatus || initialStatus,
+        expectedRepositoryId: body.expected_repository_id !== undefined ? Number(body.expected_repository_id) : initialRepoId,
+        expectedPrUrl: body.expected_pr_url !== undefined ? body.expected_pr_url : initialPrUrl,
         extraUpdates,
+        activity: closureActivityDetails
+          ? {
+              field: 'status',
+              from_value: initialStatus,
+              to_value: edits.status,
+              blocker: closureActivityDetails.blocker,
+              reason: closureActivityDetails.reason,
+              employee_id: closureActivityDetails.employeeId,
+            }
+          : null,
       });
     } catch (transitionErr) {
       return NextResponse.json(
@@ -373,6 +819,33 @@ export async function PATCH(request, { params }) {
       );
     }
   } else {
+    // Strict optimistic concurrency verification before non-status update
+    const currentTicket = await db.prepare('SELECT status, repository_id, pr_url FROM tickets WHERE id = ?').get(ticketId);
+    if (currentTicket) {
+      if (initialStatus && currentTicket.status !== initialStatus) {
+        return NextResponse.json(
+          { error: `Ticket status changed concurrently (expected "${initialStatus}", found "${currentTicket.status}").` },
+          { status: 409 }
+        );
+      }
+      if (initialRepoId !== null && Number(currentTicket.repository_id || 0) !== Number(initialRepoId || 0)) {
+        return NextResponse.json(
+          { error: `Ticket repository changed concurrently (expected ID ${initialRepoId}, found ${currentTicket.repository_id}).` },
+          { status: 409 }
+        );
+      }
+      const curPr = (currentTicket.pr_url == null ? '' : String(currentTicket.pr_url)).trim();
+      const expPr = body.expected_pr_url !== undefined
+        ? (body.expected_pr_url == null ? '' : String(body.expected_pr_url)).trim()
+        : initialPrUrl;
+      if (curPr !== expPr) {
+        return NextResponse.json(
+          { error: `Ticket PR URL changed concurrently (expected "${expPr}", found "${curPr}").` },
+          { status: 409 }
+        );
+      }
+    }
+
     const pairs = keys.map((field) => [`${field} = ?`, edits[field], true]);
     if (autoClaim) pairs.push(['employee_id = ?', nextEmployeeId || null, true]);
     pairs.push(["updated_at = datetime('now')", null, false]);
@@ -438,6 +911,23 @@ export async function PATCH(request, { params }) {
     logged.delete('employee_id');
   }
 
+  if (dueDateChangeDetails) {
+    await logDueDateChange(
+      ticketId,
+      session.user.id,
+      dueDateChangeDetails.from,
+      dueDateChangeDetails.to,
+      dueDateChangeDetails.blocker,
+      dueDateChangeDetails.reason,
+      dueDateChangeDetails.employeeId
+    );
+    logged.delete('due_date');
+  }
+
+  if (closureActivityDetails) {
+    logged.delete('status');
+  }
+
   await logActivityChanges(
     ticketId,
     session.user.id,
@@ -465,6 +955,7 @@ export async function PATCH(request, { params }) {
       actorId: session.user.id,
       actorName: session.user.name,
       fields: Object.keys(edits),
+      blocker: dueDateChangeDetails?.blocker || '',
     });
 
     if (reassigning && nextEmployeeId) {
@@ -595,19 +1086,32 @@ export async function DELETE(request, { params }) {
   }
 
   const children = await childTicketCount(ticket.id);
-  const { attachments } = await deleteTicket(ticket.id);
 
-  // Storage cleanup is best effort: the database rows are already gone, and a
-  // failed object delete should not turn a completed delete into an error.
-  await Promise.all(
-    attachments.map((a) => deleteAttachment(a.storage_key).catch(() => {}))
-  );
+  try {
+    const { attachments } = await deleteTicket(ticket.id);
 
-  return NextResponse.json({
-    deleted: true,
-    ticket: { id: ticket.id, title: ticket.title },
-    // Children survive and are re-parented one level up, so the caller can say
-    // so rather than implying the whole branch went with the parent.
-    reparentedChildren: children,
-  });
+    // Storage cleanup is best effort: the database rows are already committed and gone,
+    // and a failed object delete should not turn a completed delete into an error.
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      await Promise.allSettled(
+        attachments
+          .filter((a) => a?.storage_key)
+          .map((a) => deleteAttachment(a.storage_key).catch(() => {}))
+      );
+    }
+
+    return NextResponse.json({
+      deleted: true,
+      ticket: { id: ticket.id, title: ticket.title },
+      // Children survive and are re-parented one level up, so the caller can say
+      // so rather than implying the whole branch went with the parent.
+      reparentedChildren: children,
+    });
+  } catch (err) {
+    console.error(`[API /api/tickets/[id]] DELETE error for ticket ${ticket.id}:`, err);
+    return NextResponse.json(
+      { error: err.message || 'Failed to delete ticket.' },
+      { status: 500 }
+    );
+  }
 }

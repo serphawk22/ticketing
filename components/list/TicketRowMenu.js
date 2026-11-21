@@ -48,7 +48,7 @@ const ITEMS = [
 ];
 
 /** The row's full menu, mounted in a portal so it is never clipped by a table cell. */
-export default function TicketRowMenu({ ticket, onOpen, onClose, open, anchor }) {
+export default function TicketRowMenu({ ticket, onOpen, onClose, open, anchor, currentUser }) {
   const panelRef = useRef(null);
   // The trigger element is held in a ref rather than read straight off the prop
   // so the placement effect does not re-run on every parent render.
@@ -151,6 +151,9 @@ export default function TicketRowMenu({ ticket, onOpen, onClose, open, anchor })
 
   if (!open) return null;
 
+  const canDelete = !currentUser || currentUser.role === 'admin' || currentUser.role === 'owner';
+  const visibleItems = ITEMS.filter((item) => item.key !== 'delete' || canDelete);
+
   return (
     <div
       ref={panelRef}
@@ -162,7 +165,7 @@ export default function TicketRowMenu({ ticket, onOpen, onClose, open, anchor })
     >
       {scroll.up && <span className="row-menu-chev row-menu-chev-top" aria-hidden="true" />}
       <div className="row-menu-scroll">
-        {ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           if (item.divider) {
             return <div key={item.key} className="row-menu-divider" role="separator" />;
           }

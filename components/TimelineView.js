@@ -8,6 +8,7 @@ import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import ChangeDueDateModal from './ticket/ChangeDueDateModal';
 import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import {
@@ -145,6 +146,8 @@ export default function TimelineView({
   const [tickets, setTickets] = useState(initialTickets);
   const [links, setLinks] = useState(initialLinks);
   const [error, setError] = useState('');
+  const [pendingDueDateModal, setPendingDueDateModal] = useState(null);
+  const isAdminOrManager = currentUser?.role === 'owner' || currentUser?.role === 'admin' || currentUser?.role === 'manager';
   const [zoomId, setZoomId] = useState('months');
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [search, setSearch] = useState('');
@@ -438,6 +441,15 @@ export default function TimelineView({
           return;
         }
         if (!moved) return;
+        const targetTicket = tickets.find((x) => x.id === id);
+        if (!isAdminOrManager && targetTicket && pending.end && pending.end !== targetTicket.due_date) {
+          setPendingDueDateModal({
+            ticket: targetTicket,
+            targetDate: pending.end,
+            startDate: pending.start,
+          });
+          return;
+        }
         commit(
           [{ id, fields: { start_date: pending.start, due_date: pending.end } }],
           'Scheduling'
@@ -1116,6 +1128,27 @@ export default function TimelineView({
             } catch (err) {
               setError(err.message);
             }
+          }}
+        />
+      )}
+
+      {pendingDueDateModal && (
+        <ChangeDueDateModal
+          ticket={pendingDueDateModal.ticket}
+          defaultNewDate={pendingDueDateModal.targetDate}
+          onClose={() => setPendingDueDateModal(null)}
+          onSave={async (fields) => {
+            const updateFields = {
+              ...fields,
+              ...(pendingDueDateModal.startDate !== pendingDueDateModal.ticket.start_date
+                ? { start_date: pendingDueDateModal.startDate }
+                : {}),
+            };
+            await commit(
+              [{ id: pendingDueDateModal.ticket.id, fields: updateFields }],
+              'Updating due date'
+            );
+            setPendingDueDateModal(null);
           }}
         />
       )}

@@ -5,7 +5,8 @@ import Avatar from '../Avatar';
 import TicketGroupChat from './TicketGroupChat';
 import TicketText from '../TicketText';
 import { PRIORITY_META, STATUS_META, INCLUSION_META, FIELD_META, formatFullDateTime, formatDuration, ticketKey } from '../meta';
-import { ArrowRightIcon, CommentIcon, HistoryIcon, SortDescIcon } from './icons';
+import { ArrowRightIcon, CommentIcon, HistoryIcon, PaperclipIcon, SortDescIcon } from './icons';
+import { parseCommentAttachments } from '../../lib/commentAttachments';
 
 const TABS = [
   { key: 'all', label: 'All', Icon: null },
@@ -16,7 +17,7 @@ const TABS = [
 
 // created_by is the reporter, and FIELD_META describes the editable fields
 // rather than the columns, so its name lives here.
-const FIELD_LABELS = { created_by: 'Reporter' };
+const FIELD_LABELS = { created_by: 'Reporter', pr_url: 'Pull Request', github_branch: 'Branch' };
 
 export function ActivityValue({ field, value }) {
   if (!value) return <span className="tm-chip-empty">empty</span>;
@@ -63,6 +64,19 @@ export function ActivityValue({ field, value }) {
   if (field === 'project_id') {
     return <span className="tm-chip-plain">project {value}</span>;
   }
+  if (field === 'pr_url') {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noreferrer"
+        className="tm-chip-plain"
+        style={{ color: 'var(--link, #0c66e4)', textDecoration: 'none', fontWeight: 600 }}
+      >
+        {value.length > 50 ? `${value.slice(0, 50)}…` : value}
+      </a>
+    );
+  }
   const text = String(value);
   return (
     <span className="tm-chip-plain" title={text}>
@@ -85,6 +99,188 @@ function ActivityRow({ entry }) {
       </li>
     );
   }
+
+  if (entry.field === 'repository_id') {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-repo-change" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> changed the <span className="tm-activity-field">Repository</span>
+          </p>
+          <div className="tm-activity-change" style={{ marginBottom: '8px' }}>
+            <span className="tm-chip-plain">{entry.from_value || 'None'}</span>
+            <ArrowRightIcon size={12} className="tm-arrow" />
+            <span className="tm-chip-plain" style={{ fontWeight: 600 }}>{entry.to_value || 'None'}</span>
+          </div>
+          {(entry.reason || entry.blocker) && (
+            <div
+              className="repo-change-history-card"
+              style={{
+                background: 'var(--subtle, #f4f5f7)',
+                border: '1px solid var(--border, #dfe1e6)',
+                borderRadius: '6px',
+                padding: '10px 12px',
+                fontSize: '12px',
+                marginBottom: '6px',
+              }}
+            >
+              {entry.reason && (
+                <div style={{ marginBottom: entry.blocker ? '6px' : '0' }}>
+                  <strong style={{ color: 'var(--muted, #666)', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Reason for Change
+                  </strong>
+                  <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.reason}</span>
+                </div>
+              )}
+              {entry.blocker && (
+                <div>
+                  <strong style={{ color: '#de350b', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Reset Metadata
+                  </strong>
+                  <span style={{ color: 'var(--muted, #666)', fontSize: '11px' }}>{entry.blocker}</span>
+                </div>
+              )}
+            </div>
+          )}
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
+  if (entry.field === 'due_date' && (entry.blocker || entry.reason)) {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Employee';
+    return (
+      <li className="tm-activity-row tm-activity-due-date-change" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> changed the <span className="tm-activity-field">Due date</span>
+          </p>
+          <div className="tm-activity-change" style={{ marginBottom: '8px' }}>
+            <ActivityValue field="due_date" value={entry.from_value} />
+            <ArrowRightIcon size={12} className="tm-arrow" />
+            <ActivityValue field="due_date" value={entry.to_value} />
+          </div>
+          <div
+            className="due-date-history-card"
+            style={{
+              background: 'var(--subtle, #f4f5f7)',
+              border: '1px solid var(--border, #dfe1e6)',
+              borderRadius: '6px',
+              padding: '10px 12px',
+              fontSize: '12px',
+              marginBottom: '6px',
+            }}
+          >
+            {entry.blocker && (
+              <div style={{ marginBottom: '6px' }}>
+                <strong style={{ color: '#de350b', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Blocker
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.blocker}</span>
+              </div>
+            )}
+            {entry.reason && (
+              <div>
+                <strong style={{ color: 'var(--muted, #666)', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Reason for delay
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.reason}</span>
+              </div>
+            )}
+          </div>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
+  if (entry.field === 'status' && (entry.reason || entry.blocker)) {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-status-closure" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> closed the work item
+          </p>
+          <div className="tm-activity-change" style={{ marginBottom: '8px' }}>
+            <ActivityValue field="status" value={entry.from_value} />
+            <ArrowRightIcon size={12} className="tm-arrow" />
+            <ActivityValue field="status" value={entry.to_value} />
+          </div>
+          <div
+            className="closure-history-card"
+            style={{
+              background: 'var(--subtle, #f4f5f7)',
+              border: '1px solid var(--border, #dfe1e6)',
+              borderRadius: '6px',
+              padding: '10px 12px',
+              fontSize: '12px',
+              marginBottom: '6px',
+            }}
+          >
+            {entry.blocker && (
+              <div style={{ marginBottom: entry.reason ? '6px' : '0' }}>
+                <strong style={{ color: '#0052cc', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  PR Verification Outcome
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', fontSize: '12px' }}>{entry.blocker}</span>
+              </div>
+            )}
+            {entry.reason && (
+              <div>
+                <strong style={{ color: 'var(--muted, #666)', display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Closure Reason
+                </strong>
+                <span style={{ color: 'var(--text, #172b4d)', whiteSpace: 'pre-wrap' }}>{entry.reason}</span>
+              </div>
+            )}
+          </div>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
+  if (entry.field === 'attachment') {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-attachment" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> attached{' '}
+            <span className="tm-chip-plain" style={{ fontWeight: 600 }}>
+              <PaperclipIcon size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+              {entry.to_value}
+            </span>
+          </p>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
+  if (entry.field === 'attachment_removed') {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-attachment-removed" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> removed attachment{' '}
+            <span className="tm-chip-plain">{entry.from_value}</span>
+          </p>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
   const meta = FIELD_META[entry.field];
   const label = meta?.label || FIELD_LABELS[entry.field] || entry.field;
   return (
@@ -108,6 +304,8 @@ function ActivityRow({ entry }) {
 
 function CommentRow({
   comment,
+  attachments = [],
+  onOpenAttachment,
   currentUser,
   onEdit,
   onDelete,
@@ -116,6 +314,11 @@ function CommentRow({
   existingKeys,
 }) {
   const mine = currentUser && comment.author_id === currentUser.id;
+  const { text, attachments: commentAttachRefs } = useMemo(
+    () => parseCommentAttachments(comment.body),
+    [comment.body]
+  );
+
   return (
     <li className="tm-comment">
       <Avatar name={comment.author_name} assigned size={24} />
@@ -125,15 +328,48 @@ function CommentRow({
           <time>{formatFullDateTime(comment.created_at)}</time>
           {comment.updated_at !== comment.created_at && <em className="tm-edited">edited</em>}
         </p>
-        <p className="tm-comment-text">
-          <TicketText
-            text={comment.body}
-            validPrefixes={validPrefixes}
-            existingKeys={existingKeys}
-            onOpenTicket={onOpenTicket}
-            linkClassName="ai-ticket-link"
-          />
-        </p>
+        {text ? (
+          <p className="tm-comment-text">
+            <TicketText
+              text={text}
+              validPrefixes={validPrefixes}
+              existingKeys={existingKeys}
+              onOpenTicket={onOpenTicket}
+              linkClassName="ai-ticket-link"
+            />
+          </p>
+        ) : null}
+        {commentAttachRefs.length > 0 && (
+          <div className="tm-comment-attachments" style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {commentAttachRefs.map((att) => {
+              const matched = (attachments || []).find((a) => a.id === att.id) || att;
+              return (
+                <button
+                  key={att.id}
+                  type="button"
+                  className="tm-comment-attachment-pill"
+                  onClick={() => onOpenAttachment && onOpenAttachment(matched)}
+                  title={`Open ${att.filename}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    background: 'var(--subtle, #f4f5f7)',
+                    border: '1px solid var(--border, #dfe1e6)',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    color: 'var(--link, #0c66e4)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <PaperclipIcon size={12} />
+                  <span>{att.filename}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {mine && (
           <div className="tm-comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>Edit</button>
@@ -150,6 +386,9 @@ export default function ActivityFeed({
   watchers,
   activity,
   comments,
+  attachments = [],
+  onUploadAttachment,
+  onOpenAttachment,
   timeLogs,
   currentUser,
   commentDraft,
@@ -244,6 +483,9 @@ export default function ActivityFeed({
           ticket={ticket}
           watchers={watchers}
           comments={comments}
+          attachments={attachments}
+          onUploadAttachment={onUploadAttachment}
+          onOpenAttachment={onOpenAttachment}
           currentUser={currentUser}
           commentDraft={commentDraft}
           onCommentDraft={onCommentDraft}
@@ -287,6 +529,8 @@ export default function ActivityFeed({
               <CommentRow
                 key={`c-${entry.id}`}
                 comment={entry}
+                attachments={attachments}
+                onOpenAttachment={onOpenAttachment}
                 currentUser={currentUser}
                 onEdit={startEdit}
                 onDelete={onDeleteComment}

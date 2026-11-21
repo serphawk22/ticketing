@@ -145,7 +145,8 @@ export default function AiProgressSummaryCard({
     />
   );
 
-  const canGenerate = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+const normalizedRole = String(currentUser?.role || '').trim().toLowerCase();
+  const canGenerate = ['owner', 'admin', 'manager', 'developer', 'employee'].includes(normalizedRole);
   const isOverall = !projectId || projectId === 'all';
 
   const loadCachedSummary = useCallback(async (targetId) => {

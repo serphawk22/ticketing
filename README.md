@@ -138,6 +138,11 @@ column, which naming a column would break.
    | Variable             | Required | Notes                                            |
    | -------------------- | -------- | ------------------------------------------------ |
    | `DATABASE_URL`       | **yes**  | Pooled Postgres URL. Without it the app refuses to boot on Vercel. |
+   | `AWS_ACCESS_KEY_ID`  | **yes**  | Object storage access key ID (Neon S3). Required for ticket attachments. |
+   | `AWS_SECRET_ACCESS_KEY` | **yes** | Object storage secret access key (Neon S3). Required for ticket attachments. |
+   | `AWS_ENDPOINT_URL_S3` | **yes** | Neon S3 endpoint URL (`https://<id>.storage.<region>.aws.neon.tech`). |
+   | `AWS_REGION`         | no       | S3 region, defaults to `us-east-2`.              |
+   | `AWS_S3_BUCKET`      | no       | S3 bucket name, defaults to `ticket-attachments`.|
    | `SMTP_SERVER`        | no       | Omit to disable sending; mail is logged instead. |
    | `SMTP_PORT`          | no       | Defaults to `587`.                               |
    | `SMTP_SECURE`        | no       | `"true"` for port 465.                           |

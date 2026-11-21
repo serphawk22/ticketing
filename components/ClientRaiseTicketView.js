@@ -17,11 +17,30 @@ export default function ClientRaiseTicketView({ currentUser }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [draft, setDraft] = useState({ title: '', description: '', priority: 'medium' });
+  const [draft, setDraft] = useState({ title: '', description: '', priority: 'medium', category: 'Incident' });
+
+  function getCalculatedDueDatePreview(category) {
+    const days = category === 'Incident' ? 1 : category === 'Access Issue' ? 2 : category === 'Feature Request' ? 7 : null;
+    if (!days) return null;
+    const d = new Date();
+    const utcYear = d.getUTCFullYear();
+    const utcMonth = d.getUTCMonth();
+    const utcDay = d.getUTCDate();
+    const target = new Date(Date.UTC(utcYear, utcMonth, utcDay + days));
+    return target.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  const dueDatePreview = getCalculatedDueDatePreview(draft.category);
 
   async function handleRaise(e) {
     e.preventDefault();
     setError('');
+
+    if (!draft.category) {
+      setError('Please select a request type.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -32,6 +51,7 @@ export default function ClientRaiseTicketView({ currentUser }) {
           title: draft.title.trim(),
           description: draft.description.trim(),
           priority: draft.priority,
+          category: draft.category,
           project_id: null,
           employee_id: null,
         }),
@@ -86,6 +106,20 @@ export default function ClientRaiseTicketView({ currentUser }) {
 
           <div className="client-form-row">
             <div className="form-group form-group-narrow">
+              <label htmlFor="client-category">Request Type</label>
+              <select
+                id="client-category"
+                value={draft.category}
+                onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                required
+              >
+                <option value="Incident">Incident (SLA: 1 day)</option>
+                <option value="Access Issue">Access Issue (SLA: 2 days)</option>
+                <option value="Feature Request">Feature Request (SLA: 7 days)</option>
+              </select>
+            </div>
+
+            <div className="form-group form-group-narrow">
               <label htmlFor="client-priority">Priority</label>
               <select
                 id="client-priority"
@@ -100,7 +134,16 @@ export default function ClientRaiseTicketView({ currentUser }) {
               </select>
             </div>
 
-            <button type="submit" className="btn-primary" disabled={submitting}>
+            {dueDatePreview && (
+              <div className="form-group form-group-narrow" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted, #666)' }}>Target Due Date</span>
+                <span style={{ fontWeight: 600, color: 'var(--primary, #0c66e4)', fontSize: '13px' }}>
+                  {dueDatePreview}
+                </span>
+              </div>
+            )}
+
+            <button type="submit" className="btn-primary" disabled={submitting} style={{ alignSelf: 'flex-end', marginBottom: '16px' }}>
               {submitting ? 'Sending…' : 'Send request'}
             </button>
           </div>

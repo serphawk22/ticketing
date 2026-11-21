@@ -1929,6 +1929,7 @@ export default function ListView({
             open
             ticket={ticket}
             anchor={rowMenu.anchor}
+            currentUser={currentUser}
             // Everything routes through one of the two handlers, so the menu
             // itself does not have to know which items are safe to run directly.
             onOpen={(key) => {

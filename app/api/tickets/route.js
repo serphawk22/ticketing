@@ -7,9 +7,12 @@ import { employeeExists, getEmployee } from '@/lib/employees';
 import { notifyAssignment } from '@/lib/mail';
 import { notifyTicketAssigned, notifyTicketCreated } from '@/lib/notifications';
 import { logCreated } from '@/lib/ticketActivity';
-import { canRouteWork, resolveUserScope } from '@/lib/rbac';
+import { canRouteWork, isAdminOrOwner, normalizeRole, resolveUserScope } from '@/lib/rbac';
 import { createTicketWithStage } from '@/lib/ticketStageService';
+import { validateTicketRepository, createProjectRepository, findProjectRepository } from '@/lib/projectRepositories';
+import { parseOwnerRepo } from '@/lib/github';
 import { TASK_SHEET_SESSION_COOKIE, validateTaskSheetCookieSession } from '@/lib/taskSheetTokens';
+import { calculateAutomaticDueDate, isValidClientCategory } from '@/lib/dueDateCalculator';
 import { resolveCreationDueDate } from '@/lib/ticketDates';
 import {
   normalizeImportanceLevel,
@@ -170,6 +173,7 @@ export async function POST(request) {
     start_date = null,
     labels = '',
     category = '',
+    repository_id = null,
   } = await request.json();
 
   // Anyone signed in may raise a ticket -- that is the whole point of the
@@ -186,27 +190,63 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid priority.' }, { status: 400 });
   }
 
-  const cleanHumanImportance = normalizeImportanceLevel(human_importance);
-  if (!cleanHumanImportance) {
+  const userRole = normalizeRole(session.user.role);
+  const isClient = userRole === 'client';
+  const isAdmin = isAdminOrOwner(session.user);
+
+  const cleanHumanImportance = normalizeImportanceLevel(human_importance) || (isClient ? 'Medium' : null);
+  if (!cleanHumanImportance && !isClient) {
     return NextResponse.json(
       { error: 'Human importance is required. Please select Critical, High, Medium, or Low.' },
       { status: 400 }
     );
   }
 
-  if (!VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
-  }
+  let resolvedCategory = String(category || '').trim();
+  let resolvedType = String(type || 'task').toLowerCase().trim();
+  let due = null;
+  let initialDue = null;
 
-  // The calendar hands over a due date, and the timeline hands over both ends
-  // of a drag, so the new ticket lands on the range the user drew. Stored as
-  // bare YYYY-MM-DD strings. When omitted, null, or empty, automatically default
-  // to 7 calendar days from creation date while preserving any manually chosen date.
-  const { dueDate: due, error: dueDateError } = resolveCreationDueDate(due_date);
-  if (dueDateError) {
-    return NextResponse.json({ error: dueDateError }, { status: 400 });
-  }
+  if (isClient) {
+    const rawCategory = category || type || '';
+    if (!isValidClientCategory(rawCategory)) {
+      return NextResponse.json(
+        { error: 'Client requests require a valid request type. Allowed: Access Issue, Incident, Feature Request.' },
+        { status: 400 }
+      );
+    }
+    const calc = calculateAutomaticDueDate({
+      role: 'client',
+      category: rawCategory,
+      creationDate: new Date(),
+    });
+    due = calc.dueDate;
+    initialDue = calc.initialDueDate;
+    resolvedCategory = calc.clientCategory;
+    resolvedType = 'task';
+  } else {
+    if (!VALID_TYPES.includes(resolvedType)) {
+      return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
+    }
 
+    if (due_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())) {
+      return NextResponse.json({ error: 'Invalid due date.' }, { status: 400 });
+    }
+
+    // Admins and owners can select a custom due date during creation; other internal roles receive standard 7 days
+    const customDue = isAdmin && due_date && /^\d{4}-\d{2}-\d{2}$/.test(String(due_date).trim())
+      ? String(due_date).trim()
+      : null;
+
+    const calc = calculateAutomaticDueDate({
+      role: userRole,
+      creationDate: new Date(),
+      customDueDate: customDue,
+      isAdminOrOwner: isAdmin,
+    });
+    due = calc.dueDate;
+    initialDue = calc.initialDueDate;
+  }
   if (start_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(start_date).trim())) {
     return NextResponse.json({ error: 'Invalid start date.' }, { status: 400 });
   }
@@ -241,29 +281,67 @@ export async function POST(request) {
     } catch {}
   }
 
+  let resolvedRepoId = null;
+  if (repository_id) {
+    if (typeof repository_id === 'string' && repository_id.startsWith('gh:')) {
+      const fullName = repository_id.slice(3).trim();
+      const parsed = parseOwnerRepo(fullName);
+      if (parsed && resolvedProjectId) {
+        let existing = await findProjectRepository(resolvedProjectId, parsed.owner, parsed.repo);
+        if (!existing) {
+          existing = await createProjectRepository({
+            projectId: resolvedProjectId,
+            owner: parsed.owner,
+            repo: parsed.repo,
+            verificationStatus: 'verified',
+            createdBy: session.user.id,
+          }).catch(() => null);
+        }
+        resolvedRepoId = existing?.id ? Number(existing.id) : null;
+      }
+    } else if (Number.isInteger(Number(repository_id)) && Number(repository_id) > 0) {
+      resolvedRepoId = Number(repository_id);
+    }
+  }
+
+  if (resolvedProjectId && resolvedRepoId) {
+    try {
+      await validateTicketRepository({
+        projectId: resolvedProjectId,
+        repositoryId: resolvedRepoId,
+      });
+    } catch (repoErr) {
+      return NextResponse.json({ error: repoErr.message }, { status: 400 });
+    }
+  }
+
   const created = await createTicketWithStage({
     title: title.trim(),
     description: description.trim(),
     priority,
-    type,
+    type: resolvedType,
     createdBy: session.user.id,
     projectId: resolvedProjectId || null,
     employeeId: assignee || null,
     parentId: parent || null,
     startDate: start,
     dueDate: due,
+    initialDueDate: initialDue,
     labels: String(labels || '').trim(),
-    category: String(category || '').trim(),
+    category: resolvedCategory,
     source: 'create',
+    repositoryId: resolvedRepoId || null,
   });
-  await db
-    .prepare(
-      `UPDATE tickets
-       SET human_importance = ?, ai_importance_status = ?
-       WHERE id = ?`
-    )
-    .run(cleanHumanImportance, 'pending', created.id);
 
+  if (cleanHumanImportance) {
+    await db
+      .prepare(
+        `UPDATE tickets
+         SET human_importance = ?, ai_importance_status = ?
+         WHERE id = ?`
+      )
+      .run(cleanHumanImportance, 'pending', created.id);
+  }
   const ticket = await getTicket(created.id);
 
   // The history opens with the creation itself, so the timeline has a start

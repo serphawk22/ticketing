@@ -55,7 +55,61 @@ export default function CreateTicketModal({
   const [projectId, setProjectId] = useState(
     defaultProjectId ? String(defaultProjectId) : ''
   );
-  const [dueDate, setDueDate] = useState(defaultDueDate || '');
+  const [repositoryId, setRepositoryId] = useState('');
+  const [projectRepositories, setProjectRepositories] = useState([]);
+  const [loadingRepositories, setLoadingRepositories] = useState(false);
+  const [githubAccountRepos, setGithubAccountRepos] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/github/repos')
+      .then((res) => (res.ok ? res.json() : { repos: [] }))
+      .then((data) => {
+        if (active && Array.isArray(data.repos)) {
+          setGithubAccountRepos(data.repos);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) {
+      setProjectRepositories([]);
+      setRepositoryId('');
+      return;
+    }
+
+    setLoadingRepositories(true);
+    setRepositoryId('');
+    fetch(`/api/projects/${projectId}/repositories`)
+      .then((res) => (res.ok ? res.json() : { repositories: [] }))
+      .then((data) => {
+        if (active) {
+          setProjectRepositories(data.repositories || []);
+        }
+      })
+      .catch(() => {
+        if (active) setProjectRepositories([]);
+      })
+      .finally(() => {
+        if (active) setLoadingRepositories(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
+  const defaultCalculatedDue = () => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 7);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const [dueDate, setDueDate] = useState(defaultDueDate || defaultCalculatedDue());
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -142,6 +196,7 @@ export default function CreateTicketModal({
           category,
           employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
+          repository_id: repositoryId || null,
           // Set when the modal was opened from a row's quick-add, so the new
           // ticket lands in the tree instead of at the top level.
           parent_id: parent ? parent.id : null,
@@ -228,9 +283,75 @@ export default function CreateTicketModal({
       ),
     },
     {
+      key: 'repository',
+      label: 'GitHub repository (Optional)',
+      id: 'ticket-repository',
+      hint: (
+        <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '2px', display: 'block' }}>
+          {projectRepositories.length === 0 && githubAccountRepos.length === 0
+            ? 'Optional. No active repositories configured.'
+            : 'Optional. Select a repository from this project or choose from your GitHub account.'}
+        </span>
+      ),
+      control: (
+        <select
+          id="ticket-repository"
+          value={repositoryId}
+          disabled={!projectId || loadingRepositories}
+          onChange={(e) => {
+            setRepositoryId(e.target.value);
+            setError('');
+          }}
+          style={{
+            width: '100%',
+          }}
+        >
+          <option value="">
+            {!projectId
+              ? 'Select a project first…'
+              : loadingRepositories
+              ? 'Loading repositories…'
+              : 'None (Optional)'}
+          </option>
+          {projectRepositories.length > 0 && (
+            <optgroup label="Project Repositories">
+              {projectRepositories.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.github_owner}/{r.github_repo}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {githubAccountRepos.length > 0 && (
+            <optgroup label="Add from GitHub Account">
+              {githubAccountRepos
+                .filter(
+                  (gh) =>
+                    !projectRepositories.some(
+                      (pr) =>
+                        String(pr.github_owner).toLowerCase() === String(gh.owner).toLowerCase() &&
+                        String(pr.github_repo).toLowerCase() === String(gh.name).toLowerCase()
+                    )
+                )
+                .map((gh) => (
+                  <option key={`gh-${gh.fullName}`} value={`gh:${gh.fullName}`}>
+                    + Add {gh.fullName} {gh.isPrivate ? '(Private)' : ''}
+                  </option>
+                ))}
+            </optgroup>
+          )}
+        </select>
+      ),
+    },
+    {
       key: 'due-date',
       label: 'Due date',
       id: 'ticket-due-date',
+      hint: (
+        <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '2px', display: 'block' }}>
+          Default: 7 days from creation (admins/owners can customize)
+        </span>
+      ),
       control: (
         <input
           id="ticket-due-date"
