@@ -306,6 +306,70 @@ function CommentRow({
   comment,
   attachments = [],
   onOpenAttachment,
+  currentUser,
+  onEdit,
+  onDelete,
+  onOpenTicket,
+  validPrefixes,
+  existingKeys,
+}) {
+  const mine = currentUser && comment.author_id === currentUser.id;
+  const { text, attachments: commentAttachRefs } = useMemo(
+    () => parseCommentAttachments(comment.body),
+    [comment.body]
+  );
+
+  return (
+    <li className="tm-comment">
+      <Avatar name={comment.author_name} assigned size={24} />
+      <div className="tm-comment-body">
+        <p className="tm-comment-head">
+          <strong>{comment.author_name}</strong>
+          <time>{formatFullDateTime(comment.created_at)}</time>
+          {comment.updated_at !== comment.created_at && <em className="tm-edited">edited</em>}
+        </p>
+        {text ? (
+          <p className="tm-comment-text">
+            <TicketText
+              text={text}
+              validPrefixes={validPrefixes}
+              existingKeys={existingKeys}
+              onOpenTicket={onOpenTicket}
+              linkClassName="ai-ticket-link"
+            />
+          </p>
+        ) : null}
+        {commentAttachRefs.length > 0 && (
+          <div className="tm-comment-attachments" style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {commentAttachRefs.map((att) => {
+              const matched = (attachments || []).find((a) => a.id === att.id) || att;
+              return (
+                <button
+                  key={att.id}
+                  type="button"
+                  className="tm-comment-attachment-pill"
+                  onClick={() => onOpenAttachment && onOpenAttachment(matched)}
+                  title={`Open ${att.filename}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    background: 'var(--subtle, #f4f5f7)',
+                    border: '1px solid var(--border, #dfe1e6)',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    color: 'var(--link, #0c66e4)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <PaperclipIcon size={12} />
+                  <span>{att.filename}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {mine && (
           <div className="tm-comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>Edit</button>
