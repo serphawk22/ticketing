@@ -7176,6 +7176,150 @@ textarea.inline-input { resize: vertical; }
   cursor: not-allowed;
 }
 
+.tm-chat-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tm-chat-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tm-chat-attach-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.tm-chat-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tm-chat-pending-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--subtle, #f4f5f7);
+  border: 1px dashed var(--border, #dfe1e6);
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.tm-chat-pending-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border, #dfe1e6);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--text, #172b4d);
+}
+
+.tm-chat-pending-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.tm-chat-pending-size {
+  color: var(--muted, #6b778c);
+  font-size: 10px;
+}
+
+.tm-chat-pending-rm {
+  background: none;
+  border: none;
+  color: var(--muted, #6b778c);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 2px;
+}
+
+.tm-chat-pending-rm:hover {
+  color: #de350b;
+}
+
+.tm-chat-uploading-indicator {
+  font-size: 11px;
+  color: var(--primary, #0c66e4);
+  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.tm-chat-attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tm-chat-attachment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  font-size: 12px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tm-chat-attachment-pill:hover {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.tm-chat-mine .tm-chat-attachment-pill {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.tm-chat-mine .tm-chat-attachment-pill:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.tm-chat-attachment-name {
+  font-weight: 500;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-chat-attachment-size {
+  opacity: 0.75;
+  font-size: 10px;
+}
+
 /* Inputs ------------------------------------------------------------------ */
 
 .tm-input,
@@ -18902,6 +19046,511 @@ input[type='text'].rpt-hub-search-input:focus,
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
   font-size: 13px;
   font-weight: 500;
+}
+
+/* =====================================================================
+   Home Page Summary (Project AI Summaries & Employee Daily Progress)
+   ===================================================================== */
+.hms-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.hms-project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 14px;
+}
+
+.hms-project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+}
+
+.hms-project-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hms-project-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hms-project-key-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1.5px solid var(--primary);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.hms-project-name {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.hms-target-date {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+
+.hms-project-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.hms-health-completed {
+  background: #deebff;
+  color: #0747a6;
+  border-color: #b3d4ff;
+}
+
+.hms-stale-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #fffae6;
+  color: #974f0c;
+  border: 1px solid #ffe380;
+}
+
+.hms-metrics-strip,
+.hms-emp-summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.hms-metric-chip {
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.hms-metric-chip.is-danger {
+  background: #ffebe6;
+  border-color: #ffbdad;
+  color: #bf2600;
+}
+
+.hms-summary-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hms-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.hms-summary-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.hms-recs-box {
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.hms-no-summary {
+  font-size: 12px;
+  color: var(--text-subtle);
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px dashed var(--border);
+  background: var(--bg);
+}
+
+.hms-blockers-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.hms-blocker-col {
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.hms-ai-risk-col {
+  border-style: dashed;
+}
+
+.hms-sub-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-subtle);
+  margin-bottom: 4px;
+}
+
+.hms-sub-label.is-done {
+  color: #006644;
+}
+
+.hms-mini-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.hms-source-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-subtle);
+}
+
+.hms-project-card-foot {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hms-foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hms-timestamp,
+.hms-window-label {
+  font-size: 11.5px;
+  color: var(--text-subtle);
+}
+
+.hms-link-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.hms-link-btn:hover {
+  text-decoration: underline;
+}
+
+.hms-link-btn.is-danger {
+  color: #de350b;
+}
+
+.hms-muted-line {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.hms-empty-state {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+
+/* Employee-wise Daily Progress */
+.hms-emp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.hms-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.hms-emp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hms-emp-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hms-emp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hms-emp-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hms-emp-meta {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.hms-emp-tickets-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hms-zero-ticket-notice {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px dashed var(--border);
+  background: var(--bg);
+}
+
+.hms-ticket-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hms-ticket-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hms-ticket-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.hms-ticket-chip.is-done {
+  border-color: #abf5d1;
+  background: #e3fcef;
+}
+
+.hms-ticket-chip-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.hms-emp-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.hms-feed-item {
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hms-feed-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hms-kind-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.hms-kind-badge.is-ticket {
+  background: #deebff;
+  color: #0747a6;
+}
+
+.hms-kind-badge.is-general {
+  background: #eae6ff;
+  color: #403294;
+}
+
+.hms-feed-time {
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-left: auto;
+}
+
+.hms-feed-body {
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+/* Employee Dashboard Daily Notes Composer */
+.hms-daily-notes-panel {
+  margin-bottom: 18px;
+}
+
+.hms-note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.hms-note-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.hms-note-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.hms-note-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.hms-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hms-note-item-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.hms-note-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+[data-theme='dark'] .hms-health-completed,
+[data-theme='dark'] .hms-kind-badge.is-ticket {
+  background: rgba(12, 102, 228, 0.22);
+  color: #85b8ff;
+  border-color: rgba(12, 102, 228, 0.45);
+}
+
+[data-theme='dark'] .hms-kind-badge.is-general {
+  background: rgba(101, 84, 192, 0.25);
+  color: #dfd8fd;
+}
+
+[data-theme='dark'] .hms-ticket-chip.is-done {
+  background: rgba(0, 135, 90, 0.2);
+  border-color: rgba(0, 135, 90, 0.45);
+}
+
+[data-theme='dark'] .hms-metric-chip.is-danger {
+  background: rgba(222, 53, 11, 0.2);
+  border-color: rgba(222, 53, 11, 0.45);
+  color: #ff8f73;
+}
+
+[data-theme='dark'] .hms-stale-badge {
+  background: rgba(255, 171, 0, 0.18);
+  border-color: rgba(255, 171, 0, 0.45);
+  color: #ffe380;
+}
+
+@media (max-width: 640px) {
+  .hms-project-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 

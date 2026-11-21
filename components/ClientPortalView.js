@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ClientShell from '@/components/ClientShell';
-import { PRIORITY_META, STATUS_META, STATUS_PROGRESS, formatFullDateTime } from '@/components/meta';
+import { PRIORITY_META, STATUS_META, STATUS_PROGRESS, formatFullDateTime, formatShortDate } from '@/components/meta';
 
 /**
  * The client's request list.
@@ -103,6 +103,14 @@ export default function ClientPortalView({ currentUser, tickets, comments }) {
                     >
                       {priority.label}
                     </span>
+                    {t.category && (
+                      <span
+                        className="badge"
+                        style={{ background: '#e3fcef', color: '#216e4e' }}
+                      >
+                        {t.category}
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="client-ticket-title">{t.title}</h3>
@@ -159,6 +167,14 @@ export default function ClientPortalView({ currentUser, tickets, comments }) {
                       <dt>Raised</dt>
                       <dd>{formatFullDateTime(t.created_at)}</dd>
                     </div>
+                    {t.due_date && (
+                      <div className="client-fact">
+                        <dt>Target Due Date</dt>
+                        <dd style={{ fontWeight: 600, color: '#0c66e4' }}>
+                          {formatShortDate(`${t.due_date} 12:00:00`)}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
 
                   {thread.length > 0 && (

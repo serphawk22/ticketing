@@ -56,6 +56,22 @@ export default function CreateTicketModal({
   const [repositoryId, setRepositoryId] = useState('');
   const [projectRepositories, setProjectRepositories] = useState([]);
   const [loadingRepositories, setLoadingRepositories] = useState(false);
+  const [githubAccountRepos, setGithubAccountRepos] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/github/repos')
+      .then((res) => (res.ok ? res.json() : { repos: [] }))
+      .then((data) => {
+        if (active && Array.isArray(data.repos)) {
+          setGithubAccountRepos(data.repos);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -144,13 +160,6 @@ export default function CreateTicketModal({
     const errs = {};
     if (!title.trim()) errs.summary = 'Summary is required.';
     if (!description.trim()) errs.description = 'Description is required.';
-    if (projectId) {
-      if (!loadingRepositories && projectRepositories.length === 0) {
-        errs.repository = 'This project has no active repositories configured. Please configure a repository before creating tickets.';
-      } else if (!repositoryId) {
-        errs.repository = 'Please select a GitHub repository for this ticket.';
-      }
-    }
     setFieldErrors(errs);
     return errs;
   }
@@ -181,7 +190,7 @@ export default function CreateTicketModal({
           category,
           employee_id: employeeId ? Number(employeeId) : null,
           project_id: projectId ? Number(projectId) : null,
-          repository_id: repositoryId ? Number(repositoryId) : null,
+          repository_id: repositoryId || null,
           // Set when the modal was opened from a row's quick-add, so the new
           // ticket lands in the tree instead of at the top level.
           parent_id: parent ? parent.id : null,
@@ -252,35 +261,25 @@ export default function CreateTicketModal({
     },
     {
       key: 'repository',
-      label: 'GitHub repository *',
+      label: 'GitHub repository (Optional)',
       id: 'ticket-repository',
-      hint: fieldErrors.repository ? (
-        <span style={{ fontSize: '11px', color: '#de350b', marginTop: '2px', display: 'block' }}>
-          {fieldErrors.repository}
-        </span>
-      ) : projectId && !loadingRepositories && projectRepositories.length === 0 ? (
-        <span style={{ fontSize: '11px', color: '#de350b', marginTop: '2px', display: 'block' }}>
-          ⚠️ No active repositories found for this project.
-        </span>
-      ) : (
+      hint: (
         <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '2px', display: 'block' }}>
-          Required. Select the repository this ticket belongs to.
+          {projectRepositories.length === 0 && githubAccountRepos.length === 0
+            ? 'Optional. No active repositories configured.'
+            : 'Optional. Select a repository from this project or choose from your GitHub account.'}
         </span>
       ),
       control: (
         <select
           id="ticket-repository"
           value={repositoryId}
-          disabled={!projectId || loadingRepositories || projectRepositories.length === 0}
+          disabled={!projectId || loadingRepositories}
           onChange={(e) => {
             setRepositoryId(e.target.value);
             setError('');
-            if (fieldErrors.repository) {
-              setFieldErrors((prev) => ({ ...prev, repository: '' }));
-            }
           }}
           style={{
-            borderColor: fieldErrors.repository ? '#de350b' : undefined,
             width: '100%',
           }}
         >
@@ -289,15 +288,35 @@ export default function CreateTicketModal({
               ? 'Select a project first…'
               : loadingRepositories
               ? 'Loading repositories…'
-              : projectRepositories.length === 0
-              ? 'No repositories configured'
-              : 'Select a repository…'}
+              : 'None (Optional)'}
           </option>
-          {projectRepositories.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.github_owner}/{r.github_repo}
-            </option>
-          ))}
+          {projectRepositories.length > 0 && (
+            <optgroup label="Project Repositories">
+              {projectRepositories.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.github_owner}/{r.github_repo}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {githubAccountRepos.length > 0 && (
+            <optgroup label="Add from GitHub Account">
+              {githubAccountRepos
+                .filter(
+                  (gh) =>
+                    !projectRepositories.some(
+                      (pr) =>
+                        String(pr.github_owner).toLowerCase() === String(gh.owner).toLowerCase() &&
+                        String(pr.github_repo).toLowerCase() === String(gh.name).toLowerCase()
+                    )
+                )
+                .map((gh) => (
+                  <option key={`gh-${gh.fullName}`} value={`gh:${gh.fullName}`}>
+                    + Add {gh.fullName} {gh.isPrivate ? '(Private)' : ''}
+                  </option>
+                ))}
+            </optgroup>
+          )}
         </select>
       ),
     },

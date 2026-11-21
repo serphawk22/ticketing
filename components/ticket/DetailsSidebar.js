@@ -336,6 +336,7 @@ export default function DetailsSidebar({
 
   const [isPrModalOpen, setIsPrModalOpen] = useState(false);
   const [prModalUrl, setPrModalUrl] = useState('');
+  const [prModalReason, setPrModalReason] = useState('');
   const [prModalTargetStatus, setPrModalTargetStatus] = useState(null);
   const [prModalLoading, setPrModalLoading] = useState(false);
   const [prModalError, setPrModalError] = useState('');
@@ -348,6 +349,7 @@ export default function DetailsSidebar({
 
   const openPrModal = (targetStatus = null) => {
     setPrModalUrl(ticket.pr_url || '');
+    setPrModalReason('');
     setPrModalTargetStatus(targetStatus);
     setPrModalError('');
     setIsPrModalOpen(true);
@@ -441,37 +443,51 @@ export default function DetailsSidebar({
 
   const handleConfirmPrSubmit = async () => {
     const trimmed = prModalUrl.trim();
-    if (!trimmed) {
-      setPrModalError('Please enter a GitHub Pull Request URL.');
-      return;
-    }
-    const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(trimmed);
-    if (!prMatch) {
-      setPrModalError('Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number');
-      return;
-    }
-    if (ticket.repository_owner && ticket.repository_name) {
-      if (
-        prMatch[1].toLowerCase() !== ticket.repository_owner.toLowerCase() ||
-        prMatch[2].toLowerCase() !== ticket.repository_name.toLowerCase()
-      ) {
-        setPrModalError(
-          `Pull Request belongs to repository "${prMatch[1]}/${prMatch[2]}", but ticket is assigned to "${ticket.repository_owner}/${ticket.repository_name}".`
-        );
+    const trimmedReason = prModalReason.trim();
+
+    if (trimmed) {
+      const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(trimmed);
+      if (!prMatch) {
+        setPrModalError('Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number');
         return;
       }
+      if (ticket.repository_owner && ticket.repository_name) {
+        if (
+          prMatch[1].toLowerCase() !== ticket.repository_owner.toLowerCase() ||
+          prMatch[2].toLowerCase() !== ticket.repository_name.toLowerCase()
+        ) {
+          setPrModalError(
+            `Pull Request belongs to repository "${prMatch[1]}/${prMatch[2]}", but ticket is assigned to "${ticket.repository_owner}/${ticket.repository_name}".`
+          );
+          return;
+        }
+      }
+    } else if (prModalTargetStatus === 'resolved') {
+      if (!trimmedReason) {
+        setPrModalError('Please enter a reason for moving this ticket to QA Testing without a Pull Request.');
+        return;
+      }
+    } else {
+      setPrModalError('Please enter a GitHub Pull Request URL.');
+      return;
     }
 
     setPrModalLoading(true);
     setPrModalError('');
     try {
       const payload = prModalTargetStatus === 'resolved'
-        ? { status: 'resolved', pr_url: trimmed }
+        ? {
+            status: 'resolved',
+            pr_url: trimmed || null,
+            qa_reason: trimmedReason || null,
+            expected_status: ticket.status,
+            expected_pr_url: ticket.pr_url,
+          }
         : { pr_url: trimmed };
       await onPatch(payload);
       setIsPrModalOpen(false);
     } catch (err) {
-      setPrModalError(err.message || 'Failed to verify and save Pull Request.');
+      setPrModalError(err.message || 'Failed to update ticket.');
     } finally {
       setPrModalLoading(false);
     }
@@ -982,15 +998,15 @@ export default function DetailsSidebar({
           >
             <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600 }}>
               {prModalTargetStatus === 'resolved'
-                ? 'GitHub Pull Request Required for QA'
+                ? 'Move Ticket to QA Testing'
                 : ticket.pr_url
                 ? 'Update GitHub Pull Request'
                 : 'Link GitHub Pull Request'}
             </h3>
             <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--muted, #666)', lineHeight: 1.4 }}>
               {prModalTargetStatus === 'resolved'
-                ? 'Moving this ticket to QA Testing requires a verified GitHub Pull Request from the assigned repository.'
-                : 'Link a verified GitHub Pull Request to this ticket.'}
+                ? 'You can link a GitHub Pull Request. If this ticket does not have a Pull Request, provide a reason below to proceed to QA Testing.'
+                : 'Link a GitHub Pull Request to this ticket.'}
             </p>
 
             <div style={{ background: '#f4f5f7', padding: '10px 12px', borderRadius: '4px', marginBottom: '16px', fontSize: '12px' }}>
@@ -998,24 +1014,19 @@ export default function DetailsSidebar({
                 <strong>Assigned Repository:</strong>{' '}
                 {ticket.repository_owner && ticket.repository_name
                   ? `${ticket.repository_owner}/${ticket.repository_name}`
-                  : 'None (repository required)'}
+                  : 'None (Optional)'}
               </div>
-              {!ticket.repository_id && (
-                <div style={{ color: '#de350b', marginTop: '4px' }}>
-                  ⚠️ No repository is assigned to this ticket. Please select a repository first before linking a Pull Request.
-                </div>
-              )}
             </div>
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                GitHub Pull Request URL *
+                GitHub Pull Request URL {prModalTargetStatus === 'resolved' ? '(Optional)' : '*'}
               </label>
               <input
                 type="url"
                 value={prModalUrl}
                 onChange={(e) => setPrModalUrl(e.target.value)}
-                disabled={prModalLoading || !ticket.repository_id}
+                disabled={prModalLoading}
                 placeholder={
                   ticket.repository_owner && ticket.repository_name
                     ? `https://github.com/${ticket.repository_owner}/${ticket.repository_name}/pull/123`
@@ -1031,9 +1042,33 @@ export default function DetailsSidebar({
                 }}
               />
               <span style={{ fontSize: '11px', color: 'var(--muted, #666)', marginTop: '4px', display: 'block' }}>
-                Note: An open or unmerged PR may enter QA. PRs may also be reused across multiple tickets in the same repository.
+                Format: https://github.com/:owner/:repo/pull/:number
               </span>
             </div>
+
+            {prModalTargetStatus === 'resolved' && !prModalUrl.trim() && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                  Reason for QA without Pull Request *
+                </label>
+                <textarea
+                  value={prModalReason}
+                  onChange={(e) => setPrModalReason(e.target.value)}
+                  disabled={prModalLoading}
+                  rows={3}
+                  placeholder="Explain why this ticket is moving to QA without a PR (e.g. documentation, design update, manual setup, no repo)..."
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border, #dfe1e6)',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+            )}
 
             {prModalError && (
               <div
@@ -1063,14 +1098,19 @@ export default function DetailsSidebar({
               <button
                 type="button"
                 className="btn-primary"
-                disabled={prModalLoading || !prModalUrl.trim() || !ticket.repository_id}
+                disabled={
+                  prModalLoading ||
+                  (prModalTargetStatus === 'resolved'
+                    ? (!prModalUrl.trim() && !prModalReason.trim())
+                    : !prModalUrl.trim())
+                }
                 onClick={handleConfirmPrSubmit}
               >
                 {prModalLoading
-                  ? 'Verifying with GitHub…'
+                  ? 'Saving…'
                   : prModalTargetStatus === 'resolved'
-                  ? 'Verify & Move to QA'
-                  : 'Verify & Link PR'}
+                  ? 'Move to QA'
+                  : 'Link PR'}
               </button>
             </div>
           </div>

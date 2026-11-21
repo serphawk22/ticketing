@@ -8,6 +8,7 @@ import Avatar from './Avatar';
 import ProjectTabs from './ProjectTabs';
 import CreateTicketModal from './CreateTicketModal';
 import TicketDetailModal from './ticket/TicketDetailModal';
+import ChangeDueDateModal from './ticket/ChangeDueDateModal';
 import { mergeArchiveChange } from './archiveChange';
 import useTicketModal from './useTicketModal';
 import UnscheduledPanel from './calendar/UnscheduledPanel';
@@ -172,6 +173,8 @@ export default function CalendarView({
   const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
   const [error, setError] = useState('');
+  const [pendingDueDateModal, setPendingDueDateModal] = useState(null);
+  const isAdminOrManager = currentUser?.role === 'owner' || currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
   // The cursor is derived from the `today` the server handed down, so the grid
   // renders identically on both sides of hydration.
@@ -515,9 +518,17 @@ export default function CalendarView({
         onDrop={(e) => {
           if (!e.dataTransfer.types.includes(TICKET_DRAG_TYPE)) return;
           e.preventDefault();
-          setDueDate(Number(e.dataTransfer.getData(TICKET_DRAG_TYPE)), iso);
+          const draggedId = Number(e.dataTransfer.getData(TICKET_DRAG_TYPE));
           setDragId(null);
           setDropDate(null);
+          const t = tickets.find((x) => x.id === draggedId);
+          if (!t) return;
+          if (t.due_date === iso) return;
+          if (isAdminOrManager) {
+            setDueDate(draggedId, iso);
+          } else {
+            setPendingDueDateModal({ ticket: t, targetDate: iso });
+          }
         }}
       >
         <div className="cal-cell-head">
@@ -941,6 +952,18 @@ export default function CalendarView({
               return;
             }
             setTickets(data.tickets.filter((t) => t.project_id === project.id));
+          }}
+        />
+      )}
+
+      {pendingDueDateModal && (
+        <ChangeDueDateModal
+          ticket={pendingDueDateModal.ticket}
+          defaultNewDate={pendingDueDateModal.targetDate}
+          onClose={() => setPendingDueDateModal(null)}
+          onSave={async (fields) => {
+            await patchFields(pendingDueDateModal.ticket.id, fields, 'Updating due date');
+            setPendingDueDateModal(null);
           }}
         />
       )}

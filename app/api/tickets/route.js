@@ -9,7 +9,8 @@ import { notifyTicketAssigned, notifyTicketCreated } from '@/lib/notifications';
 import { logCreated } from '@/lib/ticketActivity';
 import { canRouteWork, isAdminOrOwner, normalizeRole, resolveUserScope } from '@/lib/rbac';
 import { createTicketWithStage } from '@/lib/ticketStageService';
-import { validateTicketRepository } from '@/lib/projectRepositories';
+import { validateTicketRepository, createProjectRepository, findProjectRepository } from '@/lib/projectRepositories';
+import { parseOwnerRepo } from '@/lib/github';
 import { TASK_SHEET_SESSION_COOKIE, validateTaskSheetCookieSession } from '@/lib/taskSheetTokens';
 import { calculateAutomaticDueDate, isValidClientCategory } from '@/lib/dueDateCalculator';
 
@@ -266,23 +267,37 @@ export async function POST(request) {
     } catch {}
   }
 
-  let resolvedRepoId = repository_id ? Number(repository_id) : null;
-  if (resolvedProjectId) {
-    if (!resolvedRepoId && !isClient) {
-      return NextResponse.json(
-        { error: 'Please select a GitHub repository for this ticket.' },
-        { status: 400 }
-      );
-    }
-    if (resolvedRepoId) {
-      try {
-        await validateTicketRepository({
-          projectId: resolvedProjectId,
-          repositoryId: resolvedRepoId,
-        });
-      } catch (repoErr) {
-        return NextResponse.json({ error: repoErr.message }, { status: 400 });
+  let resolvedRepoId = null;
+  if (repository_id) {
+    if (typeof repository_id === 'string' && repository_id.startsWith('gh:')) {
+      const fullName = repository_id.slice(3).trim();
+      const parsed = parseOwnerRepo(fullName);
+      if (parsed && resolvedProjectId) {
+        let existing = await findProjectRepository(resolvedProjectId, parsed.owner, parsed.repo);
+        if (!existing) {
+          existing = await createProjectRepository({
+            projectId: resolvedProjectId,
+            owner: parsed.owner,
+            repo: parsed.repo,
+            verificationStatus: 'verified',
+            createdBy: session.user.id,
+          }).catch(() => null);
+        }
+        resolvedRepoId = existing?.id ? Number(existing.id) : null;
       }
+    } else if (Number.isInteger(Number(repository_id)) && Number(repository_id) > 0) {
+      resolvedRepoId = Number(repository_id);
+    }
+  }
+
+  if (resolvedProjectId && resolvedRepoId) {
+    try {
+      await validateTicketRepository({
+        projectId: resolvedProjectId,
+        repositoryId: resolvedRepoId,
+      });
+    } catch (repoErr) {
+      return NextResponse.json({ error: repoErr.message }, { status: 400 });
     }
   }
 

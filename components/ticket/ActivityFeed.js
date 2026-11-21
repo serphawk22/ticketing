@@ -5,7 +5,8 @@ import Avatar from '../Avatar';
 import TicketGroupChat from './TicketGroupChat';
 import TicketText from '../TicketText';
 import { PRIORITY_META, STATUS_META, INCLUSION_META, FIELD_META, formatFullDateTime, formatDuration, ticketKey } from '../meta';
-import { ArrowRightIcon, CommentIcon, HistoryIcon, SortDescIcon } from './icons';
+import { ArrowRightIcon, CommentIcon, HistoryIcon, PaperclipIcon, SortDescIcon } from './icons';
+import { parseCommentAttachments } from '../../lib/commentAttachments';
 
 const TABS = [
   { key: 'all', label: 'All', Icon: null },
@@ -245,6 +246,41 @@ function ActivityRow({ entry }) {
     );
   }
 
+  if (entry.field === 'attachment') {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-attachment" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> attached{' '}
+            <span className="tm-chip-plain" style={{ fontWeight: 600 }}>
+              <PaperclipIcon size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+              {entry.to_value}
+            </span>
+          </p>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
+  if (entry.field === 'attachment_removed') {
+    const actorDisplayName = entry.employee_name || entry.actor_name || 'Someone';
+    return (
+      <li className="tm-activity-row tm-activity-attachment-removed" style={{ alignItems: 'flex-start' }}>
+        <Avatar name={actorDisplayName} assigned size={24} />
+        <div className="tm-activity-body" style={{ width: '100%' }}>
+          <p className="tm-activity-text">
+            <strong>{actorDisplayName}</strong> removed attachment{' '}
+            <span className="tm-chip-plain">{entry.from_value}</span>
+          </p>
+          <time className="tm-activity-time">{formatFullDateTime(entry.created_at)}</time>
+        </div>
+      </li>
+    );
+  }
+
   const meta = FIELD_META[entry.field];
   const label = meta?.label || FIELD_LABELS[entry.field] || entry.field;
   return (
@@ -268,6 +304,8 @@ function ActivityRow({ entry }) {
 
 function CommentRow({
   comment,
+  attachments = [],
+  onOpenAttachment,
   currentUser,
   onEdit,
   onDelete,
@@ -276,6 +314,11 @@ function CommentRow({
   existingKeys,
 }) {
   const mine = currentUser && comment.author_id === currentUser.id;
+  const { text, attachments: commentAttachRefs } = useMemo(
+    () => parseCommentAttachments(comment.body),
+    [comment.body]
+  );
+
   return (
     <li className="tm-comment">
       <Avatar name={comment.author_name} assigned size={24} />
@@ -285,15 +328,48 @@ function CommentRow({
           <time>{formatFullDateTime(comment.created_at)}</time>
           {comment.updated_at !== comment.created_at && <em className="tm-edited">edited</em>}
         </p>
-        <p className="tm-comment-text">
-          <TicketText
-            text={comment.body}
-            validPrefixes={validPrefixes}
-            existingKeys={existingKeys}
-            onOpenTicket={onOpenTicket}
-            linkClassName="ai-ticket-link"
-          />
-        </p>
+        {text ? (
+          <p className="tm-comment-text">
+            <TicketText
+              text={text}
+              validPrefixes={validPrefixes}
+              existingKeys={existingKeys}
+              onOpenTicket={onOpenTicket}
+              linkClassName="ai-ticket-link"
+            />
+          </p>
+        ) : null}
+        {commentAttachRefs.length > 0 && (
+          <div className="tm-comment-attachments" style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {commentAttachRefs.map((att) => {
+              const matched = (attachments || []).find((a) => a.id === att.id) || att;
+              return (
+                <button
+                  key={att.id}
+                  type="button"
+                  className="tm-comment-attachment-pill"
+                  onClick={() => onOpenAttachment && onOpenAttachment(matched)}
+                  title={`Open ${att.filename}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    background: 'var(--subtle, #f4f5f7)',
+                    border: '1px solid var(--border, #dfe1e6)',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    color: 'var(--link, #0c66e4)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <PaperclipIcon size={12} />
+                  <span>{att.filename}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {mine && (
           <div className="tm-comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>Edit</button>
@@ -310,6 +386,9 @@ export default function ActivityFeed({
   watchers,
   activity,
   comments,
+  attachments = [],
+  onUploadAttachment,
+  onOpenAttachment,
   timeLogs,
   currentUser,
   commentDraft,
@@ -404,6 +483,9 @@ export default function ActivityFeed({
           ticket={ticket}
           watchers={watchers}
           comments={comments}
+          attachments={attachments}
+          onUploadAttachment={onUploadAttachment}
+          onOpenAttachment={onOpenAttachment}
           currentUser={currentUser}
           commentDraft={commentDraft}
           onCommentDraft={onCommentDraft}
@@ -447,6 +529,8 @@ export default function ActivityFeed({
               <CommentRow
                 key={`c-${entry.id}`}
                 comment={entry}
+                attachments={attachments}
+                onOpenAttachment={onOpenAttachment}
                 currentUser={currentUser}
                 onEdit={startEdit}
                 onDelete={onDeleteComment}

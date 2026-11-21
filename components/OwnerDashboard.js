@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AppShell from './AppShell';
 import PageHeader from './PageHeader';
+import DashboardHomeSummary from './DashboardHomeSummary';
 import { BarChartIcon } from './AppShellIcons';
 import {
   BlockersAndReconciliationPanel,
@@ -213,18 +214,21 @@ export default function OwnerDashboard({
         {/* Active Tab Content */}
         <div key={activeTab}>
           {activeTab === 'overview' && (
-            <MonitoringOverviewSpotlight
-              totals={overview?.companyTotals}
-              projectEffort={overview?.projectEffort}
-              employeeDistribution={overview?.employeeDistribution}
-              categoryDistribution={overview?.categoryDistribution}
-              stageBottlenecks={overview?.stageBottlenecks}
-              stuckTickets={overview?.stuckTickets}
-              reconciliationAlerts={overview?.reconciliationAlerts}
-              recentBlockers={overview?.recentBlockers}
-              loading={loading}
-              onNavigateTab={(tabId) => setActiveTab(tabId)}
-            />
+            <>
+              <DashboardHomeSummary projects={projects} currentUser={currentUser} />
+              <MonitoringOverviewSpotlight
+                totals={overview?.companyTotals}
+                projectEffort={overview?.projectEffort}
+                employeeDistribution={overview?.employeeDistribution}
+                categoryDistribution={overview?.categoryDistribution}
+                stageBottlenecks={overview?.stageBottlenecks}
+                stuckTickets={overview?.stuckTickets}
+                reconciliationAlerts={overview?.reconciliationAlerts}
+                recentBlockers={overview?.recentBlockers}
+                loading={loading}
+                onNavigateTab={(tabId) => setActiveTab(tabId)}
+              />
+            </>
           )}
 
           {activeTab === 'projects' && (

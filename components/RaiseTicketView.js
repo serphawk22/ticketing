@@ -176,6 +176,13 @@ export default function RaiseTicketView({
                   <label>Category</label>
                   <CategoryField value={category} onSelect={setCategory} variant="form" />
                 </div>
+
+                <div className="form-group">
+                  <label>Due date</label>
+                  <div style={{ padding: '7px 10px', background: 'var(--subtle, #f4f5f7)', borderRadius: '3px', fontSize: '13px', color: 'var(--text, #172b4d)', border: '1px solid var(--border, #dfe1e6)' }}>
+                    Automatic (7 days)
+                  </div>
+                </div>
               </div>
 
               <div className="raise-actions">
@@ -257,6 +264,11 @@ export default function RaiseTicketView({
                                   ? t.assigned_to_name
                                   : 'Unassigned'}
                             </span>
+                            {t.due_date && (
+                              <span style={{ fontSize: '11px', color: 'var(--muted, #666)' }}>
+                                · Due: {t.due_date}
+                              </span>
+                            )}
                           </span>
                         </span>
                       </Link>

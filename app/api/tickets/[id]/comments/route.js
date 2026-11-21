@@ -7,6 +7,8 @@ import { findMentionedNames, notifyTicketCommented } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
+const MAX_COMMENT_LENGTH = 50000;
+
 export async function GET(request, { params }) {
   const session = await requireAuth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,8 +48,11 @@ export async function POST(request, { params }) {
   if (!text) {
     return NextResponse.json({ error: 'Comment cannot be empty.' }, { status: 400 });
   }
-  if (text.length > 5000) {
-    return NextResponse.json({ error: 'Comment is too long.' }, { status: 400 });
+  if (text.length > MAX_COMMENT_LENGTH) {
+    return NextResponse.json(
+      { error: `Comment is too long (maximum ${MAX_COMMENT_LENGTH.toLocaleString()} characters).` },
+      { status: 400 }
+    );
   }
 
   const result = await db

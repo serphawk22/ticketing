@@ -26,6 +26,7 @@ import ArchiveDialog from '../ArchiveDialog';
 import DescriptionEditor from './DescriptionEditor';
 import ActivityFeed from './ActivityFeed';
 import DetailsSidebar from './DetailsSidebar';
+import ChangeDueDateModal from './ChangeDueDateModal';
 import TicketTimeAuditTab from '../TicketTimeAuditTab';
 import { AttachmentsSection, RelationsSection, SlackSection, VotesSection, WatchersSection, WebLinksSection } from './sections';
 
@@ -83,6 +84,7 @@ export default function TicketDetailModal({
   const [webLinksOpen, setWebLinksOpen] = useState(true);
   const [slackOpen, setSlackOpen] = useState(true);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [changeDueDateOpen, setChangeDueDateOpen] = useState(false);
   const [archivePrompt, setArchivePrompt] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -234,8 +236,8 @@ export default function TicketDetailModal({
     [id, load, onArchiveChange]
   );
 
-  const addComment = useCallback(async () => {
-    const body = commentDraft.trim();
+  const addComment = useCallback(async (customBody) => {
+    const body = (typeof customBody === 'string' ? customBody : commentDraft).trim();
     if (!body) return;
     setBusy(true);
     try {
@@ -246,8 +248,10 @@ export default function TicketDetailModal({
       });
       setCommentDraft('');
       setDetail((d) => ({ ...d, comments: data.comments }));
+      return data;
     } catch (err) {
       setError(err.message);
+      throw err;
     } finally {
       setBusy(false);
     }
@@ -287,6 +291,7 @@ export default function TicketDetailModal({
       form.append('file', file);
       const data = await call(`/api/tickets/${id}/attachments`, { method: 'POST', body: form });
       setDetail((d) => ({ ...d, attachments: data.attachments }));
+      return data;
     },
     [id]
   );
@@ -1161,6 +1166,9 @@ export default function TicketDetailModal({
               watchers={detail.watchers}
               activity={detail.activity}
               comments={detail.comments}
+              attachments={detail.attachments}
+              onUploadAttachment={uploadFile}
+              onOpenAttachment={openFile}
               timeLogs={detail.timeLogs}
               currentUser={currentUser}
               commentDraft={commentDraft}
@@ -1190,10 +1198,20 @@ export default function TicketDetailModal({
             onOpenWatcherMenu={() => setMoreOpen((v) => !v)}
             configureOpen={configureOpen}
             onToggleConfigure={() => setConfigureOpen((v) => !v)}
+            onRequestDueDateChange={() => setChangeDueDateOpen(true)}
           />
         </div>
       </div>
     </div>
+    {changeDueDateOpen && (
+      <ChangeDueDateModal
+        ticket={t}
+        onClose={() => setChangeDueDateOpen(false)}
+        onSave={async (fields) => {
+          await patch(fields);
+        }}
+      />
+    )}
     {archivePrompt && (
       <ArchiveDialog
         mode={archivePrompt.archived ? 'archive' : 'restore'}

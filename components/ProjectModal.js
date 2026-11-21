@@ -58,6 +58,28 @@ export default function ProjectModal({
   const [repoActionLoading, setRepoActionLoading] = useState(false);
   const [repoError, setRepoError] = useState('');
   const [repoSuccess, setRepoSuccess] = useState('');
+  const [availableGithubRepos, setAvailableGithubRepos] = useState([]);
+  const [loadingGithubRepos, setLoadingGithubRepos] = useState(false);
+  const [useCustomInput, setUseCustomInput] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingGithubRepos(true);
+    fetch('/api/github/repos')
+      .then((res) => (res.ok ? res.json() : { repos: [] }))
+      .then((data) => {
+        if (active && Array.isArray(data.repos)) {
+          setAvailableGithubRepos(data.repos);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingGithubRepos(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadProjectRepos = async () => {
     if (!project?.id) return;
@@ -626,20 +648,70 @@ export default function ProjectModal({
               )}
 
               <div style={{ background: 'var(--subtle, #f4f5f7)', padding: '12px', borderRadius: '6px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  Add Repository
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, margin: 0 }}>
+                    Add Repository
+                  </label>
+                  {availableGithubRepos.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseCustomInput(!useCustomInput);
+                        setNewRepoInput('');
+                        setRepoError('');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--link, #0c66e4)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      {useCustomInput ? 'Choose from GitHub account' : 'Or type custom repository'}
+                    </button>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    value={newRepoInput}
-                    onChange={(e) => setNewRepoInput(e.target.value)}
-                    placeholder="e.g. facebook/react or owner/repo"
-                    style={{ flex: 1, fontSize: '13px' }}
-                    disabled={repoActionLoading}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
+                  {!useCustomInput && availableGithubRepos.length > 0 ? (
+                    <select
+                      value={newRepoInput}
+                      onChange={(e) => {
+                        setNewRepoInput(e.target.value);
+                        setRepoError('');
+                      }}
+                      disabled={repoActionLoading || loadingGithubRepos}
+                      style={{ flex: 1, fontSize: '13px', padding: '6px 8px' }}
+                    >
+                      <option value="">
+                        {loadingGithubRepos
+                          ? 'Loading GitHub repositories…'
+                          : `Choose a repository to add (${availableGithubRepos.length} available)…`}
+                      </option>
+                      {availableGithubRepos.map((gh) => (
+                        <option key={gh.fullName} value={gh.fullName}>
+                          {gh.fullName} {gh.isPrivate ? '(Private)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={newRepoInput}
+                      onChange={(e) => {
+                        setNewRepoInput(e.target.value);
+                        setRepoError('');
+                      }}
+                      placeholder="e.g. facebook/react or owner/repo"
+                      style={{ flex: 1, fontSize: '13px' }}
+                      disabled={repoActionLoading}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  )}
                   <button
                     type="button"
                     className="btn-secondary"
@@ -661,15 +733,31 @@ export default function ProjectModal({
           ) : (
             <div className="form-group">
               <label htmlFor="project-github-repo">GitHub repo (optional)</label>
-              <input
-                id="project-github-repo"
-                type="text"
-                value={githubRepo}
-                onChange={(e) => setGithubRepo(e.target.value)}
-                placeholder="owner/repo or owner/a, owner/b"
-                autoComplete="off"
-                spellCheck={false}
-              />
+              {availableGithubRepos.length > 0 ? (
+                <select
+                  id="project-github-repo"
+                  value={githubRepo}
+                  onChange={(e) => setGithubRepo(e.target.value)}
+                  style={{ width: '100%', fontSize: '13px' }}
+                >
+                  <option value="">None (Optional)</option>
+                  {availableGithubRepos.map((gh) => (
+                    <option key={gh.fullName} value={gh.fullName}>
+                      {gh.fullName} {gh.isPrivate ? '(Private)' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="project-github-repo"
+                  type="text"
+                  value={githubRepo}
+                  onChange={(e) => setGithubRepo(e.target.value)}
+                  placeholder="owner/repo or owner/a, owner/b"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              )}
               <p className="field-hint">
                 Enter one or more comma-separated GitHub repositories (e.g. facebook/react, org/backend).
                 You can manage and verify additional repositories anytime after creation.

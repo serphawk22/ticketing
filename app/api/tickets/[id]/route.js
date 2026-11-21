@@ -340,88 +340,73 @@ export async function PATCH(request, { params }) {
         edits.status = 'in_progress';
       }
     } else {
-      if (!ticket.repository_id) {
+      const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(rawPr);
+      if (!prMatch) {
         return NextResponse.json(
-          { error: 'A repository must be assigned before linking a Pull Request.' },
+          { error: 'Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number' },
           { status: 400 }
         );
       }
-      const repo = await getRepositoryById(ticket.repository_id);
-      if (!repo) {
-        return NextResponse.json({ error: 'Assigned repository does not exist.' }, { status: 400 });
-      }
-      if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
-        return NextResponse.json(
-          { error: 'Assigned repository does not belong to the ticket project.' },
-          { status: 400 }
-        );
-      }
-      if (!repo.is_active) {
-        return NextResponse.json(
-          { error: 'The assigned repository is deactivated and cannot accept new or updated Pull Requests.' },
-          { status: 400 }
-        );
-      }
-      try {
-        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr, repository: repo });
-      } catch (prErr) {
-        return NextResponse.json(
-          { error: prErr.message || 'GitHub Pull Request verification failed.', code: prErr.code },
-          { status: prErr.status || 400 }
-        );
-      }
-    }
-  }
+      edits.pr_url = rawPr;
+      edits.github_pr_number = parseInt(prMatch[3], 10);
 
-  // Mandatory PR verification when transitioning to or remaining in QA Testing ('resolved')
-  if (edits.status === 'resolved') {
-    const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
-    const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
-
-    if (!cleanTargetPrUrl) {
-      return NextResponse.json(
-        { error: 'A valid GitHub Pull Request URL is required to move this ticket to QA Testing.' },
-        { status: 400 }
-      );
-    }
-
-    if (!ticket.repository_id) {
-      return NextResponse.json(
-        { error: 'A repository must be assigned before moving to QA Testing.' },
-        { status: 400 }
-      );
-    }
-
-    const repo = await getRepositoryById(ticket.repository_id);
-    if (!repo) {
-      return NextResponse.json({ error: 'Assigned repository does not exist.' }, { status: 400 });
-    }
-    if (ticket.project_id && Number(repo.project_id) !== Number(ticket.project_id)) {
-      return NextResponse.json(
-        { error: 'Assigned repository does not belong to the ticket project.' },
-        { status: 400 }
-      );
-    }
-    if (!repo.is_active) {
-      return NextResponse.json(
-        { error: 'The assigned repository is deactivated and cannot accept new or updated Pull Requests.' },
-        { status: 400 }
-      );
-    }
-
-    if (!verifiedPrMetadata) {
-      try {
-        verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo });
-      } catch (prErr) {
-        return NextResponse.json(
-          { error: prErr.message || 'GitHub Pull Request verification failed.', code: prErr.code },
-          { status: prErr.status || 400 }
-        );
+      // Best effort live API verification if repository is assigned
+      if (ticket.repository_id) {
+        try {
+          const repo = await getRepositoryById(ticket.repository_id);
+          if (repo && (!ticket.project_id || Number(repo.project_id) === Number(ticket.project_id)) && repo.is_active) {
+            verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: rawPr, repository: repo }).catch(() => null);
+          }
+        } catch {}
       }
     }
   }
 
   let closureActivityDetails = null;
+
+  // Transitioning to QA Testing ('resolved')
+  if (edits.status === 'resolved') {
+    const targetPrUrl = body.pr_url !== undefined ? body.pr_url : ticket.pr_url;
+    const cleanTargetPrUrl = targetPrUrl ? String(targetPrUrl).trim() : '';
+
+    if (cleanTargetPrUrl) {
+      // Format check only
+      const prMatch = /^https?:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)\/?$/i.exec(cleanTargetPrUrl);
+      if (!prMatch) {
+        return NextResponse.json(
+          { error: 'Invalid GitHub Pull Request URL format. Expected: https://github.com/:owner/:repo/pull/:number' },
+          { status: 400 }
+        );
+      }
+      edits.pr_url = cleanTargetPrUrl;
+      edits.github_pr_number = parseInt(prMatch[3], 10);
+
+      if (ticket.repository_id && !verifiedPrMetadata) {
+        try {
+          const repo = await getRepositoryById(ticket.repository_id);
+          if (repo && (!ticket.project_id || Number(repo.project_id) === Number(ticket.project_id)) && repo.is_active) {
+            verifiedPrMetadata = await verifyTicketPullRequest({ ticket, prUrl: cleanTargetPrUrl, repository: repo }).catch(() => null);
+          }
+        } catch {}
+      }
+    } else {
+      // No PR URL provided -> require reason unless moved directly from board
+      const qaReason = String(body.qa_reason || body.reason || body.closure_reason || '').trim();
+      if (!qaReason && body.source !== 'board') {
+        return NextResponse.json(
+          { error: 'Please provide a reason for moving this ticket to QA Testing without a Pull Request.' },
+          { status: 400 }
+        );
+      }
+      if (qaReason) {
+        closureActivityDetails = {
+          reason: qaReason,
+          blocker: 'QA without Pull Request',
+          employeeId: session.user?.employee_id || null,
+        };
+      }
+    }
+  }
 
   // Closure handling when transitioning to 'closed'
   if (edits.status === 'closed') {
@@ -453,11 +438,22 @@ export async function PATCH(request, { params }) {
     } else {
       // Ticket has a PR URL -> Verify repository and perform fresh verification
       if (!ticket.repository_id) {
-        return NextResponse.json(
-          { error: 'A repository must be assigned before closing a ticket with a linked Pull Request.' },
-          { status: 400 }
-        );
-      }
+        const closureReason = String(body.closure_reason || body.reason || '').trim();
+        if (!closureReason) {
+          return NextResponse.json(
+            { error: 'A repository must be assigned or a closure reason provided to close a ticket with an unlinked repository PR.' },
+            { status: 400 }
+          );
+        }
+        closureActivityDetails = {
+          reason: closureReason,
+          blocker: 'Ticket closed without assigned repository',
+          employeeId: closeAuth.scope?.employeeId || null,
+        };
+        if (body.resolution === undefined && edits.resolution === undefined) {
+          edits.resolution = closureReason;
+        }
+      } else {
 
       const repo = await getRepositoryById(ticket.repository_id);
       if (!repo) {
@@ -585,6 +581,7 @@ export async function PATCH(request, { params }) {
         if (body.resolution === undefined && edits.resolution === undefined) {
           edits.resolution = closureReason;
         }
+      }
       }
     }
   }
@@ -1089,19 +1086,32 @@ export async function DELETE(request, { params }) {
   }
 
   const children = await childTicketCount(ticket.id);
-  const { attachments } = await deleteTicket(ticket.id);
 
-  // Storage cleanup is best effort: the database rows are already gone, and a
-  // failed object delete should not turn a completed delete into an error.
-  await Promise.all(
-    attachments.map((a) => deleteAttachment(a.storage_key).catch(() => {}))
-  );
+  try {
+    const { attachments } = await deleteTicket(ticket.id);
 
-  return NextResponse.json({
-    deleted: true,
-    ticket: { id: ticket.id, title: ticket.title },
-    // Children survive and are re-parented one level up, so the caller can say
-    // so rather than implying the whole branch went with the parent.
-    reparentedChildren: children,
-  });
+    // Storage cleanup is best effort: the database rows are already committed and gone,
+    // and a failed object delete should not turn a completed delete into an error.
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      await Promise.allSettled(
+        attachments
+          .filter((a) => a?.storage_key)
+          .map((a) => deleteAttachment(a.storage_key).catch(() => {}))
+      );
+    }
+
+    return NextResponse.json({
+      deleted: true,
+      ticket: { id: ticket.id, title: ticket.title },
+      // Children survive and are re-parented one level up, so the caller can say
+      // so rather than implying the whole branch went with the parent.
+      reparentedChildren: children,
+    });
+  } catch (err) {
+    console.error(`[API /api/tickets/[id]] DELETE error for ticket ${ticket.id}:`, err);
+    return NextResponse.json(
+      { error: err.message || 'Failed to delete ticket.' },
+      { status: 500 }
+    );
+  }
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getProject } from '@/lib/projects';
 import { isAdminOrOwner, assertCanViewProject, resolveUserScope } from '@/lib/rbac';
-import { parseOwnerRepo, verifyRepositoryAccess } from '@/lib/github';
+import { parseOwnerRepo, verifyRepositoryAccess, isGithubConfigured, githubRequest } from '@/lib/github';
 import {
   getProjectRepositories,
   findProjectRepository,
@@ -46,9 +46,31 @@ export async function GET(request, { params }) {
     searchParams.get('includeInactive') === 'true' ||
     searchParams.get('all') === '1';
 
-  const repositories = await getProjectRepositories(project.id, {
+  let repositories = await getProjectRepositories(project.id, {
     activeOnly: !includeInactive,
   });
+
+  // If no repositories are configured in project_repositories yet, but the project
+  // has a legacy github_repo string configured, ensure it is added.
+  if (repositories.length === 0 && project.github_repo) {
+    try {
+      const parsed = parseOwnerRepo(project.github_repo);
+      if (parsed) {
+        await createProjectRepository({
+          projectId: project.id,
+          owner: parsed.owner,
+          repo: parsed.repo,
+          verificationStatus: 'verified',
+          createdBy: session.user.id,
+        }).catch(() => {});
+        repositories = await getProjectRepositories(project.id, {
+          activeOnly: !includeInactive,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   return NextResponse.json({ repositories });
 }

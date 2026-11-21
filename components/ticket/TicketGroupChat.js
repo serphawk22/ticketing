@@ -3,8 +3,22 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import Avatar from '../Avatar';
 import TicketText from '../TicketText';
-import { PencilIcon, TrashIcon, SendIcon, CommentIcon } from './icons';
+import { PencilIcon, TrashIcon, SendIcon, CommentIcon, PaperclipIcon } from './icons';
 import { ticketKey } from '../meta';
+import { parseCommentAttachments, formatAttachmentToken } from '../../lib/commentAttachments';
+
+function formatSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
+function isImage(filename) {
+  const ext = String(filename || '').split('.').pop().toLowerCase();
+  return IMAGE_EXTS.has(ext);
+}
 
 function formatChatTime(dateVal) {
   if (!dateVal) return '';
@@ -44,6 +58,9 @@ export default function TicketGroupChat({
   ticket,
   watchers = [],
   comments = [],
+  attachments = [],
+  onUploadAttachment = null,
+  onOpenAttachment = null,
   currentUser,
   commentDraft = '',
   onCommentDraft,
@@ -59,6 +76,9 @@ export default function TicketGroupChat({
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState('');
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const isFirstRender = useRef(true);
@@ -115,12 +135,63 @@ export default function TicketGroupChat({
     setEditDraft('');
   }
 
+  async function handleSend() {
+    if (uploading || isSubmitting) return;
+    const text = commentDraft.trim();
+    if (!text && pendingFiles.length === 0) return;
+
+    if (pendingFiles.length === 0) {
+      onAddComment();
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const tokens = [];
+      for (const file of pendingFiles) {
+        if (onUploadAttachment) {
+          const res = await onUploadAttachment(file);
+          const list = res?.attachments || [];
+          const uploaded = list.find((a) => a.filename === file.name) || list[list.length - 1];
+          if (uploaded) {
+            tokens.push(`[attachment:${uploaded.id}:${file.name}]`);
+          }
+        }
+      }
+      const fullBody = [text, ...tokens].filter(Boolean).join('\n');
+      setPendingFiles([]);
+      await onAddComment(fullBody);
+    } catch (err) {
+      console.error('[TicketGroupChat] Failed to upload chat attachments:', err);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (commentDraft.trim() && !isSubmitting) {
-        onAddComment();
+      if ((commentDraft.trim() || pendingFiles.length > 0) && !isSubmitting && !uploading) {
+        handleSend();
       }
+    }
+  }
+
+  function handleFileChange(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setPendingFiles((prev) => [...prev, ...files]);
+    e.target.value = '';
+  }
+
+  function removePendingFile(idx) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function handlePaste(e) {
+    if (e.clipboardData?.files?.length) {
+      const files = Array.from(e.clipboardData.files);
+      setPendingFiles((prev) => [...prev, ...files]);
     }
   }
 
@@ -262,15 +333,46 @@ export default function TicketGroupChat({
                           </div>
                         ) : (
                           <>
-                            <div className="tm-chat-text">
-                              <TicketText
-                                text={comment.body}
-                                validPrefixes={validPrefixes}
-                                existingKeys={existingKeys}
-                                onOpenTicket={onOpenTicket}
-                                linkClassName="ai-ticket-link"
-                              />
-                            </div>
+                            {(() => {
+                              const parsed = parseCommentAttachments(comment.body);
+                              return (
+                                <>
+                                  {parsed.text ? (
+                                    <div className="tm-chat-text">
+                                      <TicketText
+                                        text={parsed.text}
+                                        validPrefixes={validPrefixes}
+                                        existingKeys={existingKeys}
+                                        onOpenTicket={onOpenTicket}
+                                        linkClassName="ai-ticket-link"
+                                      />
+                                    </div>
+                                  ) : null}
+                                  {parsed.attachments.length > 0 && (
+                                    <div className="tm-chat-attachments-list">
+                                      {parsed.attachments.map((att) => {
+                                        const matched = (attachments || []).find((a) => a.id === att.id) || att;
+                                        return (
+                                          <button
+                                            key={att.id}
+                                            type="button"
+                                            className="tm-chat-attachment-pill"
+                                            onClick={() => onOpenAttachment && onOpenAttachment(matched)}
+                                            title={`Open ${att.filename}`}
+                                          >
+                                            <PaperclipIcon size={12} />
+                                            <span className="tm-chat-attachment-name">{att.filename}</span>
+                                            {matched.size_bytes ? (
+                                              <span className="tm-chat-attachment-size">({formatSize(matched.size_bytes)})</span>
+                                            ) : null}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <div className="tm-chat-meta">
                               {comment.updated_at !== comment.created_at && (
                                 <span className="tm-chat-edited">(edited)</span>
@@ -321,33 +423,73 @@ export default function TicketGroupChat({
 
       {/* Bottom Sticky Chat Composer */}
       <div className="tm-chat-composer">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
         <div className="tm-chat-composer-avatar">
           <Avatar name={currentUser?.name} assigned size={28} />
         </div>
         <div className="tm-chat-input-wrapper">
+          {pendingFiles.length > 0 && (
+            <div className="tm-chat-pending-bar">
+              {pendingFiles.map((f, i) => (
+                <span key={i} className="tm-chat-pending-tag">
+                  <PaperclipIcon size={12} />
+                  <span className="tm-chat-pending-name">{f.name}</span>
+                  <span className="tm-chat-pending-size">({formatSize(f.size)})</span>
+                  <button
+                    type="button"
+                    className="tm-chat-pending-rm"
+                    onClick={() => removePendingFile(i)}
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {uploading && <span className="tm-chat-uploading-indicator">Uploading attachments…</span>}
+            </div>
+          )}
           <textarea
             className="tm-chat-textarea"
             rows={1}
             value={commentDraft}
             spellCheck="true"
-            placeholder={`Message ${key ? `#${key}` : 'the group'}... (Enter to send, Shift+Enter for new line)`}
+            placeholder={`Message ${key ? `#${key}` : 'the group'}... (Enter to send, Shift+Enter for newline, paste screenshots directly)`}
             onChange={(e) => onCommentDraft(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
           />
           <div className="tm-chat-composer-foot">
             <span className="tm-chat-hint">
               <strong>Enter</strong> to send &bull; <strong>Shift+Enter</strong> for newline
             </span>
-            <button
-              type="button"
-              className="tm-chat-send-btn"
-              disabled={!commentDraft.trim() || isSubmitting}
-              onClick={onAddComment}
-              title="Send message (Enter)"
-              aria-label="Send message"
-            >
-              <SendIcon size={14} />
-            </button>
+            <div className="tm-chat-composer-actions">
+              <button
+                type="button"
+                className="tm-chat-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || isSubmitting}
+                title="Attach files or screenshots"
+                aria-label="Attach files or screenshots"
+              >
+                <PaperclipIcon size={15} />
+              </button>
+              <button
+                type="button"
+                className="tm-chat-send-btn"
+                disabled={(!commentDraft.trim() && pendingFiles.length === 0) || isSubmitting || uploading}
+                onClick={handleSend}
+                title="Send message (Enter)"
+                aria-label="Send message"
+              >
+                <SendIcon size={14} />
+              </button>
+            </div>
           </div>
         </div>
       </div>

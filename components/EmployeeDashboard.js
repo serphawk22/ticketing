@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import AppShell from './AppShell';
+import DailyNotesCard from './DailyNotesCard';
 import KpiCard from './reports/KpiCard';
 import ReportFilterBar from './reports/ReportFilterBar';
 import { ticketKey } from '@/lib/ticketMeta';
@@ -81,6 +82,8 @@ export default function EmployeeDashboard({
 
         {error && <div className="rpt-alert rpt-alert-error">{error}</div>}
         {loading && <div className="rpt-loading-indicator">Updating your work data...</div>}
+
+        <DailyNotesCard projects={projects} />
 
         {/* Personal KPIs */}
         <div className="rpt-kpi-grid">

@@ -39,6 +39,12 @@ export async function PATCH(request, { params }) {
   if (!text) {
     return NextResponse.json({ error: 'Comment cannot be empty.' }, { status: 400 });
   }
+  if (text.length > 50000) {
+    return NextResponse.json(
+      { error: 'Comment is too long (maximum 50,000 characters).' },
+      { status: 400 }
+    );
+  }
 
   await db
     .prepare("UPDATE ticket_comments SET body = ?, updated_at = datetime('now') WHERE id = ?")
