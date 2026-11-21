@@ -13,6 +13,12 @@ import { validateTicketRepository, createProjectRepository, findProjectRepositor
 import { parseOwnerRepo } from '@/lib/github';
 import { TASK_SHEET_SESSION_COOKIE, validateTaskSheetCookieSession } from '@/lib/taskSheetTokens';
 import { calculateAutomaticDueDate, isValidClientCategory } from '@/lib/dueDateCalculator';
+import { resolveCreationDueDate } from '@/lib/ticketDates';
+import {
+  normalizeImportanceLevel,
+  logHumanImportanceChange,
+  analyzeTicketAiImportance,
+} from '@/lib/ticketAiImportance';
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const VALID_TYPES = ['task', 'bug', 'story', 'epic'];
@@ -158,6 +164,7 @@ export async function POST(request) {
     title,
     description,
     priority = 'medium',
+    human_importance,
     type = 'task',
     project_id = null,
     employee_id = null,
@@ -186,6 +193,14 @@ export async function POST(request) {
   const userRole = normalizeRole(session.user.role);
   const isClient = userRole === 'client';
   const isAdmin = isAdminOrOwner(session.user);
+
+  const cleanHumanImportance = normalizeImportanceLevel(human_importance) || (isClient ? 'Medium' : null);
+  if (!cleanHumanImportance && !isClient) {
+    return NextResponse.json(
+      { error: 'Human importance is required. Please select Critical, High, Medium, or Low.' },
+      { status: 400 }
+    );
+  }
 
   let resolvedCategory = String(category || '').trim();
   let resolvedType = String(type || 'task').toLowerCase().trim();
@@ -232,7 +247,6 @@ export async function POST(request) {
     due = calc.dueDate;
     initialDue = calc.initialDueDate;
   }
-
   if (start_date != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(start_date).trim())) {
     return NextResponse.json({ error: 'Invalid start date.' }, { status: 400 });
   }
@@ -319,24 +333,51 @@ export async function POST(request) {
     repositoryId: resolvedRepoId || null,
   });
 
+  if (cleanHumanImportance) {
+    await db
+      .prepare(
+        `UPDATE tickets
+         SET human_importance = ?, ai_importance_status = ?
+         WHERE id = ?`
+      )
+      .run(cleanHumanImportance, 'pending', created.id);
+  }
   const ticket = await getTicket(created.id);
 
   // The history opens with the creation itself, so the timeline has a start
   // even before anything is edited.
   await logCreated(ticket.id, session.user.id);
 
-  // Notifications and email fan out per recipient, and SMTP delivery can take
-  // several seconds. The ticket row and its creation activity are already
-  // committed, so run that best-effort work after the response so the creator
-  // gets the new ticket immediately.
-  after(() =>
-    sendCreationNotifications({
-      ticket,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      assignee,
-    })
-  );
+  // Record initial human importance selection in history
+  await logHumanImportanceChange({
+    ticketId: ticket.id,
+    oldValue: null,
+    newValue: cleanHumanImportance,
+    reason: 'Initial importance set during ticket creation',
+    userId: session.user.id,
+    userName: session.user.name || 'User',
+  });
+
+  // Notifications and AI analysis run after the response so the creator gets
+  // the ticket response immediately without waiting for SMTP or AI latency.
+  after(async () => {
+    try {
+      await sendCreationNotifications({
+        ticket,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        assignee,
+      });
+    } catch (notifErr) {
+      console.error('sendCreationNotifications failed:', notifErr);
+    }
+
+    try {
+      await analyzeTicketAiImportance({ ticketId: ticket.id });
+    } catch (aiErr) {
+      console.error('Background analyzeTicketAiImportance failed:', aiErr);
+    }
+  });
 
   return NextResponse.json({ ticket }, { status: 201 });
 }

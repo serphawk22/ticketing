@@ -230,23 +230,44 @@ function projectsLabel(row) {
       const res = await fetch('/api/reports/daily-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportDate }),
+        body: JSON.stringify({ reportDate, force: true }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok && data.status !== 'partial_failure' && data.status !== 'no_responses') {
+      if (!res.ok && !data.status) {
         throw new Error(data.error || 'Failed to send reports.');
       }
       if (data.status === 'no_responses') {
-        push({ message: 'No responses available for today.', tone: 'error' });
+        push({
+          message: `No Task Sheet or Happy Sheet responses were submitted for ${reportDate}.`,
+          tone: 'error',
+        });
       } else if (data.status === 'partial_failure') {
         push({
-          message: 'Failed to send reports.',
+          message: `Some report emails could not be sent (${data.sent || 0} sent, ${data.failed || 0} failed).`,
           tone: 'error',
         });
       } else if (data.status === 'no_admins') {
-        push({ message: 'No admin email addresses available.', tone: 'error' });
+        push({ message: 'No recipient email addresses available.', tone: 'error' });
+      } else if (data.status === 'failed' || (data.sent === 0 && data.failed > 0)) {
+        push({
+          message: `Delivery failed: ${data.failed} email(s) could not be accepted by the mail server.`,
+          tone: 'error',
+        });
+      } else if (data.status === 'already_processed') {
+        push({
+          message: `The report for ${reportDate} was already sent.`,
+          tone: 'neutral',
+        });
+      } else if (data.sent > 0 && !data.failed) {
+        push({
+          message: `Daily report sent successfully to ${data.sent} recipient(s).`,
+          tone: 'success',
+        });
       } else {
-        push({ message: 'Responses sent to admin emails successfully.', tone: 'success' });
+        push({
+          message: data.error || 'The daily report could not be sent.',
+          tone: 'error',
+        });
       }
     } catch (error) {
       push({ message: error.message || 'The daily report could not be sent.', tone: 'error' });

@@ -26,12 +26,24 @@ export async function POST(request) {
   }
 
   try {
-    const result = await sendDailySheetReport({ reportDate, force: true });
-    return NextResponse.json(result, {
-      status: result.status === 'partial_failure' ? 502 : 200,
-    });
+    const force = body.force !== false;
+    const result = await sendDailySheetReport({ reportDate, force });
+    const statusCode =
+      result.status === 'failed'
+        ? 502
+        : result.status === 'partial_failure'
+        ? 207
+        : result.status === 'no_responses'
+        ? 404
+        : result.status === 'no_admins'
+        ? 422
+        : 200;
+    return NextResponse.json(result, { status: statusCode });
   } catch (error) {
     console.error('[daily-sheet-report:manual] failed:', error);
-    return NextResponse.json({ error: 'The daily report could not be sent.' }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || 'The daily report could not be sent.', status: 'failed' },
+      { status: 500 }
+    );
   }
 }

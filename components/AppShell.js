@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChartIcon, ClipboardIcon, SparklesIcon } from './AppShellIcons';
+import { BarChartIcon, ClipboardIcon, SparklesIcon, CalendarReportIcon } from './AppShellIcons';
 import Avatar from './Avatar';
 import WorkspaceModal from './WorkspaceModal';
 import ProjectModal from './ProjectModal';
@@ -285,7 +285,7 @@ export default function AppShell({
   const canReadSheets = isAdmin || isManager || normalizedRole === 'employee';
   const canAccessAdminDashboard = isAdmin || isManager || Boolean(currentUser?.can_access_admin_dashboard);
   const canAccessReports = isAdmin || isManager || normalizedRole === 'employee' || Boolean(currentUser?.can_access_reports);
-  const canAccessWeeklyAiReports = isAdmin || isManager;
+const canAccessWeeklyAiReports = isAdmin || isManager;
 
   // The sidebar is the one place that groups projects by work space, and it
   // renders on every view, so it loads the list itself rather than adding a
@@ -461,7 +461,7 @@ export default function AppShell({
     if (item.id === 'admin-dashboard') return view === 'admin-dashboard';
     if (item.id === 'employee-dashboard') return view === 'employee-dashboard';
     if (item.id === 'workspaces') return view === 'projects';
-    if (item.id === 'reports') return view === 'reports-hub' || view === 'section-reports' || view === 'report-detail';
+    if (item.id === 'reports') return view === 'reports-hub' || view === 'section-reports' || view === 'report-detail' || view === 'end-of-day-report';
     if (item.id === 'work') return view === 'dashboard' || (view === 'board' && filter === 'mine');
     return false;
   }
@@ -790,6 +790,16 @@ export default function AppShell({
               <span className="nav-text">Weekly AI Reports</span>
             </Link>
           )}
+          {currentUser && (
+            <Link
+              href="/reports/end-of-day"
+              className={`nav-item${view === 'end-of-day-report' ? ' active' : ''}`}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <CalendarReportIcon />
+              <span className="nav-text">End of Day Report</span>
+            </Link>
+          )}
         </>
       );
     }
@@ -1077,12 +1087,7 @@ export default function AppShell({
             onClick={() => toggleSectionCollapsed(id)}
             aria-expanded={!collapsed}
           >
-            <span
-              className={`nav-section-chevron${collapsed ? ' is-collapsed' : ''}`}
-            >
-              <ChevronDown />
-            </span>
-            <span>{SECTION_LABELS[id]}</span>
+            <span className="nav-text">{SECTION_LABELS[id]}</span>
           </button>
           <span className="nav-label-actions">
             <button
@@ -1106,6 +1111,20 @@ export default function AppShell({
               </button>
             )}
           </span>
+          <button
+            type="button"
+            className="nav-section-caret"
+            onClick={() => toggleSectionCollapsed(id)}
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${SECTION_LABELS[id]}`}
+            title={`${collapsed ? 'Expand' : 'Collapse'} ${SECTION_LABELS[id]}`}
+          >
+            <span
+              className={`nav-section-chevron${collapsed ? ' is-collapsed' : ''}`}
+            >
+              <ChevronDown />
+            </span>
+          </button>
         </div>
         {!collapsed && <nav className="nav">{renderSectionBody(id)}</nav>}
       </section>

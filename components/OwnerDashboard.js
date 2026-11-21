@@ -214,7 +214,7 @@ export default function OwnerDashboard({
         {/* Active Tab Content */}
         <div key={activeTab}>
           {activeTab === 'overview' && (
-            <>
+<>
               <DashboardHomeSummary projects={projects} currentUser={currentUser} />
               <MonitoringOverviewSpotlight
                 totals={overview?.companyTotals}

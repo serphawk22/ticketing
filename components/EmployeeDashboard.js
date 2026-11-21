@@ -6,6 +6,7 @@ import AppShell from './AppShell';
 import DailyNotesCard from './DailyNotesCard';
 import KpiCard from './reports/KpiCard';
 import ReportFilterBar from './reports/ReportFilterBar';
+import PriorityTicketsCard from './PriorityTicketsCard';
 import { ticketKey } from '@/lib/ticketMeta';
 
 export default function EmployeeDashboard({
@@ -23,9 +24,11 @@ export default function EmployeeDashboard({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showAllPriority, setShowAllPriority] = useState(false);
 
   async function handleFilterChange(nextFilters) {
     setFilters(nextFilters);
+    setShowAllPriority(false);
     setLoading(true);
     setError('');
 
@@ -58,7 +61,7 @@ export default function EmployeeDashboard({
       projectCounts={{}}
       view="employee-dashboard"
     >
-      <div className="rpt-dashboard-page">
+      <div className="rpt-dashboard-page rpt-employee-dashboard">
         {/* Welcome Header */}
         <div className="rpt-page-header">
           <div>
@@ -114,12 +117,22 @@ export default function EmployeeDashboard({
             value={`${kpis.taskSheetHours ?? 0}h`}
             subtitle="Daily submissions"
           />
-          <KpiCard
-            title="Completion Rate"
-            value={`${kpis.completionRate ?? 0}%`}
-            subtitle={`${kpis.completedCount ?? 0} of ${kpis.assignedTotal ?? 0} tickets`}
-            tone={kpis.completionRate >= 80 ? 'pos' : 'warn'}
-          />
+          <div className="rpt-kpi-pair">
+            <KpiCard
+              title="Completion Rate"
+              value={`${kpis.completionRate ?? 0}%`}
+              subtitle={`${kpis.completedCount ?? 0} of ${kpis.assignedTotal ?? 0} tickets`}
+              tone={kpis.completionRate >= 80 ? 'pos' : 'warn'}
+            />
+            <PriorityTicketsCard
+              total={kpis.priorityTotal ?? 0}
+              urgentCount={kpis.priorityUrgentCount ?? 0}
+              highCount={kpis.priorityHighCount ?? 0}
+              tickets={sections.priorityTickets || []}
+              showAll={showAllPriority}
+              onToggleShowAll={() => setShowAllPriority((value) => !value)}
+            />
+          </div>
         </div>
 
         {/* Dashboard Navigation Tabs */}

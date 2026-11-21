@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AssigneeField,
   CategoryField,
+  HumanImportanceField,
   IssueTypeField,
   PriorityField,
   ProjectField,
@@ -45,6 +46,7 @@ export default function CreateTicketModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
+  const [humanImportance, setHumanImportance] = useState('medium');
   const [type, setType] = useState('task');
   const [category, setCategory] = useState('');
   const [employeeId, setEmployeeId] = useState(
@@ -160,6 +162,9 @@ export default function CreateTicketModal({
     const errs = {};
     if (!title.trim()) errs.summary = 'Summary is required.';
     if (!description.trim()) errs.description = 'Description is required.';
+    if (!humanImportance || !['critical', 'high', 'medium', 'low'].includes(String(humanImportance).toLowerCase())) {
+      errs.humanImportance = 'Human Importance is required.';
+    }
     setFieldErrors(errs);
     return errs;
   }
@@ -186,6 +191,7 @@ export default function CreateTicketModal({
           title,
           description,
           priority,
+          human_importance: humanImportance,
           type,
           category,
           employee_id: employeeId ? Number(employeeId) : null,
@@ -209,15 +215,32 @@ export default function CreateTicketModal({
     }
   }
 
-  // The grid reads as three rows of two: priority and issue type, category
-  // and assignee, project and due date. Keeping it as one list means a new
-  // field is one entry here instead of another block of markup to copy.
+  // The grid pairs fields: priority and human importance, type and category,
+  // assignee and project, then due date.
   const gridFields = [
     {
       key: 'priority',
       label: 'Priority',
       control: (
         <PriorityField value={priority} onSelect={pick(setPriority)} variant="form" searchable />
+      ),
+    },
+    {
+      key: 'human_importance',
+      label: 'Human Importance',
+      error: fieldErrors.humanImportance,
+      control: (
+        <HumanImportanceField
+          value={humanImportance}
+          onSelect={pick((v) => {
+            setHumanImportance(v);
+            if (fieldErrors.humanImportance) {
+              setFieldErrors((prev) => ({ ...prev, humanImportance: '' }));
+            }
+          })}
+          variant="form"
+          searchable
+        />
       ),
     },
     {
@@ -455,6 +478,7 @@ export default function CreateTicketModal({
                   id={field.id}
                   label={field.label}
                   hint={field.hint}
+                  error={field.error}
                 >
                   {field.control}
                 </FormField>

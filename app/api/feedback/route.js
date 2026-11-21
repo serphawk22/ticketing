@@ -9,6 +9,7 @@ import { logCreated } from '@/lib/ticketActivity';
 import { notifyTicketCreated } from '@/lib/notifications';
 import { attachmentKey, putAttachment, storageAvailable } from '@/lib/storage';
 import { sanitizeAndReencodeImage } from '@/lib/fileSignature';
+import { calculateDefaultDueDate } from '@/lib/ticketDates';
 
 export const dynamic = 'force-dynamic';
 
@@ -189,11 +190,12 @@ ${description}
 
   const ticketType = reportType === 'feedback' ? 'story' : 'bug';
 
+  const defaultDueDate = calculateDefaultDueDate();
   const insertStmt = db.prepare(`
     INSERT INTO tickets (
       title, description, status, priority, type,
-      created_by, project_id, labels, category
-    ) VALUES (?, ?, 'open', ?, ?, ?, ?, 'bug-report', 'Bug Report')
+      created_by, project_id, labels, category, due_date
+    ) VALUES (?, ?, 'open', ?, ?, ?, ?, 'bug-report', 'Bug Report', ?)
   `);
 
   const info = await insertStmt.run(
@@ -202,7 +204,8 @@ ${description}
     priority,
     ticketType,
     session.user.id,
-    bugProject.id
+    bugProject.id,
+    defaultDueDate
   );
 
   const ticket = await getTicket(info.lastInsertRowid);

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 
 const projectDir = __dirname;
 
@@ -28,7 +29,20 @@ const isInsideOneDrive =
 
 let distDir;
 if (isInsideOneDrive) {
-  const buildRoot = path.join(os.homedir(), '.next-ticketing');
+  // Several local clones may live in OneDrive at once. Give each clone its
+  // own output and dependency junction so one app cannot overwrite another
+  // app's manifests or resolve its generated bundles against the wrong
+  // node_modules tree.
+  const projectKey = crypto
+    .createHash('sha256')
+    .update(normalizedProject)
+    .digest('hex')
+    .slice(0, 12);
+  const buildRoot = path.join(
+    os.homedir(),
+    '.next-ticketing',
+    `${path.basename(projectDir)}-${projectKey}`
+  );
   const modulesLink = path.join(buildRoot, 'node_modules');
   try {
     fs.mkdirSync(buildRoot, { recursive: true });

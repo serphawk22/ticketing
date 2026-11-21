@@ -141,8 +141,11 @@ export default function TicketCard({
         )}
 
         <div className="card-meta">
-          <span className="card-date">
-            {formatShortDate(ticket.created_at)}
+          <span
+            className="card-date"
+            title={ticket.due_date ? `Due: ${ticket.due_date}` : `Created: ${ticket.created_at}`}
+          >
+            {ticket.due_date ? `Due ${formatShortDate(ticket.due_date)}` : formatShortDate(ticket.created_at)}
           </span>
           <Avatar
             name={ticket.employee_name}

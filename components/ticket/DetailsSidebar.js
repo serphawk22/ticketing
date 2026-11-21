@@ -17,6 +17,7 @@ import { ChipInput, FieldRow, InlineText, Menu } from './parts';
 import { ActivityHistorySection } from './sections';
 import InlineDateField from '../InlineDateField';
 import { CategoryField, PriorityField, ReporterField, StatusField, ProductInclusionField, AssigneeField, IssueTypeField, TeamField } from '../TicketFields';
+import ImportancePanel from './ImportancePanel';
 
 function DateField({ label, value, onSave, canEdit, clickToEdit = false }) {
   // The due date opens on click: the value sits there until it is clicked, the
@@ -293,7 +294,8 @@ export default function DetailsSidebar({
   onOpenWatcherMenu,
   configureOpen,
   onToggleConfigure,
-  onRequestDueDateChange,
+onRequestDueDateChange,
+  onTicketUpdated,
 }) {
   // The people a ticket can be assigned to: active staff, never clients, the
   // same rule ticket creation and the list's inline picker apply. The email and
@@ -708,6 +710,12 @@ export default function DetailsSidebar({
                 <PriorityField value={ticket.priority} onSelect={(v) => onPatch({ priority: v })} variant="sidebar" searchable />
               </div>
             </FieldRow>
+            <ImportancePanel
+              ticket={ticket}
+              currentUser={currentUser}
+              detail={detail}
+              onTicketUpdated={onTicketUpdated}
+            />
             <FieldRow label="Issue type">
               <div className="tm-person">
                 <IssueTypeField

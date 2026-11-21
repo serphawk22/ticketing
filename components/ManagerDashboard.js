@@ -140,7 +140,7 @@ export default function ManagerDashboard({
 
         <div key={activeTab}>
           {activeTab === 'overview' && (
-            <>
+<>
               <DashboardHomeSummary projects={projects} currentUser={currentUser} />
               <MonitoringOverviewSpotlight
                 totals={overview?.teamTotals}

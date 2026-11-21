@@ -28,6 +28,8 @@ import {
   relationLabelFor,
   INCLUSION_META,
   INCLUSION_ORDER,
+  IMPORTANCE_META,
+  IMPORTANCE_ORDER,
 } from '../lib/ticketMeta';
 
 export {
@@ -60,6 +62,8 @@ export {
   ticketKey,
   INCLUSION_META,
   INCLUSION_ORDER,
+  IMPORTANCE_META,
+  IMPORTANCE_ORDER,
 };
 
 export function TypeIcon({ type, size = 14 }) {
@@ -116,6 +120,42 @@ export function PriorityIcon({ color, arrow }) {
     <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
       <path d="M8 1.5 15 14H1L8 1.5Z" {...common} />
       <rect x="5.5" y="7" width="5" height="2" fill="#fff" />
+    </svg>
+  );
+}
+
+export function ImportanceIcon({ color, level = 'medium', size = 14 }) {
+  const norm = String(level || 'medium').toLowerCase();
+  const c = color || IMPORTANCE_META[norm]?.color || '#d97706';
+
+  if (norm === 'critical') {
+    return (
+      <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+        <path d="M8 1.5 14.5 8 8 14.5 1.5 8Z" fill={c} stroke={c} strokeWidth="1" strokeLinejoin="round" />
+        <circle cx="8" cy="8" r="2.2" fill="#fff" />
+      </svg>
+    );
+  }
+  if (norm === 'high') {
+    return (
+      <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+        <path d="M8 1.5 14.5 8 8 14.5 1.5 8Z" fill={c} stroke={c} strokeWidth="1" strokeLinejoin="round" />
+        <path d="M8 4.5v5M8 11.5v.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (norm === 'low') {
+    return (
+      <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+        <path d="M8 2.5 13.5 8 8 13.5 2.5 8Z" fill="none" stroke={c} strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  // Medium
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
+      <path d="M8 2 14 8 8 14 2 8Z" fill={c} fillOpacity="0.4" stroke={c} strokeWidth="1.5" strokeLinejoin="round" />
+      <rect x="5.5" y="7.2" width="5" height="1.6" rx="0.8" fill={c} />
     </svg>
   );
 }
